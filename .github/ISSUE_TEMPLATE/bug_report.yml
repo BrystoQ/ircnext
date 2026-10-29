@@ -1,45 +1,45 @@
-name: Signaler un bug
-description: Quelque chose ne fonctionne pas comme prévu.
+name: Bug report
+description: Something does not work as expected.
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Merci de prendre le temps de signaler ce problème ! Pour une faille de sécurité, suivez plutôt SECURITY.md.
+      value: Thanks for taking the time to report this! For a security vulnerability, follow SECURITY.md instead. English or French are both fine.
   - type: textarea
     id: description
     attributes:
       label: Description
-      description: Que s'est-il passé ? Qu'attendiez-vous ?
+      description: What happened? What did you expect?
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Étapes pour reproduire
+      label: Steps to reproduce
       placeholder: |
-        1. Se connecter à …
-        2. Rejoindre …
+        1. Connect to …
+        2. Join …
         3. …
     validations:
       required: true
   - type: dropdown
     id: os
     attributes:
-      label: Système
+      label: System
       options: [macOS, Windows, Linux]
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: Version d'ircnext
-      placeholder: "0.1.0, ou l'empreinte du commit"
+      label: ircnext version
+      placeholder: "0.1.0, or the commit hash"
   - type: input
     id: network
     attributes:
-      label: Réseau IRC concerné
+      label: IRC network involved
       placeholder: Libera.Chat, OFTC…
   - type: textarea
     id: extra
     attributes:
-      label: Captures ou informations supplémentaires
+      label: Screenshots or additional information

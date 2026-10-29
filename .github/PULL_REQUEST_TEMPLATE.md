@@ -1,13 +1,14 @@
-## Pourquoi
+## Why
 
-<!-- Le problème résolu ou le besoin couvert. -->
+<!-- The problem solved or the need covered. -->
 
-## Quoi
+## What
 
-<!-- Les changements principaux. -->
+<!-- The main changes. -->
 
-## Vérifications
+## Checks
 
-- [ ] `cargo test --workspace` passe
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` passe
-- [ ] Capture jointe si l'interface change
+- [ ] `cargo test --workspace` passes
+- [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes
+- [ ] New interface texts have a French entry in `crates/app/locales/fr.toml`
+- [ ] Screenshot attached if the interface changes
