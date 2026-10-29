@@ -5,6 +5,7 @@
 
 mod app;
 mod buffer;
+mod certificate;
 mod completion;
 mod config;
 mod ignore;

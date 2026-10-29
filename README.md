@@ -50,7 +50,7 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 
 **Discussion**
 - Plusieurs réseaux en parallèle, reconnexion automatique
-- TLS par défaut, SASL PLAIN, STS
+- TLS par défaut, SASL PLAIN et EXTERNAL (certificat client, CertFP), STS
 - Codes de mise en forme mIRC (gras, couleurs…)
 - Liens cliquables, mentions mises en évidence
 - Messages privés, notices, actions `/me`, CTCP
@@ -157,7 +157,7 @@ sudo apt install build-essential pkg-config libxkbcommon-dev libwayland-dev
 ## Prise en main
 
 1. Au premier lancement, choisissez un réseau dans la liste (Libera.Chat, OFTC, Rizon, EFnet, hackint, IRCnet, QuakeNet, Undernet, Ergo) ou saisissez-en un.
-2. Indiquez votre pseudonyme et, si vous avez un compte, activez **SASL**.
+2. Indiquez votre pseudonyme et, si vous avez un compte, choisissez une **identification** (mot de passe ou certificat).
 3. Rejoignez un salon avec `/join #salon`, ou listez-le dans **Salons à rejoindre** pour le retrouver à chaque connexion.
 
 Tapez `/` pour découvrir les commandes, `@` pour mentionner quelqu'un, `#` pour un salon. `⌘,` (`Ctrl+,` sous Windows et Linux) ouvre les paramètres.
@@ -273,7 +273,7 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 
 - [x] Binaires prêts à l'emploi (macOS, Windows, Linux)
 - [x] Mots de passe dans le trousseau du système
-- [ ] Authentification par certificat (SASL EXTERNAL)
+- [x] Authentification par certificat (SASL EXTERNAL)
 - [ ] Proxy SOCKS5
 - [ ] Transferts DCC
 - [ ] `draft/multiline`

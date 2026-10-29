@@ -1,12 +1,14 @@
 //! Paramètres d'une connexion à un serveur IRC.
 
 use std::fmt;
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
 /// Tout ce qui est nécessaire pour se connecter et s'enregistrer sur un serveur.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default)]
+#[allow(clippy::struct_excessive_bools)] // options indépendantes de la connexion
 pub struct Config {
     pub host: String,
     pub port: u16,
@@ -21,6 +23,12 @@ pub struct Config {
     /// Mot de passe serveur (`PASS`).
     pub password: Option<Secret>,
     pub sasl: Option<Sasl>,
+    /// Certificat client présenté pendant la négociation TLS (`CertFP`) :
+    /// fichier PEM contenant le certificat puis sa clé privée.
+    pub client_cert: Option<PathBuf>,
+    /// Identification SASL `EXTERNAL` par le certificat client, à la place
+    /// du mot de passe.
+    pub sasl_external: bool,
     /// Salons rejoints automatiquement après l'enregistrement.
     pub autojoin: Vec<String>,
     /// Reconnexion automatique après une coupure.
@@ -32,6 +40,12 @@ impl Config {
     /// serveur local (bouncer sur la même machine).
     pub fn can_send_credentials(&self) -> bool {
         self.tls || is_loopback(&self.host)
+    }
+
+    /// Identification SASL `EXTERNAL` possible : demandée, avec un certificat
+    /// client présenté sur une connexion TLS.
+    pub fn uses_external(&self) -> bool {
+        self.sasl_external && self.tls && self.client_cert.is_some()
     }
 
     /// Connexion TLS dont le certificat est vérifié.
@@ -60,6 +74,8 @@ impl Default for Config {
             realname: "ircnext".to_owned(),
             password: None,
             sasl: None,
+            client_cert: None,
+            sasl_external: false,
             autojoin: Vec::new(),
             auto_reconnect: true,
         }

@@ -1,6 +1,7 @@
 //! Transport : établissement de la connexion TCP/TLS et découpage en lignes.
 
 use std::io;
+use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -11,8 +12,12 @@ use tokio_rustls::rustls::client::danger::{
     HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
 };
 use tokio_rustls::rustls::crypto::{self, CryptoProvider};
-use tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use tokio_rustls::rustls::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme};
+use tokio_rustls::rustls::client::WantsClientCert;
+use tokio_rustls::rustls::pki_types::pem::PemObject;
+use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
+use tokio_rustls::rustls::{
+    ClientConfig, ConfigBuilder, DigitallySignedStruct, RootCertStore, SignatureScheme,
+};
 
 use ircnext_proto::Message;
 
@@ -25,12 +30,14 @@ const MAX_LINE_BYTES: usize = 8191 + 512;
 pub trait Stream: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Stream for T {}
 
-/// Ouvre une connexion vers `host:port`, chiffrée si `tls` est vrai.
+/// Ouvre une connexion vers `host:port`, chiffrée si `tls` est vrai, en
+/// présentant le certificat client `client_cert` s'il est fourni.
 pub async fn open(
     host: &str,
     port: u16,
     tls: bool,
     accept_invalid_certs: bool,
+    client_cert: Option<&Path>,
 ) -> io::Result<Box<dyn Stream>> {
     let tcp = tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect((host, port)))
         .await
@@ -43,7 +50,17 @@ pub async fn open(
 
     let server_name = ServerName::try_from(host.to_owned())
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    let connector = TlsConnector::from(tls_config(accept_invalid_certs));
+    let config = match client_cert {
+        Some(path) => {
+            let (chain, key) = load_identity(path)?;
+            let config = builder(accept_invalid_certs)
+                .with_client_auth_cert(chain, key)
+                .map_err(|error| invalid_certificate(path, error))?;
+            Arc::new(config)
+        }
+        None => tls_config(accept_invalid_certs),
+    };
+    let connector = TlsConnector::from(config);
     let stream = tokio::time::timeout(CONNECT_TIMEOUT, connector.connect(server_name, tcp))
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "délai de négociation TLS dépassé"))??;
@@ -54,36 +71,58 @@ fn provider() -> Arc<CryptoProvider> {
     Arc::new(crypto::ring::default_provider())
 }
 
+/// Configuration TLS sans certificat client, partagée entre les connexions.
 fn tls_config(accept_invalid_certs: bool) -> Arc<ClientConfig> {
     static VERIFIED: OnceLock<Arc<ClientConfig>> = OnceLock::new();
     static UNVERIFIED: OnceLock<Arc<ClientConfig>> = OnceLock::new();
 
-    let builder = || {
-        ClientConfig::builder_with_provider(provider())
-            .with_safe_default_protocol_versions()
-            .expect("le fournisseur ring prend en charge les versions par défaut")
-    };
+    let cell = if accept_invalid_certs { &UNVERIFIED } else { &VERIFIED };
+    cell.get_or_init(|| Arc::new(builder(accept_invalid_certs).with_no_client_auth()))
+        .clone()
+}
 
+/// Configuration TLS jusqu'au choix du certificat client.
+fn builder(accept_invalid_certs: bool) -> ConfigBuilder<ClientConfig, WantsClientCert> {
+    let builder = ClientConfig::builder_with_provider(provider())
+        .with_safe_default_protocol_versions()
+        .expect("le fournisseur ring prend en charge les versions par défaut");
     if accept_invalid_certs {
-        UNVERIFIED
-            .get_or_init(|| {
-                let config = builder()
-                    .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(AcceptAnyCertificate(provider())))
-                    .with_no_client_auth();
-                Arc::new(config)
-            })
-            .clone()
+        builder
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(AcceptAnyCertificate(provider())))
     } else {
-        VERIFIED
-            .get_or_init(|| {
-                let roots = RootCertStore {
-                    roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-                };
-                Arc::new(builder().with_root_certificates(roots).with_no_client_auth())
-            })
-            .clone()
+        builder.with_root_certificates(RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        })
     }
+}
+
+/// Lit un fichier PEM contenant la chaîne de certificats et la clé privée.
+pub fn load_identity(
+    path: &Path,
+) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    let pem = std::fs::read(path).map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!("certificat client {} illisible : {error}", path.display()),
+        )
+    })?;
+    let chain = CertificateDer::pem_slice_iter(&pem)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| invalid_certificate(path, error))?;
+    if chain.is_empty() {
+        return Err(invalid_certificate(path, "aucun certificat"));
+    }
+    let key = PrivateKeyDer::from_pem_slice(&pem)
+        .map_err(|_| invalid_certificate(path, "aucune clé privée"))?;
+    Ok((chain, key))
+}
+
+fn invalid_certificate(path: &Path, error: impl std::fmt::Display) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("certificat client {} invalide : {error}", path.display()),
+    )
 }
 
 /// Vérificateur qui accepte n'importe quel certificat tout en contrôlant les
@@ -194,6 +233,84 @@ pub async fn write_message<W: AsyncWrite + Unpin>(writer: &mut W, message: &Mess
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn identity_file(name: &str, content: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("ircnext-{}-{name}.pem", std::process::id()));
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    /// Négociation réelle avec un serveur Ergo ; à lancer à la main avec
+    /// `cargo test -p ircnext-client -- --ignored external_on_ergo`.
+    #[tokio::test]
+    #[ignore = "se connecte à testnet.ergo.chat"]
+    async fn external_on_ergo() {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        let key = rcgen::KeyPair::generate().unwrap();
+        let cert = rcgen::CertificateParams::new(["essai".to_owned()])
+            .unwrap()
+            .self_signed(&key)
+            .unwrap();
+        let path = identity_file("ergo", &format!("{}{}", cert.pem(), key.serialize_pem()));
+        let stream = open("testnet.ergo.chat", 6697, true, false, Some(&path)).await.unwrap();
+        let (reader, mut writer) = tokio::io::split(stream);
+        let mut lines = BufReader::new(reader).lines();
+        let nick = format!("essai{}", std::process::id() % 100_000);
+        writer
+            .write_all(format!("CAP LS 302\r\nNICK {nick}\r\nUSER essai 0 * :essai\r\n").as_bytes())
+            .await
+            .unwrap();
+        let mut outcome = None;
+        let mut caps = String::new();
+        while let Ok(Ok(Some(line))) =
+            tokio::time::timeout(Duration::from_secs(20), lines.next_line()).await
+        {
+            let reply = if line.contains(" CAP ") && line.contains(" LS ") {
+                caps.push_str(&line);
+                // `CAP * LS * :...` : la liste continue sur la ligne suivante.
+                if line.contains(" LS * ") {
+                    continue;
+                }
+                assert!(caps.contains("EXTERNAL"), "EXTERNAL annoncé : {caps}");
+                "CAP REQ sasl"
+            } else if line.contains(" ACK ") {
+                "AUTHENTICATE EXTERNAL"
+            } else if line == "AUTHENTICATE +" {
+                "AUTHENTICATE +"
+            } else if [" 900 ", " 903 ", " 904 "].iter().any(|code| line.contains(code)) {
+                outcome = Some(line);
+                break;
+            } else {
+                continue;
+            };
+            writer.write_all(format!("{reply}\r\n").as_bytes()).await.unwrap();
+        }
+        writer.write_all(b"QUIT\r\n").await.unwrap();
+        // Certificat inconnu du serveur : 904 attendu, mais l'échange a eu lieu.
+        let outcome = outcome.expect("réponse SASL du serveur");
+        assert!(outcome.contains(" 904 ") || outcome.contains(" 903 "), "{outcome}");
+    }
+
+    #[test]
+    fn loads_certificate_and_key_from_one_pem_file() {
+        let key = rcgen::KeyPair::generate().unwrap();
+        let cert = rcgen::CertificateParams::new(["moi".to_owned()])
+            .unwrap()
+            .self_signed(&key)
+            .unwrap();
+        let path = identity_file("ok", &format!("{}{}", cert.pem(), key.serialize_pem()));
+        let (chain, _) = load_identity(&path).unwrap();
+        assert_eq!(chain.len(), 1);
+        builder(false)
+            .with_client_auth_cert(chain, load_identity(&path).unwrap().1)
+            .expect("rustls accepte la clé générée");
+
+        let without_key = identity_file("sans-cle", &cert.pem());
+        let error = load_identity(&without_key).unwrap_err();
+        assert!(error.to_string().contains("aucune clé privée"), "{error}");
+        assert!(load_identity(Path::new("/nulle/part.pem")).is_err());
+    }
 
     #[tokio::test]
     async fn splits_lines_across_chunks() {

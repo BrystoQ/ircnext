@@ -1,6 +1,8 @@
 //! Formulaire d'ajout ou de modification d'un réseau.
 
 use iced::widget::{button, column, container, row, scrollable, space, text};
+use std::path::PathBuf;
+
 use iced::{Alignment, Element, Length};
 use ircnext_client::{Config, Sasl, Secret};
 
@@ -9,6 +11,7 @@ use crate::config::{PRESETS, Preset, ServerEntry};
 use crate::server::ServerId;
 use crate::settings::Settings;
 use crate::theme::{self, Colors};
+use crate::certificate;
 use crate::ui::form;
 
 #[derive(Debug, Clone)]
@@ -26,15 +29,41 @@ pub struct ServerForm {
     username: String,
     realname: String,
     password: String,
-    sasl: bool,
+    auth: Auth,
     sasl_username: String,
     sasl_password: String,
+    /// Chemin du certificat client (fichier PEM).
+    client_cert: String,
     autojoin: String,
     auto_connect: bool,
     auto_reconnect: bool,
     alt_nicks: String,
     on_connect: Vec<String>,
     error: Option<String>,
+}
+
+/// Identification au compte du réseau.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Auth {
+    None,
+    /// SASL `PLAIN` : compte et mot de passe.
+    Password,
+    /// SASL `EXTERNAL` : certificat client.
+    Certificate,
+}
+
+impl Auth {
+    const ALL: [Self; 3] = [Self::None, Self::Password, Self::Certificate];
+}
+
+impl std::fmt::Display for Auth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::None => "Aucune",
+            Self::Password => "Compte et mot de passe",
+            Self::Certificate => "Certificat client",
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -49,9 +78,12 @@ pub enum Msg {
     Username(String),
     Realname(String),
     Password(String),
-    Sasl(bool),
+    Auth(Auth),
     SaslUsername(String),
     SaslPassword(String),
+    ClientCert(String),
+    /// Crée un certificat auto-signé et le sélectionne.
+    CreateCertificate,
     Autojoin(String),
     AutoConnect(bool),
     AutoReconnect(bool),
@@ -76,9 +108,10 @@ impl ServerForm {
             username: settings.nick.clone(),
             realname: settings.realname.clone(),
             password: String::new(),
-            sasl: false,
+            auth: Auth::None,
             sasl_username: String::new(),
             sasl_password: String::new(),
+            client_cert: String::new(),
             autojoin: String::new(),
             auto_connect: true,
             auto_reconnect: true,
@@ -108,7 +141,13 @@ impl ServerForm {
                 .as_ref()
                 .map(|p| p.expose().to_owned())
                 .unwrap_or_default(),
-            sasl: connection.sasl.is_some(),
+            auth: if connection.sasl_external {
+                Auth::Certificate
+            } else if connection.sasl.is_some() {
+                Auth::Password
+            } else {
+                Auth::None
+            },
             sasl_username: connection
                 .sasl
                 .as_ref()
@@ -118,6 +157,11 @@ impl ServerForm {
                 .sasl
                 .as_ref()
                 .map(|s| s.password.expose().to_owned())
+                .unwrap_or_default(),
+            client_cert: connection
+                .client_cert
+                .as_ref()
+                .map(|path| path.display().to_string())
                 .unwrap_or_default(),
             autojoin: connection.autojoin.join(", "),
             auto_connect: entry.auto_connect,
@@ -169,12 +213,20 @@ impl ServerForm {
             Msg::Username(value) => self.username = value,
             Msg::Realname(value) => self.realname = value,
             Msg::Password(value) => self.password = value,
-            Msg::Sasl(value) => {
-                if value && self.sasl_username.is_empty() {
+            Msg::Auth(value) => {
+                if value == Auth::Password && self.sasl_username.is_empty() {
                     self.sasl_username.clone_from(&self.nick);
                 }
-                self.sasl = value;
+                self.auth = value;
             }
+            Msg::ClientCert(value) => self.client_cert = value,
+            Msg::CreateCertificate => match certificate::create(&self.name, &self.nick) {
+                Ok(path) => {
+                    self.client_cert = path.display().to_string();
+                    self.error = None;
+                }
+                Err(error) => self.error = Some(format!("Impossible de créer le certificat : {error}")),
+            },
             Msg::SaslUsername(value) => self.sasl_username = value,
             Msg::SaslPassword(value) => self.sasl_password = value,
             Msg::Autojoin(value) => self.autojoin = value,
@@ -236,7 +288,19 @@ impl ServerForm {
             .filter(|command| !command.is_empty())
             .map(str::to_owned)
             .collect();
-        let sasl = if self.sasl {
+        let client_cert = Some(self.client_cert.trim()).filter(|path| !path.is_empty()).map(PathBuf::from);
+        if self.auth == Auth::Certificate {
+            if !self.tls {
+                return Err("L'identification par certificat exige TLS.".into());
+            }
+            if client_cert.is_none() {
+                return Err("Choisissez ou créez un certificat client.".into());
+            }
+        }
+        if let Some(path) = client_cert.as_deref().filter(|_| self.tls) {
+            ircnext_client::connection::load_identity(path).map_err(|error| format!("Certificat : {error}"))?;
+        }
+        let sasl = if self.auth == Auth::Password {
             if self.sasl_username.trim().is_empty() || self.sasl_password.is_empty() {
                 return Err("Le compte et le mot de passe SASL sont obligatoires.".into());
             }
@@ -279,6 +343,8 @@ impl ServerForm {
                 realname: non_empty(&self.realname, nick),
                 password: (!self.password.is_empty()).then(|| Secret::new(self.password.clone())),
                 sasl,
+                client_cert,
+                sasl_external: self.auth == Auth::Certificate,
                 autojoin,
                 auto_reconnect: self.auto_reconnect,
             },
@@ -330,16 +396,34 @@ impl ServerForm {
                 .view(c),
         ];
 
-        let mut authentication = vec![switch(
-            "Se connecter avec SASL",
-            Some("Identification au compte NickServ dès la connexion"),
-            self.sasl,
-            Msg::Sasl,
-        )];
-        if self.sasl {
+        let method = form::setting("Identification", form::select(Auth::ALL, Some(self.auth), |a| Message::Form(Msg::Auth(a)), c));
+        let method = match self.auth {
+            Auth::None => method.description("Aucune identification au compte du réseau"),
+            Auth::Password => method.description("SASL PLAIN, dès la connexion"),
+            Auth::Certificate => method.description("SASL EXTERNAL. Associez d'abord le certificat à votre compte : /msg NickServ CERT ADD"),
+        };
+        let mut authentication = vec![method.view(c)];
+        if self.auth == Auth::Password {
             authentication.push(form::setting("Compte", input("compte", &self.sasl_username, Msg::SaslUsername)).view(c));
             authentication.push(
                 form::setting("Mot de passe", input("", &self.sasl_password, Msg::SaslPassword).secure(true)).view(c),
+            );
+        }
+        if self.tls {
+            let control = row![
+                input("~/certificat.pem", &self.client_cert, Msg::ClientCert).width(Length::Fill),
+                button(text("Créer").size(13))
+                    .padding([7, 10])
+                    .style(theme::secondary(c))
+                    .on_press(Message::Form(Msg::CreateCertificate)),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center)
+            .width(form::CONTROL_WIDTH);
+            authentication.push(
+                form::setting("Certificat client", control)
+                    .description("Fichier PEM avec sa clé. Reconnu aussi par NickServ (CertFP)")
+                    .view(c),
             );
         }
 
@@ -466,7 +550,7 @@ mod tests {
     #[test]
     fn refuses_sasl_without_tls_except_locally() {
         let mut form = ServerForm::new(&Settings::default());
-        form.update(Msg::Sasl(true));
+        form.update(Msg::Auth(Auth::Password));
         form.update(Msg::SaslUsername("moi".into()));
         form.update(Msg::SaslPassword("secret".into()));
         form.update(Msg::Tls(false));
@@ -493,14 +577,36 @@ mod tests {
         assert!(form.validate().is_err());
 
         let mut form = ServerForm::new(&Settings::default());
-        form.update(Msg::Sasl(true));
+        form.update(Msg::Auth(Auth::Password));
         assert!(form.validate().is_err(), "mot de passe SASL manquant");
+    }
+
+    #[test]
+    fn certificate_authentication_needs_a_valid_file_and_tls() {
+        let mut form = ServerForm::new(&Settings::default());
+        form.update(Msg::Auth(Auth::Certificate));
+        assert!(form.validate().unwrap_err().contains("certificat"));
+        form.update(Msg::ClientCert("/nulle/part.pem".into()));
+        assert!(form.validate().unwrap_err().starts_with("Certificat :"));
+
+        let path = std::env::temp_dir().join(format!("ircnext-form-{}.pem", std::process::id()));
+        let key = rcgen::KeyPair::generate().unwrap();
+        let cert = rcgen::CertificateParams::new(["moi".to_owned()]).unwrap().self_signed(&key).unwrap();
+        std::fs::write(&path, format!("{}{}", cert.pem(), key.serialize_pem())).unwrap();
+        form.update(Msg::ClientCert(path.display().to_string()));
+        let entry = form.validate().unwrap();
+        assert!(entry.connection.uses_external());
+        assert_eq!(entry.connection.sasl, None);
+        assert_eq!(ServerForm::edit(ServerId(1), &entry).validate().unwrap(), entry);
+
+        form.update(Msg::Tls(false));
+        assert!(form.validate().unwrap_err().contains("TLS"));
     }
 
     #[test]
     fn edit_round_trips_entry() {
         let mut form = ServerForm::new(&Settings::default());
-        form.update(Msg::Sasl(true));
+        form.update(Msg::Auth(Auth::Password));
         form.update(Msg::SaslPassword("pw".into()));
         let entry = form.validate().unwrap();
         let edited = ServerForm::edit(ServerId(3), &entry);

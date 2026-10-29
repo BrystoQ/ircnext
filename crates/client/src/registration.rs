@@ -87,6 +87,24 @@ enum State {
     Waiting,
 }
 
+/// Mécanisme SASL utilisé.
+#[derive(Debug)]
+enum Mechanism {
+    /// Compte et mot de passe.
+    Plain(Sasl),
+    /// Certificat client présenté pendant la négociation TLS.
+    External,
+}
+
+impl Mechanism {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Plain(_) => "PLAIN",
+            Self::External => "EXTERNAL",
+        }
+    }
+}
+
 /// Machine à états de l'enregistrement.
 #[derive(Debug)]
 pub struct Registration {
@@ -100,7 +118,7 @@ pub struct Registration {
     alt_nicks: Vec<String>,
     nick: String,
     nick_attempts: usize,
-    sasl: Option<Sasl>,
+    sasl: Option<Mechanism>,
     available: Vec<(String, Option<String>)>,
     acked: Vec<String>,
 }
@@ -113,13 +131,19 @@ impl Registration {
             tls: config.tls,
             verified: config.is_verified_tls(),
             port: config.port,
-            sasl_refused: config.sasl.is_some() && !config.can_send_credentials(),
+            sasl_refused: !config.uses_external()
+                && config.sasl.is_some()
+                && !config.can_send_credentials(),
             base_nick: config.nick.clone(),
             alt_nicks: config.alt_nicks.clone(),
             nick: config.nick.clone(),
             nick_attempts: 0,
-            // Jamais de mot de passe en clair sur le réseau.
-            sasl: config.sasl.clone().filter(|_| config.can_send_credentials()),
+            sasl: if config.uses_external() {
+                Some(Mechanism::External)
+            } else {
+                // Jamais de mot de passe en clair sur le réseau.
+                config.sasl.clone().filter(|_| config.can_send_credentials()).map(Mechanism::Plain)
+            },
             available: Vec::new(),
             acked: Vec::new(),
         };
@@ -203,9 +227,12 @@ impl Registration {
                         .filter(|cap| !cap.starts_with('-'))
                         .map(str::to_owned),
                 );
-                if self.sasl.is_some() && self.acked.iter().any(|cap| cap == "sasl") {
+                if let Some(mechanism) = &self.sasl
+                    && self.acked.iter().any(|cap| cap == "sasl")
+                {
+                    let name = mechanism.name();
                     self.state = State::Authenticating;
-                    Progress::Continue(vec![Message::new(Command::Authenticate, ["PLAIN"])])
+                    Progress::Continue(vec![Message::new(Command::Authenticate, [name])])
                 } else {
                     Progress::Continue(self.end())
                 }
@@ -223,17 +250,16 @@ impl Registration {
     }
 
     fn request(&mut self) -> Vec<Message> {
-        let wants_sasl = self.sasl.is_some();
+        let mechanism = self.sasl.as_ref().map(Mechanism::name);
         let requested: Vec<&str> = self
             .available
             .iter()
             .filter(|(name, value)| match name.as_str() {
-                "sasl" => {
-                    wants_sasl
-                        && value
-                            .as_deref()
-                            .is_none_or(|mechs| mechs.split(',').any(|m| m == "PLAIN"))
-                }
+                "sasl" => mechanism.is_some_and(|mechanism| {
+                    value
+                        .as_deref()
+                        .is_none_or(|mechs| mechs.split(',').any(|m| m == mechanism))
+                }),
                 name => WANTED_CAPS.contains(&name),
             })
             .map(|(name, _)| name.as_str())
@@ -247,8 +273,13 @@ impl Registration {
     }
 
     fn sasl_payload(&self) -> Vec<Message> {
-        let Some(sasl) = self.sasl.as_ref().filter(|_| self.state == State::Authenticating) else {
-            return Vec::new();
+        let sasl = match self.sasl.as_ref().filter(|_| self.state == State::Authenticating) {
+            Some(Mechanism::Plain(sasl)) => sasl,
+            // L'identité vient du certificat : réponse vide.
+            Some(Mechanism::External) => {
+                return vec![Message::new(Command::Authenticate, ["+"])];
+            }
+            None => return Vec::new(),
         };
         let credentials = format!(
             "{user}\0{user}\0{password}",
@@ -350,6 +381,43 @@ mod tests {
     fn ends_negotiation_when_nothing_to_request() {
         let (mut reg, _) = Registration::start(&config(false));
         assert_eq!(lines(reg.handle(&msg(":s CAP * LS :foo bar"))), ["CAP END"]);
+    }
+
+    fn external(tls: bool) -> Config {
+        Config {
+            tls,
+            client_cert: Some("moi.pem".into()),
+            sasl_external: true,
+            ..config(true)
+        }
+    }
+
+    #[test]
+    fn authenticates_with_sasl_external() {
+        let (mut reg, _) = Registration::start(&external(true));
+        assert_eq!(
+            lines(reg.handle(&msg(":s CAP * LS :sasl=PLAIN,EXTERNAL"))),
+            ["CAP REQ sasl"]
+        );
+        assert_eq!(
+            lines(reg.handle(&msg(":s CAP * ACK sasl"))),
+            ["AUTHENTICATE EXTERNAL"]
+        );
+        assert_eq!(lines(reg.handle(&msg("AUTHENTICATE +"))), ["AUTHENTICATE +"]);
+        assert_eq!(
+            lines(reg.handle(&msg(":s 903 me :SASL authentication successful"))),
+            ["CAP END"]
+        );
+    }
+
+    #[test]
+    fn external_needs_a_matching_mechanism_and_tls() {
+        let (mut reg, _) = Registration::start(&external(true));
+        assert_eq!(lines(reg.handle(&msg(":s CAP * LS :sasl=PLAIN"))), ["CAP END"]);
+
+        // Sans TLS, pas de certificat : retour au mot de passe, refusé en clair.
+        let (mut reg, _) = Registration::start(&external(false));
+        assert_eq!(lines(reg.handle(&msg(":s CAP * LS :sasl=EXTERNAL,PLAIN"))), ["CAP END"]);
     }
 
     #[test]
@@ -466,10 +534,10 @@ mod tests {
     fn sasl_payload_of_exact_chunk_size_ends_with_plus() {
         let (mut reg, _) = Registration::start(&config(false));
         // 300 octets bruts → exactement 400 caractères base64, soit un fragment plein.
-        reg.sasl = Some(Sasl {
+        reg.sasl = Some(Mechanism::Plain(Sasl {
             username: "u".repeat(149),
             password: Secret::new(String::new()),
-        });
+        }));
         reg.state = State::Authenticating;
         let messages = reg.sasl_payload();
         let total: usize = messages.iter().map(|m| m.params[0].len()).sum();
