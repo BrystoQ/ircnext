@@ -2,135 +2,139 @@
 
 # ircnext
 
-**Un client IRC moderne, rapide et sûr, écrit en Rust.**<br>
-L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soignée.
+**A modern, fast and safe IRC client written in Rust.**<br>
+HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
+
+**English** · [Français](README.fr.md)
 
 [![CI](https://github.com/BrystoQ/ircnext/actions/workflows/ci.yml/badge.svg)](https://github.com/BrystoQ/ircnext/actions/workflows/ci.yml)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/BrystoQ/ircnext)](https://github.com/BrystoQ/ircnext/releases/latest)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust 1.90+](https://img.shields.io/badge/rust-1.90%2B-orange.svg)](https://www.rust-lang.org)
 [![IRCv3](https://img.shields.io/badge/IRCv3-25%2B%20extensions-6f42c1.svg)](#ircv3)
-![macOS · Windows · Linux](https://img.shields.io/badge/plateformes-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-lightgrey.svg)
+![macOS · Windows · Linux](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-lightgrey.svg)
 
-<img src="docs/screenshots/graphite.png" alt="ircnext, thème Graphite" width="900">
+<img src="docs/screenshots/en/dark.png" alt="ircnext with the Graphite theme" width="900">
 
 </div>
 
 ---
 
-## Sommaire
+## Contents
 
-- [Pourquoi ircnext](#pourquoi-ircnext)
-- [Fonctionnalités](#fonctionnalités)
-- [Captures d'écran](#captures-décran)
+- [Why ircnext](#why-ircnext)
+- [Features](#features)
+- [Screenshots](#screenshots)
 - [Installation](#installation)
-- [Prise en main](#prise-en-main)
-- [Raccourcis clavier](#raccourcis-clavier)
-- [Commandes](#commandes)
+- [Getting started](#getting-started)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+- [Commands](#commands)
 - [IRCv3](#ircv3)
 - [Configuration](#configuration)
-- [Sécurité](#sécurité)
+- [Security](#security)
 - [Architecture](#architecture)
-- [Développement](#développement)
-- [Feuille de route](#feuille-de-route)
-- [Contribuer](#contribuer)
-- [Licence](#licence)
+- [Development](#development)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Pourquoi ircnext
+## Why ircnext
 
-- **Natif et léger** : pas de navigateur embarqué. L'interface est dessinée par le GPU avec [iced](https://iced.rs), dans un seul exécutable d'environ 14 Mo.
-- **Familier** : arbre réseaux → salons, liste des membres, pseudos colorés alignés, complétion par Tab… tout ce qui fait l'efficacité de HexChat.
-- **Moderne** : historique côté serveur, indicateur de saisie, messages lus synchronisés, suppression de messages, recherche rapide d'onglet, suggestions pendant la frappe.
-- **Sûr par conception** : aucun `unsafe`, aucun mot de passe en clair sur le réseau, liens filtrés, protections anti-flood. Voir [Sécurité](#sécurité).
-- **Entièrement personnalisable** : 7 thèmes, raccourcis reconfigurables, notifications, confidentialité, journaux… tout se règle depuis l'interface.
+- **Native and light**: no embedded browser. The interface is drawn by the GPU with [iced](https://iced.rs), in a single executable of about 14 MB.
+- **Familiar**: network → channel tree, member list, aligned colored nicknames, Tab completion… everything that makes HexChat efficient.
+- **Modern**: server-side history, typing indicator, synced read markers, message deletion, quick tab switcher, suggestions as you type.
+- **Safe by design**: no `unsafe`, no password in clear text on the network, passwords in the system keychain, filtered links, flood protection. See [Security](#security).
+- **Fully customizable**: 7 themes, rebindable shortcuts, notifications, privacy, logs… everything is set from the interface, in English or French.
 
-## Fonctionnalités
+## Features
 
 <table>
 <tr><td width="50%" valign="top">
 
-**Discussion**
-- Plusieurs réseaux en parallèle, reconnexion automatique
-- TLS par défaut, SASL PLAIN et EXTERNAL (certificat client, CertFP), STS
-- Codes de mise en forme mIRC (gras, couleurs…)
-- Liens cliquables, mentions mises en évidence
-- Messages privés, notices, actions `/me`, CTCP
-- Historique chargé à l'arrivée (IRCv3 `chathistory`)
-- Recherche dans l'historique d'un onglet
-- Journaux sur disque, utilisateurs ignorés
+**Chat**
+- Several networks at once, automatic reconnection
+- TLS by default, SASL PLAIN and EXTERNAL (client certificate, CertFP), STS
+- mIRC formatting codes (bold, colors…)
+- Clickable links, highlighted mentions
+- Private messages, notices, `/me` actions, CTCP
+- History loaded when joining (IRCv3 `chathistory`)
+- Search in a tab's history
+- Logs on disk, ignored users
 
 </td><td width="50%" valign="top">
 
-**Confort**
-- Suggestions pendant la frappe : commandes, salons, pseudos, commandes NickServ/ChanServ et commandes de bots `!…`
-- Complétion par Tab façon HexChat (`pseudo: `)
-- Recherche rapide d'onglet (`⌘T` / `Ctrl+T`)
-- 37 raccourcis reconfigurables, adaptés à macOS et Windows
-- Notifications du système, rebond du Dock, compteur dans le titre
-- Commandes exécutées après la connexion, pseudos de secours
+**Comfort**
+- Suggestions as you type: commands, channels, nicknames, NickServ/ChanServ commands and `!…` bot commands
+- HexChat-style Tab completion (`nick: `)
+- Quick tab switcher (`⌘T` / `Ctrl+T`)
+- 37 rebindable shortcuts, adapted to macOS and Windows
+- System notifications, Dock bounce, counter in the title
+- Commands run after connecting, alternative nicknames
 
 </td></tr>
 <tr><td valign="top">
 
-**Apparence**
-- 7 thèmes : Graphite, Minuit, Noir absolu (OLED), Nordique, Moka, Clair, Sépia, ou automatique selon le système
-- Couleur d'accent libre
-- Taille du texte, police à chasse fixe, mode compact
-- Colonne des pseudos réglable
+**Appearance**
+- 7 themes: Graphite, Midnight, Pure black (OLED), Nordic, Mocha, Light, Sepia, or automatic following the system
+- Free accent color
+- Text size, monospace font, compact layout
+- Adjustable nickname column
+- Interface in English or French, following the system by default
 
 </td><td valign="top">
 
-**Confidentialité**
-- Indicateur de saisie et accusés de lecture désactivables
-- Réponses CTCP désactivables, VERSION personnalisable, TIME en UTC
-- Mots de passe NickServ masqués partout
-- Contenu des notifications masquable
+**Privacy**
+- Typing indicator and read markers can be turned off
+- CTCP replies can be turned off, custom VERSION, TIME in UTC
+- NickServ passwords masked everywhere
+- Notification content can be hidden
 
 </td></tr>
 </table>
 
-## Captures d'écran
+## Screenshots
 
-| Thème Clair | Thème Sépia |
+| Light theme | Sepia theme |
 |:---:|:---:|
-| <img src="docs/screenshots/clair.png" alt="Thème Clair"> | <img src="docs/screenshots/sepia.png" alt="Thème Sépia"> |
-| **Suggestions pendant la frappe** | **Recherche rapide d'onglet** |
-| <img src="docs/screenshots/suggestions.png" alt="Suggestions de commandes"> | <img src="docs/screenshots/recherche-rapide.png" alt="Recherche rapide d'onglet"> |
-| **Paramètres** | **Raccourcis configurables** |
-| <img src="docs/screenshots/parametres.png" alt="Paramètres d'apparence"> | <img src="docs/screenshots/raccourcis.png" alt="Raccourcis clavier"> |
+| <img src="docs/screenshots/en/light.png" alt="Light theme"> | <img src="docs/screenshots/en/sepia.png" alt="Sepia theme"> |
+| **Suggestions as you type** | **Quick tab switcher** |
+| <img src="docs/screenshots/en/suggestions.png" alt="Command suggestions"> | <img src="docs/screenshots/en/switcher.png" alt="Quick tab switcher"> |
+| **Settings** | **Configurable shortcuts** |
+| <img src="docs/screenshots/en/settings.png" alt="Appearance settings"> | <img src="docs/screenshots/en/shortcuts.png" alt="Keyboard shortcuts"> |
 
 <details>
-<summary>Plus de captures</summary>
+<summary>More screenshots</summary>
 
-| Thème Minuit | Thème Nordique |
+| Midnight theme | Nordic theme |
 |:---:|:---:|
-| <img src="docs/screenshots/minuit.png" alt="Thème Minuit"> | <img src="docs/screenshots/nordique.png" alt="Thème Nordique"> |
-| **Recherche dans l'onglet** | **Ajout d'un réseau** |
-| <img src="docs/screenshots/recherche.png" alt="Recherche dans l'historique"> | <img src="docs/screenshots/ajout-reseau.png" alt="Formulaire d'ajout de réseau"> |
+| <img src="docs/screenshots/en/midnight.png" alt="Midnight theme"> | <img src="docs/screenshots/en/nord.png" alt="Nordic theme"> |
+| **Search in a tab** | **Adding a network** |
+| <img src="docs/screenshots/en/search.png" alt="Search in the history"> | <img src="docs/screenshots/en/server-form.png" alt="Network form"> |
 
 </details>
 
 ## Installation
 
-### Télécharger
+### Download
 
-Chaque version publie des exécutables prêts à l'emploi sur la [page des releases](https://github.com/BrystoQ/ircnext/releases/latest) :
+Each version publishes ready-to-use executables on the [releases page](https://github.com/BrystoQ/ircnext/releases/latest):
 
-| Système | Fichier |
+| System | File |
 |---|---|
-| macOS 11+ (Apple Silicon et Intel) | `ircnext-X.Y.Z-macos.zip` |
+| macOS 11+ (Apple Silicon and Intel) | `ircnext-X.Y.Z-macos.zip` |
 | Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64.zip` |
 | Linux (x64) | `ircnext-X.Y.Z-linux-x64.tar.gz` |
 
-Les sommes de contrôle sont dans `SHA256SUMS.txt`.
+Checksums are in `SHA256SUMS.txt`.
 
 > [!IMPORTANT]
-> Les exécutables ne sont pas encore signés par un certificat Apple ou Microsoft. Au premier lancement :
-> - **macOS** : clic droit sur `ircnext.app` puis **Ouvrir**, ou `xattr -dr com.apple.quarantine ircnext.app` ;
-> - **Windows** : SmartScreen affiche un avertissement, cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
+> The executables are not signed with an Apple or Microsoft certificate yet. On first launch:
+> - **macOS**: right-click `ircnext.app` then **Open**, or run `xattr -dr com.apple.quarantine ircnext.app`;
+> - **Windows**: SmartScreen shows a warning, click **More info** then **Run anyway**.
 
-### Compiler depuis les sources
+### Build from source
 
-ircnext se compile avec [Rust](https://rustup.rs) 1.90 ou plus récent.
+ircnext builds with [Rust](https://rustup.rs) 1.90 or later.
 
 ```sh
 git clone https://github.com/BrystoQ/ircnext.git
@@ -139,10 +143,10 @@ cargo build --release
 ./target/release/ircnext
 ```
 
-Sous Windows, l'exécutable est `target\release\ircnext.exe`.
+On Windows, the executable is `target\release\ircnext.exe`.
 
 <details>
-<summary>Dépendances système sous Linux</summary>
+<summary>System dependencies on Linux</summary>
 
 ```sh
 # Debian / Ubuntu
@@ -152,137 +156,138 @@ sudo apt install build-essential pkg-config libxkbcommon-dev libwayland-dev
 </details>
 
 > [!NOTE]
-> L'interface est en français. ircnext est développé et testé sur macOS ; Windows et Linux sont pris en charge et compilés par l'intégration continue.
+> ircnext is developed and tested on macOS; Windows and Linux are supported and built by continuous integration.
 
-## Prise en main
+## Getting started
 
-1. Au premier lancement, choisissez un réseau dans la liste (Libera.Chat, OFTC, Rizon, EFnet, hackint, IRCnet, QuakeNet, Undernet, Ergo) ou saisissez-en un.
-2. Indiquez votre pseudonyme et, si vous avez un compte, choisissez une **identification** (mot de passe ou certificat).
-3. Rejoignez un salon avec `/join #salon`, ou listez-le dans **Salons à rejoindre** pour le retrouver à chaque connexion.
+1. On first launch, pick a network from the list (Libera.Chat, OFTC, Rizon, EFnet, hackint, IRCnet, QuakeNet, Undernet, Ergo) or enter one.
+2. Enter your nickname and, if you have an account, choose an **identification** (password or client certificate).
+3. Join a channel with `/join #channel`, or list it in **Channels to join** to find it at every connection.
 
-Tapez `/` pour découvrir les commandes, `@` pour mentionner quelqu'un, `#` pour un salon. `⌘,` (`Ctrl+,` sous Windows et Linux) ouvre les paramètres.
+Type `/` to discover the commands, `@` to mention someone, `#` for a channel. `⌘,` (`Ctrl+,` on Windows and Linux) opens the settings, where **Appearance → Language** switches between English and French.
 
-## Raccourcis clavier
+## Keyboard shortcuts
 
-Tous les raccourcis se modifient dans **Paramètres → Raccourcis**. `Mod` désigne `⌘` sur macOS et `Ctrl` ailleurs : un même réglage vaut pour les deux systèmes.
+All shortcuts can be changed in **Settings → Shortcuts**. `Mod` means `⌘` on macOS and `Ctrl` elsewhere, so the same setting works on both systems.
 
 | Action | macOS | Windows / Linux |
 |---|---|---|
-| Onglet suivant / précédent | `⌃⇥` `⌥⌘→` `⌥↓` / `⌃⇧⇥` `⌥⌘←` `⌥↑` | `Ctrl+Tab` `Ctrl+Page↓` `Alt+↓` / `Ctrl+Maj+Tab` `Ctrl+Page↑` `Alt+↑` |
-| Onglet non lu suivant / précédent | `⌥⇧↓` / `⌥⇧↑` | `Alt+Maj+↓` `Alt+A` / `Alt+Maj+↑` |
-| Onglet 1 à 8, dernier onglet | `⌘1`…`⌘8`, `⌘9` | `Alt+1`…`Alt+8`, `Alt+9` |
-| Recherche rapide d'onglet | `⌘T` `⌘J` | `Ctrl+T` `Ctrl+J` |
-| Rechercher dans l'onglet | `⌘F` | `Ctrl+F` |
-| Fermer l'onglet / tout marquer comme lu | `⌘W` / `⇧⎋` | `Ctrl+W` `Ctrl+F4` / `Maj+Échap` |
-| Page précédente / suivante | `⇞` / `⇟` | `Page↑` / `Page↓` |
-| Début / fin de l'historique | `⌘↑` `⌘↖` / `⌘↓` `⌘↘` | `Ctrl+Début` / `Ctrl+Fin` |
-| Membres / barre latérale | `⌘⇧U` / `⌘⇧S` | `Ctrl+Maj+U` / `Ctrl+Maj+S` |
-| Effacer l'onglet | `⌘L` | `Ctrl+L` |
-| Zoom +, −, normal | `⌘=` `⌘-` `⌘0` | `Ctrl+=` `Ctrl+-` `Ctrl+0` |
-| Gras, italique, souligné, barré | `⌘B` `⌘I` `⌘U` `⌘⇧X` | `Ctrl+B` `Ctrl+I` `Ctrl+U` `Ctrl+Maj+X` |
-| Couleur, inversion, sans mise en forme | `⌘K` `⌘R` `⌘O` | `Ctrl+K` `Ctrl+R` `Ctrl+O` |
-| Ajouter un réseau / paramètres / quitter | `⌘N` / `⌘,` / `⌘Q` | `Ctrl+N` / `Ctrl+,` `Ctrl+P` / `Ctrl+Q` |
+| Next / previous tab | `⌃⇥` `⌥⌘→` `⌥↓` / `⌃⇧⇥` `⌥⌘←` `⌥↑` | `Ctrl+Tab` `Ctrl+Page↓` `Alt+↓` / `Ctrl+Shift+Tab` `Ctrl+Page↑` `Alt+↑` |
+| Next / previous unread tab | `⌥⇧↓` / `⌥⇧↑` | `Alt+Shift+↓` `Alt+A` / `Alt+Shift+↑` |
+| Tab 1 to 8, last tab | `⌘1`…`⌘8`, `⌘9` | `Alt+1`…`Alt+8`, `Alt+9` |
+| Quick tab switcher | `⌘T` `⌘J` | `Ctrl+T` `Ctrl+J` |
+| Search in the tab | `⌘F` | `Ctrl+F` |
+| Close tab / mark all as read | `⌘W` / `⇧⎋` | `Ctrl+W` `Ctrl+F4` / `Shift+Esc` |
+| Page up / down | `⇞` / `⇟` | `Page↑` / `Page↓` |
+| Start / end of history | `⌘↑` `⌘↖` / `⌘↓` `⌘↘` | `Ctrl+Home` / `Ctrl+End` |
+| Members / sidebar | `⌘⇧U` / `⌘⇧S` | `Ctrl+Shift+U` / `Ctrl+Shift+S` |
+| Clear tab | `⌘L` | `Ctrl+L` |
+| Zoom in, out, reset | `⌘=` `⌘-` `⌘0` | `Ctrl+=` `Ctrl+-` `Ctrl+0` |
+| Bold, italic, underline, strikethrough | `⌘B` `⌘I` `⌘U` `⌘⇧X` | `Ctrl+B` `Ctrl+I` `Ctrl+U` `Ctrl+Shift+X` |
+| Color, reverse, reset formatting | `⌘K` `⌘R` `⌘O` | `Ctrl+K` `Ctrl+R` `Ctrl+O` |
+| Add a network / settings / quit | `⌘N` / `⌘,` / `⌘Q` | `Ctrl+N` / `Ctrl+,` `Ctrl+P` / `Ctrl+Q` |
 
-Touches fixes : `Tab` complète, `↑` / `↓` parcourent l'historique de saisie ou les suggestions, `Entrée` envoie, `Échap` ferme.
+Fixed keys: `Tab` completes, `↑` / `↓` browse the input history or the suggestions, `Enter` sends, `Esc` closes.
 
-## Commandes
+## Commands
 
-`/help` affiche la liste complète dans l'application.
+`/help` shows the full list in the application.
 
-| Commande | Rôle |
+| Command | Purpose |
 |---|---|
-| `/join #salon [clé]`, `/part [#salon] [raison]` | Rejoindre ou quitter un salon |
-| `/msg <cible> <texte>`, `/query <pseudo>`, `/notice` | Messages et conversations privées |
-| `/me <action>` | Décrire une action |
-| `/nick`, `/away [message]`, `/back` | Pseudonyme et absence |
-| `/topic [sujet]`, `/whois <pseudo>`, `/invite` | Salon et utilisateurs |
-| `/kick`, `/ban`, `/unban`, `/op`, `/deop`, `/voice`, `/devoice`, `/mode` | Modération |
+| `/join #channel [key]`, `/part [#channel] [reason]` | Join or leave a channel |
+| `/msg <target> <text>`, `/query <nick>`, `/notice` | Messages and private conversations |
+| `/me <action>` | Describe an action |
+| `/nick`, `/away [message]`, `/back` | Nickname and away status |
+| `/topic [topic]`, `/whois <nick>`, `/invite` | Channel and users |
+| `/kick`, `/ban`, `/unban`, `/op`, `/deop`, `/voice`, `/devoice`, `/mode` | Moderation |
 | `/ns`, `/cs`, `/ms`, `/hs` | NickServ, ChanServ, MemoServ, HostServ |
-| `/ignore [masque]`, `/unignore <masque>` | Utilisateurs ignorés |
-| `/ctcp`, `/quote <ligne>` | CTCP et commande brute |
-| `/connect`, `/quit [raison]`, `/close`, `/clear` | Connexion et onglets |
+| `/ignore [mask]`, `/unignore <mask>` | Ignored users |
+| `/ctcp`, `/quote <line>` | CTCP and raw command |
+| `/connect`, `/quit [reason]`, `/close`, `/clear` | Connection and tabs |
 
-Les commandes de NickServ, ChanServ, MemoServ et HostServ sont suggérées avec leur syntaxe dès `/ns `. Les commandes de bots (`!meteo`, `!help`…) vues dans un salon sont proposées dès `!`.
+NickServ, ChanServ, MemoServ and HostServ commands are suggested with their syntax as soon as you type `/ns `. Bot commands (`!weather`, `!help`…) seen in a channel are offered as soon as you type `!`.
 
 ## IRCv3
 
-ircnext négocie automatiquement les extensions [IRCv3](https://ircv3.net) proposées par le serveur.
+ircnext automatically negotiates the [IRCv3](https://ircv3.net) extensions offered by the server.
 
-| Domaine | Extensions |
+| Area | Extensions |
 |---|---|
-| Connexion | `cap-notify`, `sasl` (PLAIN), `sts` |
-| Messages | `message-tags`, `server-time`, `echo-message`, `batch`, `labeled-response`, `msgid` (dédoublonnage), `standard-replies`, `UTF8ONLY` |
-| Historique | `draft/chathistory`, `draft/event-playback`, `draft/read-marker`, `draft/message-redaction` |
-| Utilisateurs | `account-notify`, `account-tag`, `away-notify`, `extended-join`, `chghost`, `setname`, `multi-prefix`, `userhost-in-names`, `invite-notify` |
-| Présence | `MONITOR`, `extended-monitor`, `WHOX`, `BOT` |
-| Salons | `draft/channel-rename` |
-| Tags clients | `+typing`, brouillon [`+draft/autocomplete`](https://github.com/ircv3/ircv3-specifications/pull/415) (complétion proposée par les bots) |
+| Connection | `cap-notify`, `sasl` (PLAIN, EXTERNAL), `sts` |
+| Messages | `message-tags`, `server-time`, `echo-message`, `batch`, `labeled-response`, `msgid` (deduplication), `standard-replies`, `UTF8ONLY` |
+| History | `draft/chathistory`, `draft/event-playback`, `draft/read-marker`, `draft/message-redaction` |
+| Users | `account-notify`, `account-tag`, `away-notify`, `extended-join`, `chghost`, `setname`, `multi-prefix`, `userhost-in-names`, `invite-notify` |
+| Presence | `MONITOR`, `extended-monitor`, `WHOX`, `BOT` |
+| Channels | `draft/channel-rename` |
+| Client tags | `+typing`, the [`+draft/autocomplete`](https://github.com/ircv3/ircv3-specifications/pull/415) draft (completion offered by bots) |
 
 ## Configuration
 
-Tout se règle depuis l'interface. Les réglages sont enregistrés dans un fichier TOML :
+Everything is set from the interface. Settings are saved in a TOML file:
 
-| Système | Emplacement |
+| System | Location |
 |---|---|
 | macOS | `~/Library/Application Support/ircnext/config.toml` |
 | Windows | `%APPDATA%\ircnext\config\config.toml` |
 | Linux | `~/.config/ircnext/config.toml` |
 
-La variable d'environnement `IRCNEXT_CONFIG` permet d'utiliser un autre fichier. Les journaux sont rangés dans un dossier `logs/` à côté de la configuration.
+The `IRCNEXT_CONFIG` environment variable points to another file. Logs go to a `logs/` folder and generated client certificates to a `certs/` folder, both next to the configuration.
 
-## Sécurité
+## Security
 
-- **Aucun mot de passe en clair** : SASL est refusé sans TLS, sauf vers un serveur local (bouncer).
-- **STS** n'est mémorisé qu'après une connexion TLS au certificat vérifié.
-- **Mots de passe dans le trousseau du système** (Trousseau d'accès, Gestionnaire d'identifiants Windows, Secret Service), jamais dans le fichier de configuration.
-- **Fichiers privés** : configuration et journaux en `0600`, dossiers en `0700`, écriture atomique.
-- **Mots de passe NickServ masqués** à l'affichage, dans les journaux et l'historique de saisie.
-- **Liens filtrés** : seuls `http` et `https` s'ouvrent ; les caractères de contrôle bidirectionnels sont retirés, un lien ne peut donc pas être maquillé.
-- **Anti-flood** : envoi limité (5 messages, puis 1 toutes les 2 s), réponses CTCP limitées.
-- **Robustesse** : mémoire bornée face à un serveur hostile, aucune injection de commande possible, `unsafe` interdit dans tout le code.
+- **No password in clear text**: SASL is refused without TLS, except towards a local server (bouncer).
+- **Passwords in the system keychain** (macOS Keychain, Windows Credential Manager, Secret Service), never in the configuration file.
+- **Client certificates**: SASL EXTERNAL and CertFP, with self-signed certificates created by the application (`0600`).
+- **STS** is only remembered after a TLS connection with a verified certificate.
+- **Private files**: configuration and logs in `0600`, folders in `0700`, atomic writes.
+- **NickServ passwords masked** on display, in logs and in the input history.
+- **Filtered links**: only `http` and `https` open; bidirectional control characters are removed, so a link cannot be disguised.
+- **Flood protection**: limited sending (5 messages, then 1 every 2 s), limited CTCP replies.
+- **Robustness**: bounded memory against a hostile server, no command injection, `unsafe` forbidden in all the code.
 
-Pour signaler une vulnérabilité, voir [SECURITY.md](SECURITY.md).
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Architecture
 
-Un espace de travail Cargo en trois crates, du protocole à l'interface :
+A Cargo workspace of three crates, from the protocol to the interface:
 
 ```
 crates/
-├── proto/    ircnext-proto   Protocole IRC pur, sans I/O : messages, tags IRCv3,
-│                             mise en forme mIRC, ISUPPORT, casemapping
-├── client/   ircnext-client  Connexion TCP/TLS (rustls), enregistrement CAP/SASL/STS,
-│                             état du réseau, reconnexion, limitation du débit
-└── app/      ircnext         Interface iced (architecture Elm) : onglets, réglages,
-                              raccourcis, notifications, journaux
+├── proto/    ircnext-proto   Pure IRC protocol, no I/O: messages, IRCv3 tags,
+│                             mIRC formatting, ISUPPORT, casemapping
+├── client/   ircnext-client  TCP/TLS connection (rustls), CAP/SASL/STS registration,
+│                             network state, reconnection, rate limiting
+└── app/      ircnext         iced interface (Elm architecture): tabs, settings,
+                              shortcuts, notifications, logs, translations
 ```
 
-La logique protocolaire est écrite sans entrées/sorties et testée isolément ; seules quelques fonctions touchent au réseau.
+The protocol logic is written without input/output and tested on its own; only a few functions touch the network. Interface texts are written in English and translated through [`crates/app/locales/fr.toml`](crates/app/locales/fr.toml).
 
-## Développement
+## Development
 
 ```sh
-cargo test --workspace                          # ~180 tests
-cargo clippy --workspace --all-targets          # clippy::pedantic, zéro avertissement
-cargo test -p ircnext -- --ignored snapshots    # captures dans target/snapshots/
+cargo test --workspace                          # ~190 tests
+cargo clippy --workspace --all-targets          # clippy::pedantic, zero warnings
+cargo test -p ircnext -- --ignored snapshots    # screenshots in target/snapshots/{en,fr}/
 ```
 
-Les captures de ce README sont générées par le test `snapshots`, sans fenêtre, puis copiées dans `docs/screenshots/`.
+The screenshots in this README are rendered headlessly by the `snapshots` test, then copied to `docs/screenshots/`.
 
-## Feuille de route
+## Roadmap
 
-- [x] Binaires prêts à l'emploi (macOS, Windows, Linux)
-- [x] Mots de passe dans le trousseau du système
-- [x] Authentification par certificat (SASL EXTERNAL)
-- [ ] Proxy SOCKS5
-- [ ] Transferts DCC
+- [x] Ready-to-use binaries (macOS, Windows, Linux)
+- [x] Passwords in the system keychain
+- [x] Certificate authentication (SASL EXTERNAL)
+- [x] English interface, French translation
+- [ ] SOCKS5 proxy
+- [ ] DCC transfers
 - [ ] `draft/multiline`
-- [ ] Traduction anglaise de l'interface
 
-## Contribuer
+## Contributing
 
-Les contributions sont les bienvenues ! Lisez [CONTRIBUTING.md](CONTRIBUTING.md) avant d'ouvrir une *pull request*.
+Contributions are welcome! Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-## Licence
+## License
 
-Distribué sous licence [MIT](LICENSE). © 2026 BrystoQ.
+Distributed under the [MIT](LICENSE) license. © 2026 BrystoQ.

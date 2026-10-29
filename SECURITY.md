@@ -1,25 +1,25 @@
-# Politique de sécurité
+# Security policy
 
-## Versions prises en charge
+## Supported versions
 
-Seule la dernière version publiée reçoit des correctifs de sécurité.
+Only the latest released version receives security fixes.
 
-## Signaler une vulnérabilité
+## Reporting a vulnerability
 
-Merci de **ne pas** ouvrir de ticket public.
+Please do **not** open a public issue.
 
-Utilisez le [signalement privé de GitHub](https://github.com/BrystoQ/ircnext/security/advisories/new) (onglet *Security* → *Report a vulnerability*). Indiquez :
+Use [GitHub private reporting](https://github.com/BrystoQ/ircnext/security/advisories/new) (*Security* tab → *Report a vulnerability*). Include:
 
-- la nature de la faille et son impact ;
-- les étapes ou le message IRC permettant de la reproduire ;
-- la version et le système concernés.
+- the nature of the vulnerability and its impact;
+- the steps or the IRC message that reproduce it;
+- the version and the system involved.
 
-Vous recevrez une réponse sous 7 jours. Une fois la faille corrigée, elle sera publiée avec vos remerciements, si vous le souhaitez.
+You will get an answer within 7 days. Once fixed, the vulnerability will be published with credit to you, if you wish.
 
-## Périmètre
+## Scope
 
-Sont notamment concernés :
+This includes in particular:
 
-- tout message d'un serveur ou d'un utilisateur IRC qui fait planter le client, consomme la mémoire sans limite ou injecte des commandes ;
-- toute fuite d'identifiants (SASL, mot de passe serveur, NickServ) ;
-- tout contournement des protections décrites dans le [README](README.md#sécurité) : TLS, STS, filtrage des liens, permissions des fichiers.
+- any message from an IRC server or user that crashes the client, uses unbounded memory or injects commands;
+- any credential leak (SASL, server password, client certificate key, NickServ);
+- any bypass of the protections described in the [README](README.md#security): TLS, STS, keychain, link filtering, file permissions.
