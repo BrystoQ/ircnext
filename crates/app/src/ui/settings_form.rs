@@ -105,6 +105,7 @@ pub enum Msg {
     CtcpReplies(bool),
     CtcpVersion(String),
     SendReadMarkers(bool),
+    UseKeychain(bool),
     PartMessage(String),
     CaptureBinding(Action),
     Captured(Combo),
@@ -158,6 +159,7 @@ impl SettingsForm {
             Msg::CtcpReplies(value) => draft.ctcp_replies = value,
             Msg::CtcpVersion(value) => draft.ctcp_version = value,
             Msg::SendReadMarkers(value) => draft.send_read_markers = value,
+            Msg::UseKeychain(value) => draft.use_keychain = value,
             Msg::PartMessage(value) => draft.part_message = value,
             Msg::CaptureBinding(action) => {
                 self.capturing = Some(action);
@@ -514,6 +516,17 @@ impl SettingsForm {
                     c,
                 ),
                 form::group(
+                    "Mots de passe",
+                    [toggle(
+                        KEYCHAIN_LABEL,
+                        Some("Sinon, ils sont écrits dans le fichier de configuration, lisible par vous seul"),
+                        draft.use_keychain,
+                        Msg::UseKeychain,
+                        c,
+                    )],
+                    c,
+                ),
+                form::group(
                     "Requêtes CTCP",
                     [
                         toggle("Réponses automatiques", Some("VERSION, PING et TIME"), draft.ctcp_replies, Msg::CtcpReplies, c),
@@ -653,6 +666,15 @@ impl SettingsForm {
 }
 
 /// Vignettes des thèmes, quatre par ligne, avec un aperçu de leurs couleurs.
+/// Nom du trousseau propre à chaque système.
+const KEYCHAIN_LABEL: &str = if cfg!(target_os = "macos") {
+    "Ranger dans le Trousseau d'accès"
+} else if cfg!(target_os = "windows") {
+    "Ranger dans le Gestionnaire d'identifiants"
+} else {
+    "Ranger dans le trousseau du système"
+};
+
 fn theme_grid(draft: &Settings, system_dark: bool, c: Colors) -> Element<'static, Message> {
     let card = |mode: ThemeMode| {
         let p = Colors::new(mode, system_dark, draft.accent);

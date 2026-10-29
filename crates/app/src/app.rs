@@ -19,6 +19,7 @@ use crate::suggest::{self, Suggestion};
 use crate::config::{AppConfig, ServerEntry};
 use crate::ignore;
 use crate::input::{self, Command, Input};
+use crate::keychain;
 use crate::notify;
 use crate::keymap::{self, Action, Combo};
 use crate::server::{Alert, BufferId, Context, Effects, Prefs, Server, ServerId, Status};
@@ -134,15 +135,22 @@ pub struct App {
     window: WindowState,
     /// Notifications du système activées (jamais dans les tests).
     system_notifications: bool,
+    /// Mots de passe déjà rangés dans le trousseau du système.
+    keychain: keychain::Cache,
     banner: Option<String>,
     now: Instant,
 }
 
 impl App {
     pub fn boot() -> (Self, Task<Message>) {
-        let (config, error) = AppConfig::load();
-        let banner = error.map(|error| format!("Configuration : {error}"));
+        let (mut config, error) = AppConfig::load();
+        let (keychain, missing) = keychain::restore(&mut config, &keychain::System);
+        let banner = error.map(|error| format!("Configuration : {error}")).or_else(|| {
+            (!missing.is_empty())
+                .then(|| format!("Mot de passe SASL introuvable dans le trousseau : {}", missing.join(", ")))
+        });
         let mut app = Self::new(config, AppConfig::path().ok(), banner);
+        app.keychain = keychain;
         app.system_notifications = true;
         app.sync_prefs();
         let tasks = Task::batch([
@@ -172,6 +180,7 @@ impl App {
             search: None,
             window: WindowState { id: None, focused: true, dark: true },
             system_notifications: false,
+            keychain: keychain::Cache::new(),
             banner,
             now: Instant::now(),
         };
@@ -858,6 +867,15 @@ impl App {
             }
         };
         let editing = form.editing;
+        // Le nom identifie le réseau, notamment dans le trousseau du système.
+        let taken = self
+            .servers
+            .iter()
+            .any(|server| Some(server.id) != editing && server.entry.name.eq_ignore_ascii_case(&entry.name));
+        if taken {
+            form.set_error("Un réseau porte déjà ce nom.".into());
+            return Task::none();
+        }
         self.modal = None;
 
         let task = if let Some(server) = editing.and_then(|id| self.server_mut(id)) {
@@ -888,8 +906,22 @@ impl App {
         let Some(path) = &self.config_path else {
             return;
         };
-        if let Err(error) = self.config.save_to(path) {
+        let mut on_disk = self.config.clone();
+        let use_keychain = self.config.settings.use_keychain;
+        let keychain_error = if use_keychain {
+            keychain::stash(&mut on_disk, &keychain::System, &mut self.keychain)
+        } else {
+            None
+        };
+        if let Err(error) = on_disk.save_to(path) {
             self.banner = Some(format!("Impossible d'enregistrer la configuration : {error}"));
+            return;
+        }
+        // Trousseau désactivé : les mots de passe sont maintenant dans le
+        // fichier, les entrées du trousseau peuvent disparaître.
+        let keychain_error = keychain_error.or_else(|| (!use_keychain).then(|| keychain::clear(&keychain::System, &mut self.keychain)).flatten());
+        if let Some(error) = keychain_error {
+            self.banner = Some(format!("Trousseau du système indisponible, mots de passe gardés dans le fichier : {error}"));
         }
     }
 
@@ -1154,6 +1186,26 @@ mod tests {
         let registered = Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false };
         let _ = app.update(Message::Client(id, Event::Registered(registered)));
         assert_eq!(app.config.settings.ignored, ["bavard"]);
+    }
+
+    #[test]
+    fn network_names_are_unique() {
+        let mut app = demo();
+        let _ = app.update(Message::OpenServerForm(None));
+        for msg in [server_form::Msg::Name("libera.chat".into()), server_form::Msg::Host("irc.example.net".into())] {
+            let _ = app.update(Message::Form(msg));
+        }
+        let _ = app.update(Message::SaveServerForm);
+        assert_eq!(app.servers.len(), 1, "nom déjà pris");
+        assert!(matches!(app.modal, Some(Modal::Server(_))), "le formulaire reste ouvert");
+
+        // Modifier un réseau sans changer son nom reste possible.
+        let id = app.servers[0].id;
+        let _ = app.update(Message::OpenServerForm(Some(id)));
+        let _ = app.update(Message::Form(server_form::Msg::Host("irc.eu.libera.chat".into())));
+        let _ = app.update(Message::SaveServerForm);
+        assert!(app.modal.is_none());
+        assert_eq!(app.servers[0].entry.connection.host, "irc.eu.libera.chat");
     }
 
     #[test]

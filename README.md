@@ -234,6 +234,7 @@ La variable d'environnement `IRCNEXT_CONFIG` permet d'utiliser un autre fichier.
 
 - **Aucun mot de passe en clair** : SASL est refusé sans TLS, sauf vers un serveur local (bouncer).
 - **STS** n'est mémorisé qu'après une connexion TLS au certificat vérifié.
+- **Mots de passe dans le trousseau du système** (Trousseau d'accès, Gestionnaire d'identifiants Windows, Secret Service), jamais dans le fichier de configuration.
 - **Fichiers privés** : configuration et journaux en `0600`, dossiers en `0700`, écriture atomique.
 - **Mots de passe NickServ masqués** à l'affichage, dans les journaux et l'historique de saisie.
 - **Liens filtrés** : seuls `http` et `https` s'ouvrent ; les caractères de contrôle bidirectionnels sont retirés, un lien ne peut donc pas être maquillé.
@@ -270,8 +271,8 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 
 ## Feuille de route
 
-- [ ] Binaires prêts à l'emploi (macOS, Windows, Linux)
-- [ ] Mots de passe dans le trousseau du système
+- [x] Binaires prêts à l'emploi (macOS, Windows, Linux)
+- [x] Mots de passe dans le trousseau du système
 - [ ] Authentification par certificat (SASL EXTERNAL)
 - [ ] Proxy SOCKS5
 - [ ] Transferts DCC
