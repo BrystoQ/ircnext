@@ -192,6 +192,8 @@ pub struct Settings {
     /// Sur Tab, demander aux bots compatibles de compléter une commande
     /// (brouillon IRCv3 `autocomplete`).
     pub bot_completion: bool,
+    /// Mots de passe rangés dans le trousseau du système plutôt que dans le fichier.
+    pub use_keychain: bool,
 
     // Indicateur de saisie (IRCv3 `+typing`)
     pub send_typing: bool,
@@ -243,6 +245,7 @@ impl Default for Settings {
             ctcp_version: String::new(),
             send_read_markers: true,
             bot_completion: true,
+            use_keychain: true,
             send_typing: true,
             show_typing: true,
             nick: "ircnext".to_owned(),

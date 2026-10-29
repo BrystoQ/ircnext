@@ -9,6 +9,7 @@ mod completion;
 mod config;
 mod ignore;
 mod input;
+mod keychain;
 mod keymap;
 mod log;
 mod notify;

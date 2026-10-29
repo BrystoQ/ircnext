@@ -4,6 +4,16 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+### Sécurité
+
+- Mots de passe (serveur et SASL) rangés dans le trousseau du système : Trousseau d'accès sur macOS, Gestionnaire d'identifiants sur Windows, Secret Service sous Linux. Les mots de passe déjà présents dans le fichier y sont déplacés au prochain enregistrement ; réglage dans *Confidentialité*.
+
+### Modifié
+
+- Deux réseaux ne peuvent plus porter le même nom.
+
+## [0.1.0] - 2026-10-29
+
 ### Ajouté
 
 - Client IRC multi-réseaux à interface native (iced), inspiré de HexChat.
@@ -25,4 +35,5 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Limitation du débit d'envoi et des réponses CTCP, mémoire bornée face à un serveur hostile.
 - Mots de passe NickServ masqués à l'affichage, dans les journaux et l'historique de saisie.
 
-[Non publié]: https://github.com/BrystoQ/ircnext/commits/main
+[Non publié]: https://github.com/BrystoQ/ircnext/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/BrystoQ/ircnext/releases/tag/v0.1.0
