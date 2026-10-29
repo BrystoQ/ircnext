@@ -1,0 +1,26 @@
+[package]
+name = "ircnext-client"
+description = "Connexions IRC (TCP/TLS), enregistrement CAP/SASL et suivi d'état du réseau."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+base64 = "0.22"
+futures = "0.3"
+ircnext-proto.workspace = true
+serde = { version = "1", features = ["derive"] }
+thiserror.workspace = true
+tokio = { version = "1", features = ["net", "io-util", "time", "sync", "macros", "rt"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+webpki-roots = "1"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }

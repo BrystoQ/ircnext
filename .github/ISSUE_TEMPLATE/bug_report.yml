@@ -1,0 +1,45 @@
+name: Signaler un bug
+description: Quelque chose ne fonctionne pas comme prévu.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Merci de prendre le temps de signaler ce problème ! Pour une faille de sécurité, suivez plutôt SECURITY.md.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Que s'est-il passé ? Qu'attendiez-vous ?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: |
+        1. Se connecter à …
+        2. Rejoindre …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Système
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version d'ircnext
+      placeholder: "0.1.0, ou l'empreinte du commit"
+  - type: input
+    id: network
+    attributes:
+      label: Réseau IRC concerné
+      placeholder: Libera.Chat, OFTC…
+  - type: textarea
+    id: extra
+    attributes:
+      label: Captures ou informations supplémentaires

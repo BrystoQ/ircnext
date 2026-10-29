@@ -1,0 +1,31 @@
+[package]
+name = "ircnext"
+description = "Client IRC moderne écrit en Rust, compatible IRCv3."
+readme = "../../README.md"
+keywords = ["irc", "ircv3", "chat", "client", "iced"]
+categories = ["network-programming", "gui"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chrono = "0.4"
+directories = "6"
+futures = "0.3"
+iced = { version = "0.14", features = ["tokio"] }
+ircnext-client.workspace = true
+notify-rust = "4"
+open = "5"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["time"] }
+toml = "0.9"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+iced_test = "0.14"

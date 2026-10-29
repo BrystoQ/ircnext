@@ -1,0 +1,20 @@
+name: Proposer une idée
+description: Une fonctionnalité ou une amélioration.
+labels: [amélioration]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Besoin
+      description: Quel problème cette idée résoudrait-elle ?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solution envisagée
+      description: Comment l'imaginez-vous ? Un autre client IRC le fait-il déjà ?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
