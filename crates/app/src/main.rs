@@ -1,5 +1,8 @@
 //! ircnext : client IRC moderne, compatible IRCv3.
 
+// Pas de fenêtre de console derrière l'application sous Windows.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod buffer;
 mod completion;

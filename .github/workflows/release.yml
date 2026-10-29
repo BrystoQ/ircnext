@@ -1,0 +1,127 @@
+name: Release
+
+# Publier une version : pousser une étiquette « vX.Y.Z » identique à la
+# version du Cargo.toml, par exemple `git tag v0.1.0 && git push origin v0.1.0`.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Compilation (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - name: Windows
+            os: windows-latest
+            targets: x86_64-pc-windows-msvc
+          - name: Linux
+            # La plus ancienne glibc disponible, pour tourner sur plus de distributions.
+            os: ubuntu-22.04
+            targets: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Vérification de la version
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::L'étiquette $GITHUB_REF_NAME ne correspond pas à la version $version du Cargo.toml."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Dépendances système (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev
+
+      - name: Paquet macOS (application universelle)
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --release --locked -p ircnext --target aarch64-apple-darwin
+          cargo build --release --locked -p ircnext --target x86_64-apple-darwin
+          app=dist/ircnext.app
+          mkdir -p "$app/Contents/MacOS"
+          lipo -create -output "$app/Contents/MacOS/ircnext" \
+            target/aarch64-apple-darwin/release/ircnext \
+            target/x86_64-apple-darwin/release/ircnext
+          cat > "$app/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>ircnext</string>
+            <key>CFBundleDisplayName</key><string>ircnext</string>
+            <key>CFBundleIdentifier</key><string>ircnext</string>
+            <key>CFBundleExecutable</key><string>ircnext</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleVersion</key><string>$VERSION</string>
+            <key>CFBundleShortVersionString</key><string>$VERSION</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          EOF
+          # Signature ad hoc : sans elle, macOS refuse de lancer le binaire universel.
+          codesign --force --deep --sign - "$app"
+          ditto -c -k --keepParent "$app" "dist/ircnext-$VERSION-macos.zip"
+          rm -rf "$app"
+
+      - name: Paquet Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cargo build --release --locked -p ircnext
+          mkdir -p dist/ircnext
+          cp target/release/ircnext.exe LICENSE README.md dist/ircnext/
+          cd dist && 7z a "ircnext-$VERSION-windows-x64.zip" ircnext >/dev/null && rm -rf ircnext
+
+      - name: Paquet Linux
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --release --locked -p ircnext
+          mkdir -p dist/ircnext
+          cp target/release/ircnext LICENSE README.md dist/ircnext/
+          tar -C dist -czf "dist/ircnext-$VERSION-linux-x64.tar.gz" ircnext
+          rm -rf dist/ircnext
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/*
+
+  release:
+    name: Publication
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sommes de contrôle
+        run: cd dist && sha256sum * > SHA256SUMS.txt
+      - name: Création de la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ircnext ${GITHUB_REF_NAME#v}" \
+            --generate-notes

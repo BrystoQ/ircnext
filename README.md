@@ -111,7 +111,26 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 
 ## Installation
 
-ircnext se compile depuis les sources avec [Rust](https://rustup.rs) 1.90 ou plus récent.
+### Télécharger
+
+Chaque version publie des exécutables prêts à l'emploi sur la [page des releases](https://github.com/BrystoQ/ircnext/releases/latest) :
+
+| Système | Fichier |
+|---|---|
+| macOS 11+ (Apple Silicon et Intel) | `ircnext-X.Y.Z-macos.zip` |
+| Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64.zip` |
+| Linux (x64) | `ircnext-X.Y.Z-linux-x64.tar.gz` |
+
+Les sommes de contrôle sont dans `SHA256SUMS.txt`.
+
+> [!IMPORTANT]
+> Les exécutables ne sont pas encore signés par un certificat Apple ou Microsoft. Au premier lancement :
+> - **macOS** : clic droit sur `ircnext.app` puis **Ouvrir**, ou `xattr -dr com.apple.quarantine ircnext.app` ;
+> - **Windows** : SmartScreen affiche un avertissement, cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
+
+### Compiler depuis les sources
+
+ircnext se compile avec [Rust](https://rustup.rs) 1.90 ou plus récent.
 
 ```sh
 git clone https://github.com/BrystoQ/ircnext.git
