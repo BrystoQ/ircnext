@@ -1,4 +1,4 @@
-//! Réseau en cours d'utilisation : connexion, état IRC et onglets associés.
+//! Network in use: connection, IRC state and its tabs.
 
 mod incoming;
 mod outgoing;
@@ -12,19 +12,21 @@ use ircnext_client::proto::{Command, Message};
 use ircnext_client::{Event, Handle, Network};
 
 use crate::buffer::{Buffer, Kind, Line, LineKind};
+use crate::i18n::tr;
 use crate::secrets;
+use crate::tr;
 use crate::config::ServerEntry;
 use crate::settings::Settings;
 
-/// Identifiant stable d'un réseau pendant la session.
+/// Stable id of a network during the session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ServerId(pub u64);
 
-/// Identifiant stable d'un onglet (insensible aux renommages).
+/// Stable id of a tab (unaffected by renames).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BufferId(u64);
 
-/// État de la connexion.
+/// Connection state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Status {
     Disconnected(Option<String>),
@@ -34,35 +36,35 @@ pub enum Status {
     Waiting { error: Option<String>, retry_in: Duration },
 }
 
-/// Contexte fourni par l'application pour traiter un événement.
+/// Context given by the application to handle an event.
 #[derive(Debug, Clone, Copy)]
 pub struct Context<'a> {
     pub settings: &'a Settings,
-    /// Onglet affiché, s'il appartient à ce réseau.
+    /// Displayed tab, if it belongs to this network.
     pub active: Option<BufferId>,
 }
 
-/// Conséquences d'un traitement que l'application doit répercuter.
+/// Consequences of a handling that the application must carry out.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Effects {
-    /// La configuration du réseau a changé et doit être enregistrée.
+    /// The network configuration changed and must be saved.
     pub config_changed: bool,
-    /// Politique STS reçue : (port TLS, durée en secondes).
+    /// STS policy received: (TLS port, duration in seconds).
     pub sts: Option<(u16, u64)>,
-    /// Onglet à afficher.
+    /// Tab to display.
     pub focus: Option<BufferId>,
-    /// L'onglet courant a été fermé.
+    /// The current tab was closed.
     pub closed: bool,
 }
 
-/// Préférences de l'application utiles au réseau en dehors du traitement
-/// d'un événement : demandes d'historique, accusés de lecture, journaux.
+/// Application preferences the network needs outside of an event:
+/// history requests, read markers, logs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Prefs {
-    /// Lignes demandées en rejoignant un salon (0 : aucune).
+    /// Lines requested when joining a channel (0: none).
     pub history_lines: u16,
     pub read_markers: bool,
-    /// Dossier des journaux, si la journalisation est active.
+    /// Logs folder, if logging is enabled.
     pub log_dir: Option<PathBuf>,
 }
 
@@ -72,40 +74,39 @@ impl Default for Prefs {
     }
 }
 
-/// Message à signaler à l'utilisateur (notification).
+/// Message to report to the user (notification).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Alert {
     pub buffer: BufferId,
-    /// Expéditeur, et salon le cas échéant.
+    /// Sender, and channel if any.
     pub title: String,
     pub body: String,
-    /// Message privé (sinon mention dans un salon).
+    /// Private message (otherwise a mention in a channel).
     pub private: bool,
 }
 
-/// Au plus `CTCP_REPLY_LIMIT` réponses CTCP par `CTCP_REPLY_WINDOW` : au-delà,
-/// les requêtes sont ignorées (sinon un flood de requêtes nous ferait
-/// expulser du serveur pour excès de messages).
+/// At most `CTCP_REPLY_LIMIT` CTCP replies per `CTCP_REPLY_WINDOW`: beyond
+/// that, requests are ignored (otherwise a request flood would get us
+/// kicked off the server for excess flood).
 const CTCP_REPLY_LIMIT: usize = 3;
 const CTCP_REPLY_WINDOW: Duration = Duration::from_secs(10);
 
-/// Délai au-delà duquel les réponses d'un bot à une demande de complétion
-/// sont ignorées.
+/// Delay after which bot replies to a completion request are ignored.
 pub const REMOTE_COMPLETION_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Demande de complétion envoyée aux bots (brouillon IRCv3 `autocomplete`).
+/// Completion request sent to bots (IRCv3 `autocomplete` draft).
 #[derive(Debug, Clone)]
 pub struct RemoteCompletion {
     pub buffer: BufferId,
-    /// Saisie envoyée ; les réponses ne valent que tant qu'elle est inchangée.
+    /// Input sent; the replies only hold while it is unchanged.
     pub request: String,
     pub sent: Instant,
-    /// Saisies complétées proposées, avec le bot qui les propose.
+    /// Completed inputs offered, with the bot offering them.
     pub replies: Vec<(String, String)>,
 }
 
 impl RemoteCompletion {
-    /// Propositions valables pour la saisie `input` dans l'onglet `buffer`.
+    /// Offers valid for the input `input` in the tab `buffer`.
     pub fn replies_for(&self, buffer: BufferId, input: &str) -> &[(String, String)] {
         let current = self.buffer == buffer && self.request == input && self.sent.elapsed() < REMOTE_COMPLETION_TIMEOUT;
         if current { &self.replies } else { &[] }
@@ -118,21 +119,21 @@ pub struct Server {
     pub entry: ServerEntry,
     pub status: Status,
     pub network: Network,
-    /// L'utilisateur souhaite être connecté (pilote l'abonnement).
+    /// The user wants to be connected (drives the subscription).
     pub enabled: bool,
-    /// Incrémenté pour forcer une nouvelle connexion.
+    /// Incremented to force a new connection.
     pub generation: u64,
     pub collapsed: bool,
     handle: Option<Handle>,
     buffers: Vec<(BufferId, Buffer)>,
     next_buffer: u64,
     pub remote_completion: Option<RemoteCompletion>,
-    /// Instants des dernières réponses CTCP (limitation anti-flood).
+    /// Times of the last CTCP replies (flood limiting).
     ctcp_replies: VecDeque<Instant>,
     pub prefs: Prefs,
-    /// Messages à signaler, relevés par l'application.
+    /// Messages to report, collected by the application.
     alerts: Vec<Alert>,
-    /// Le message en cours de traitement vient d'un historique rejoué.
+    /// The message being handled comes from a replayed history.
     replaying: bool,
 }
 
@@ -188,7 +189,7 @@ impl Server {
             .map(|(_, buffer)| buffer)
     }
 
-    /// Onglet de salon ou de conversation portant ce nom (selon le casemapping).
+    /// Channel or conversation tab with this name (according to the casemapping).
     pub fn find(&self, name: &str) -> Option<BufferId> {
         let mapping = self.network.isupport().casemapping;
         self.buffers
@@ -197,7 +198,7 @@ impl Server {
             .map(|(id, _)| *id)
     }
 
-    /// Onglet du salon ou de la conversation `name`, créé au besoin.
+    /// Tab of the channel or conversation `name`, created if needed.
     pub fn ensure(&mut self, name: &str) -> BufferId {
         if let Some(id) = self.find(name) {
             return id;
@@ -206,7 +207,7 @@ impl Server {
         self.insert_buffer(Buffer::new(kind, name))
     }
 
-    /// Insère en conservant l'ordre : serveur, salons, puis conversations.
+    /// Inserts keeping the order: server, channels, then conversations.
     fn insert_buffer(&mut self, buffer: Buffer) -> BufferId {
         let id = BufferId(self.next_buffer);
         self.next_buffer += 1;
@@ -228,21 +229,21 @@ impl Server {
             .sort_by_cached_key(|(_, b)| (b.kind as u8, b.name.to_lowercase()));
     }
 
-    /// Envoie un message si la connexion est active.
+    /// Sends a message if the connection is active.
     pub fn send(&self, message: Message) -> Result<(), String> {
         self.handle
             .as_ref()
-            .ok_or_else(|| "Non connecté.".to_owned())?
+            .ok_or_else(|| tr("Not connected.").to_owned())?
             .send(message)
             .map_err(|error| error.to_string())
     }
 
-    /// Ajoute une ligne et met à jour les compteurs de non-lus.
+    /// Adds a line and updates the unread counters.
     pub fn push(&mut self, id: BufferId, mut line: Line, ctx: &Context<'_>) {
         let limit = ctx.settings.scrollback;
         let is_active = ctx.active == Some(id);
-        // Champs empruntés séparément : l'onglet est modifié pendant qu'on lit
-        // les préférences.
+        // Fields borrowed separately: the tab is modified while the
+        // preferences are read.
         let log_dir = self.prefs.log_dir.as_deref().filter(|_| !self.replaying);
         let network = self.entry.name.as_str();
         let Some((_, buffer)) = self.buffers.iter_mut().find(|(buffer, _)| *buffer == id) else {
@@ -258,8 +259,8 @@ impl Server {
             }
             buffer.learn_bot_commands(text, line.bot);
         }
-        // Journal écrit après le masquage des mots de passe, et seulement pour
-        // une ligne réellement ajoutée (pas un doublon).
+        // Log written after passwords are masked, and only for a line
+        // actually added (not a duplicate).
         let logged = log_dir.map(|_| line.clone());
         let counts = line.kind.is_chat() && !line.own;
         let highlight = line.highlight || (counts && buffer.kind == Kind::Query);
@@ -271,17 +272,17 @@ impl Server {
         if added
             && let (Some(dir), Some(line)) = (log_dir, logged)
         {
-            // Une erreur d'écriture ne doit pas interrompre la discussion.
+            // A write error must not interrupt the conversation.
             let _ = crate::log::append(dir, network, &buffer.name, &line);
         }
     }
 
-    /// Messages à signaler depuis le dernier appel.
+    /// Messages to report since the last call.
     pub fn take_alerts(&mut self) -> Vec<Alert> {
         std::mem::take(&mut self.alerts)
     }
 
-    /// Réserve une réponse CTCP si la limite le permet.
+    /// Reserves a CTCP reply if the limit allows it.
     fn allow_ctcp_reply(&mut self, now: Instant) -> bool {
         while self
             .ctcp_replies
@@ -297,13 +298,13 @@ impl Server {
         true
     }
 
-    /// Ajoute une ligne d'information à l'onglet du serveur.
+    /// Adds an information line to the server tab.
     pub fn info(&mut self, kind: LineKind, ctx: &Context<'_>) {
         let id = self.server_buffer();
         self.push(id, Line::new(Local::now(), kind), ctx);
     }
 
-    /// Marque un onglet comme lu et le signale au serveur (`draft/read-marker`).
+    /// Marks a tab as read and tells the server (`draft/read-marker`).
     pub fn mark_read(&mut self, id: BufferId) {
         let Some(buffer) = self.buffer_mut(id) else {
             return;
@@ -322,18 +323,18 @@ impl Server {
         }
     }
 
-    /// Traite un événement de la connexion.
+    /// Handles an event of the connection.
     pub fn on_event(&mut self, event: Event, ctx: &Context<'_>) -> Effects {
         let mut effects = Effects::default();
         match event {
             Event::Connecting { attempt } => {
                 self.status = Status::Connecting(attempt);
                 let connection = &self.entry.connection;
-                let text = format!(
-                    "Connexion à {}:{}{}…",
-                    connection.host,
-                    connection.port,
-                    if connection.tls { " (TLS)" } else { "" }
+                let text = tr!(
+                    "Connecting to {host}:{port}{tls}…",
+                    host = connection.host,
+                    port = connection.port,
+                    tls = if connection.tls { " (TLS)" } else { "" }
                 );
                 self.info(LineKind::Info(text), ctx);
             }
@@ -350,25 +351,22 @@ impl Server {
                     effects.sts = Some((port, duration.as_secs()));
                 }
                 if registered.sasl_refused {
-                    let text = "SASL non utilisé : la connexion n'est pas chiffrée. Activez TLS pour vous identifier sans exposer votre mot de passe.";
+                    let text = tr("SASL not used: the connection is not encrypted. Enable TLS to identify without exposing your password.");
                     self.info(LineKind::Error(text.to_owned()), ctx);
                 }
                 let caps = if registered.caps.is_empty() {
-                    "aucune".to_owned()
+                    tr("none").to_owned()
                 } else {
                     registered.caps.join(", ")
                 };
-                let text = format!(
-                    "Connecté en tant que {}. Capacités IRCv3 : {caps}.",
-                    registered.nick
-                );
+                let text = tr!("Connected as {nick}. IRCv3 capabilities: {caps}.", nick = registered.nick, caps = caps);
                 self.info(LineKind::Info(text), ctx);
             }
             Event::UpgradedToTls { port } => {
                 self.entry.connection.tls = true;
                 self.entry.connection.port = port;
                 effects.config_changed = true;
-                let text = format!("Le serveur impose TLS (STS) : reconnexion sur le port {port}.");
+                let text = tr!("The server requires TLS (STS): reconnecting on port {port}.", port = port);
                 self.info(LineKind::Info(text), ctx);
             }
             Event::Message(message) => {
@@ -379,13 +377,13 @@ impl Server {
                 self.handle = None;
                 let text = match (&error, retry_in) {
                     (Some(error), Some(delay)) => {
-                        format!("Déconnecté : {error}. Nouvelle tentative dans {} s.", delay.as_secs())
+                        tr!("Disconnected: {error}. Retrying in {seconds} s.", error = error, seconds = delay.as_secs())
                     }
                     (None, Some(delay)) => {
-                        format!("Déconnecté. Nouvelle tentative dans {} s.", delay.as_secs())
+                        tr!("Disconnected. Retrying in {seconds} s.", seconds = delay.as_secs())
                     }
-                    (Some(error), None) => format!("Déconnecté : {error}."),
-                    (None, None) => "Déconnecté.".to_owned(),
+                    (Some(error), None) => tr!("Disconnected: {error}.", error = error),
+                    (None, None) => tr("Disconnected.").to_owned(),
                 };
                 let ids: Vec<BufferId> = self.buffers().map(|(id, _)| id).collect();
                 for id in ids {
@@ -408,12 +406,12 @@ impl Server {
     }
 }
 
-/// Horodatage au format IRCv3 (`2026-10-26T10:00:00.000Z`).
+/// Timestamp in IRCv3 format (`2026-10-26T10:00:00.000Z`).
 pub fn format_time(time: DateTime<Local>) -> String {
     time.with_timezone(&Utc).to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
-/// Horodatage d'un message : `server-time` s'il est présent, sinon maintenant.
+/// Timestamp of a message: `server-time` if present, otherwise now.
 pub fn message_time(message: &Message) -> DateTime<Local> {
     message
         .server_time()

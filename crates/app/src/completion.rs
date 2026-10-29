@@ -1,24 +1,24 @@
-//! Complétion par Tab : pseudonymes, salons et commandes.
+//! Tab completion: nicknames, channels and commands.
 //!
-//! Comme HexChat, un pseudonyme complété en début de ligne est suivi de `: `,
-//! et un nouvel appui sur Tab passe au candidat suivant.
+//! As in HexChat, a nickname completed at the start of the line is followed
+//! by `: `, and pressing Tab again moves to the next candidate.
 
-/// Session de complétion en cours.
+/// Completion session in progress.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Completion {
-    /// Texte précédant le mot complété.
+    /// Text before the completed word.
     head: String,
     matches: Vec<String>,
     index: usize,
-    /// Suffixe ajouté après le candidat (`": "` en début de ligne).
+    /// Suffix added after the candidate (`": "` at the start of the line).
     suffix: &'static str,
 }
 
 impl Completion {
-    /// Démarre une complétion sur le dernier mot de `input`.
+    /// Starts a completion on the last word of `input`.
     ///
-    /// `candidates` est parcouru dans l'ordre fourni (les interlocuteurs récents
-    /// d'abord, idéalement) ; la comparaison ignore la casse.
+    /// `candidates` is walked in the given order (ideally recent speakers
+    /// first); the comparison is case-insensitive.
     pub fn start<'a>(input: &str, candidates: impl IntoIterator<Item = &'a str>) -> Option<Self> {
         let word_start = input.rfind(' ').map_or(0, |index| index + 1);
         let (head, word) = input.split_at(word_start);
@@ -47,12 +47,12 @@ impl Completion {
         })
     }
 
-    /// Texte complet avec le candidat courant.
+    /// Full text with the current candidate.
     pub fn text(&self) -> String {
         format!("{}{}{}", self.head, self.matches[self.index], self.suffix)
     }
 
-    /// Passe au candidat suivant (ou précédent) et renvoie le nouveau texte.
+    /// Moves to the next (or previous) candidate and returns the new text.
     pub fn cycle(&mut self, backwards: bool) -> String {
         let len = self.matches.len();
         self.index = if backwards {
@@ -76,8 +76,8 @@ mod tests {
 
     #[test]
     fn completes_inside_sentence_with_space() {
-        let completion = Completion::start("merci bo", ["bob"]).unwrap();
-        assert_eq!(completion.text(), "merci bob ");
+        let completion = Completion::start("thanks bo", ["bob"]).unwrap();
+        assert_eq!(completion.text(), "thanks bob ");
     }
 
     #[test]

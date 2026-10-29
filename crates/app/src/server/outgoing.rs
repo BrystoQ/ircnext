@@ -1,4 +1,4 @@
-//! Envoi de texte et exécution des commandes saisies.
+//! Sending text and running typed commands.
 
 use std::time::Instant;
 
@@ -9,14 +9,16 @@ use ircnext_client::proto::{Command as Verb, Message};
 
 use super::{BufferId, Context, Effects, RemoteCompletion, Server};
 use crate::buffer::{Kind, Line, LineKind};
-use crate::input::{COMMANDS, Command};
+use crate::i18n::tr;
+use crate::input::{self, Command};
+use crate::tr;
 
-/// Taille maximale du texte d'un `PRIVMSG`, en octets, pour rester sous la
-/// limite de 512 octets une fois la source ajoutée par le serveur.
+/// Maximum size of the text of a `PRIVMSG`, in bytes, to stay under the
+/// 512-byte limit once the server adds the source.
 const MAX_TEXT_BYTES: usize = 400;
 
 impl Server {
-    /// Envoie du texte dans un onglet (chaque ligne collée devient un message).
+    /// Sends text in a tab (each pasted line becomes a message).
     pub fn send_text(&mut self, id: BufferId, text: &str, ctx: &Context<'_>) -> Result<(), String> {
         let target = self.text_target(id)?;
         for line in text.lines().filter(|line| !line.is_empty()) {
@@ -32,7 +34,7 @@ impl Server {
         Ok(())
     }
 
-    /// Signale l'état de saisie dans un onglet (IRCv3 `+typing`).
+    /// Reports the typing state in a tab (IRCv3 `+typing`).
     pub fn send_typing(&self, id: BufferId, state: Typing) {
         if !self.network.has_cap("message-tags") {
             return;
@@ -42,7 +44,7 @@ impl Server {
         }
     }
 
-    /// Demande aux bots de compléter `text` (brouillon IRCv3 `autocomplete`).
+    /// Asks bots to complete `text` (IRCv3 `autocomplete` draft).
     pub fn request_completion(&mut self, id: BufferId, text: &str) -> bool {
         if !self.network.has_cap("message-tags") {
             return false;
@@ -62,7 +64,7 @@ impl Server {
         true
     }
 
-    /// Exécute une commande dans le contexte de l'onglet `id`.
+    /// Runs a command in the context of the tab `id`.
     pub fn execute(&mut self, id: BufferId, command: Command, ctx: &Context<'_>) -> Result<Effects, String> {
         let mut effects = Effects::default();
         let current = self.buffer(id).map(|b| (b.kind, b.name.clone()));
@@ -70,7 +72,7 @@ impl Server {
             .as_ref()
             .filter(|(kind, _)| *kind == Kind::Channel)
             .map(|(_, name)| name.clone());
-        let require_channel = || current_channel.clone().ok_or_else(|| "Cette commande s'utilise dans un salon.".to_owned());
+        let require_channel = || current_channel.clone().ok_or_else(|| tr("This command is used in a channel.").to_owned());
 
         match command {
             Command::Join { channels, key } => {
@@ -87,7 +89,7 @@ impl Server {
                     let nick = self.network.nick().to_owned();
                     self.echo(target_id, LineKind::Message { nick, prefix: None, text }, ctx);
                 } else {
-                    let line = LineKind::Info(format!("→ {target} : {text}"));
+                    let line = LineKind::Info(format!("→ {target}: {text}"));
                     self.echo(id, line, ctx);
                 }
             }
@@ -106,7 +108,7 @@ impl Server {
             }
             Command::Notice { target, text } => {
                 self.send(Message::notice(&target, &text))?;
-                let line = LineKind::Info(format!("→ notice {target} : {text}"));
+                let line = LineKind::Info(format!("→ notice {target}: {text}"));
                 self.echo(id, line, ctx);
             }
             Command::Me(text) => {
@@ -121,7 +123,7 @@ impl Server {
                 } else {
                     self.entry.connection.nick = nick;
                     effects.config_changed = true;
-                    self.info(LineKind::Info("Pseudonyme enregistré pour la prochaine connexion.".into()), ctx);
+                    self.info(LineKind::Info(tr("Nickname saved for the next connection.").into()), ctx);
                 }
             }
             Command::Topic(topic) => {
@@ -132,7 +134,7 @@ impl Server {
             }
             Command::Whois(nick) => self.send(Message::new(Verb::Whois, [nick]))?,
             Command::Away(reason) => {
-                let reason = reason.unwrap_or_else(|| "Absent".to_owned());
+                let reason = reason.unwrap_or_else(|| tr("Away").to_owned());
                 self.send(Message::new(Verb::Away, [reason]))?;
             }
             Command::Back => self.send(Message::new(Verb::Away, Vec::<String>::new()))?,
@@ -160,7 +162,7 @@ impl Server {
             }
             Command::Mode(args) => {
                 let mut params: Vec<String> = args.split_whitespace().map(str::to_owned).collect();
-                // `/mode +m` s'applique au salon courant.
+                // `/mode +m` applies to the current channel.
                 if params.first().is_some_and(|p| p.starts_with(['+', '-']))
                     && let Some(channel) = current_channel.clone()
                 {
@@ -174,10 +176,10 @@ impl Server {
             }
             Command::Ctcp { target, command, params } => {
                 self.send(Message::privmsg(&target, ctcp(&command, params.as_deref())))?;
-                self.echo(id, LineKind::Info(format!("Requête CTCP {command} envoyée à {target}")), ctx);
+                self.echo(id, LineKind::Info(tr!("CTCP {command} request sent to {target}", command = command, target = target)), ctx);
             }
             Command::Raw(line) => {
-                let message: Message = line.parse().map_err(|error| format!("Ligne invalide : {error}"))?;
+                let message: Message = line.parse().map_err(|error| tr!("Invalid line: {error}", error = error))?;
                 self.send(message)?;
             }
             Command::Quit(reason) => {
@@ -191,14 +193,14 @@ impl Server {
                 self.enabled = true;
                 self.generation += 1;
             }
-            // Réglages de l'application : traités avant d'arriver ici.
+            // Application settings: handled before getting here.
             Command::Ignore(_) | Command::Unignore(_) => {}
             Command::Close => {
                 let Some((kind, name)) = current else {
                     return Ok(effects);
                 };
                 match kind {
-                    Kind::Server => return Err("L'onglet du serveur ne peut pas être fermé.".into()),
+                    Kind::Server => return Err(tr("The server tab cannot be closed.").into()),
                     Kind::Channel => {
                         if self.buffer(id).is_some_and(|b| b.joined) {
                             let _ = self.send(Message::part(&name, default_part_message(ctx).as_deref()));
@@ -219,7 +221,7 @@ impl Server {
                 }
             }
             Command::Help => {
-                for spec in COMMANDS {
+                for spec in input::commands() {
                     let text = format!("{:<38} {}", spec.usage, spec.help);
                     self.push(id, Line::new(Local::now(), LineKind::Info(text)), ctx);
                 }
@@ -228,11 +230,11 @@ impl Server {
         Ok(effects)
     }
 
-    /// Cible des messages d'un onglet (salon ou pseudonyme).
+    /// Message target of a tab (channel or nickname).
     fn text_target(&self, id: BufferId) -> Result<String, String> {
         match self.buffer(id) {
             Some(buffer) if buffer.kind != Kind::Server => Ok(buffer.name.clone()),
-            _ => Err("Impossible d'envoyer du texte ici : utilisez /msg ou /quote.".to_owned()),
+            _ => Err(tr("Cannot send text here: use /msg or /quote.").to_owned()),
         }
     }
 
@@ -243,8 +245,8 @@ impl Server {
             .highest_prefix()
     }
 
-    /// Affiche localement un message envoyé, sauf si le serveur le renverra
-    /// lui-même (`echo-message`).
+    /// Shows a sent message locally, unless the server will echo it itself
+    /// (`echo-message`).
     fn echo(&mut self, id: BufferId, kind: LineKind, ctx: &Context<'_>) {
         let echoed_by_server = self.network.has_cap("echo-message")
             && matches!(kind, LineKind::Message { .. } | LineKind::Action { .. });
@@ -257,7 +259,7 @@ impl Server {
     }
 }
 
-/// Raison de départ configurée, si elle n'est pas vide.
+/// Configured part reason, if not empty.
 fn default_part_message(ctx: &Context<'_>) -> Option<String> {
     Some(ctx.settings.part_message.trim().to_owned()).filter(|message| !message.is_empty())
 }

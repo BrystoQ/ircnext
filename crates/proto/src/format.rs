@@ -1,6 +1,6 @@
-//! Codes de formatage mIRC (gras, couleurs...) présents dans le texte des messages.
+//! mIRC formatting codes (bold, colors...) found in message text.
 //!
-//! Référence : <https://modern.ircdocs.horse/formatting>
+//! Reference: <https://modern.ircdocs.horse/formatting>
 
 const BOLD: char = '\x02';
 const COLOR: char = '\x03';
@@ -12,16 +12,16 @@ const ITALIC: char = '\x1d';
 const STRIKETHROUGH: char = '\x1e';
 const UNDERLINE: char = '\x1f';
 
-/// Couleur de texte ou de fond.
+/// Text or background color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
-    /// Index de la palette mIRC (0–98).
+    /// Index in the mIRC palette (0–98).
     Palette(u8),
     Rgb(u8, u8, u8),
 }
 
 impl Color {
-    /// Valeur RVB de la couleur, si l'index de palette est défini.
+    /// RGB value of the color, if the palette index is defined.
     pub fn rgb(self) -> Option<(u8, u8, u8)> {
         match self {
             Self::Rgb(r, g, b) => Some((r, g, b)),
@@ -33,7 +33,7 @@ impl Color {
     }
 }
 
-/// Style appliqué à un fragment de texte.
+/// Style applied to a span of text.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Style {
@@ -47,14 +47,14 @@ pub struct Style {
     pub background: Option<Color>,
 }
 
-/// Fragment de texte homogène.
+/// Uniform span of text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span<'a> {
     pub text: &'a str,
     pub style: Style,
 }
 
-/// Découpe un texte en fragments stylés, en retirant les codes de contrôle.
+/// Splits a text into styled spans, removing the control codes.
 pub fn parse(input: &str) -> Vec<Span<'_>> {
     let mut spans = Vec::new();
     let mut style = Style::default();
@@ -99,7 +99,7 @@ pub fn parse(input: &str) -> Vec<Span<'_>> {
                 style.background = background;
             }
         } else {
-            // Un code couleur sans chiffres remet les deux couleurs à zéro.
+            // A color code without digits resets both colors.
             style.foreground = None;
             style.background = None;
         }
@@ -118,20 +118,20 @@ pub fn parse(input: &str) -> Vec<Span<'_>> {
     spans
 }
 
-/// Texte sans aucun code de formatage.
+/// Text without any formatting code.
 pub fn strip(input: &str) -> String {
     let text: String = parse(input).into_iter().map(|span| span.text).collect();
     sanitize(&text).into_owned()
 }
 
-/// Retire les caractères invisibles dangereux à l'affichage :
-/// - les contrôles bidirectionnels (U+202A–U+202E, U+2066–U+2069), qui
-///   permettent d'inverser le texte et de maquiller un lien
-///   (`https://evil.example/\u{202E}moc.elgoog`) ;
-/// - les caractères de contrôle C0 restants (hors tabulation), affichés sinon
-///   comme des carrés.
+/// Removes invisible characters that are dangerous on display:
+/// - bidirectional controls (U+202A–U+202E, U+2066–U+2069), which can
+///   reverse text and disguise a link
+///   (`https://evil.example/\u{202E}moc.elgoog`);
+/// - the remaining C0 control characters (except tab), otherwise shown as
+///   boxes.
 ///
-/// Les codes de mise en forme mIRC doivent être interprétés avant.
+/// mIRC formatting codes must be interpreted first.
 pub fn sanitize(input: &str) -> std::borrow::Cow<'_, str> {
     let unsafe_char = |c: char| {
         matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}') || (c.is_control() && c != '\t')
@@ -143,8 +143,8 @@ pub fn sanitize(input: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
-/// `(premier plan, fond)` ; `None` en premier plan = remise à zéro.
-/// Le fond est `None` s'il est absent, `Some(None)` s'il vaut « défaut » (99).
+/// `(foreground, background)`; a `None` foreground means a reset.
+/// The background is `None` if absent, `Some(None)` if it is “default” (99).
 type ColorPair = Option<(Option<Color>, Option<Option<Color>>)>;
 
 fn parse_palette_colors(rest: &str) -> (ColorPair, usize) {
@@ -195,7 +195,7 @@ fn palette_color(index: u8) -> Option<Color> {
     (index != 99).then_some(Color::Palette(index))
 }
 
-/// Palette mIRC étendue (indices 0–98).
+/// Extended mIRC palette (indices 0–98).
 #[allow(clippy::unreadable_literal)]
 const PALETTE: [u32; 99] = [
     0xffffff, 0x000000, 0x00007f, 0x009300, 0xff0000, 0x7f0000, 0x9c009c, 0xfc7f00,
@@ -221,7 +221,7 @@ mod tests {
     fn sanitizes_bidi_and_control_characters() {
         assert_eq!(sanitize("https://evil.example/\u{202E}moc.elgoog"), "https://evil.example/moc.elgoog");
         assert_eq!(sanitize("a\u{2067}b\u{7}c\td"), "abc\td");
-        assert!(matches!(sanitize("propre é"), std::borrow::Cow::Borrowed(_)));
+        assert!(matches!(sanitize("clean é"), std::borrow::Cow::Borrowed(_)));
         assert_eq!(strip("\x02gras\x02\u{202E}"), "gras");
     }
 

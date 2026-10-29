@@ -1,16 +1,19 @@
-//! Analyse de la ligne de saisie : texte à envoyer ou commande `/...`.
+//! Parsing of the input line: text to send or `/...` command.
 
 use std::fmt;
 
-/// Ce que l'utilisateur a tapé.
+use crate::i18n::tr;
+use crate::tr;
+
+/// What the user typed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Input {
-    /// Texte à envoyer tel quel dans l'onglet courant.
+    /// Text to send as is in the current tab.
     Text(String),
     Command(Command),
 }
 
-/// Commandes reconnues, inspirées de celles de HexChat.
+/// Recognized commands, inspired by HexChat's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     Join { channels: String, key: Option<String> },
@@ -27,7 +30,7 @@ pub enum Command {
     Kick { nick: String, reason: Option<String> },
     Ban(String),
     Unban(String),
-    /// `/op`, `/deop`, `/voice`, `/devoice` : mode de préfixe à appliquer.
+    /// `/op`, `/deop`, `/voice`, `/devoice`: prefix mode to apply.
     Prefix { adding: bool, mode: char, nicks: Vec<String> },
     Mode(String),
     Invite { nick: String, channel: Option<String> },
@@ -38,74 +41,77 @@ pub enum Command {
     Close,
     Clear,
     Help,
-    /// `/ignore [masque]` : ajoute un masque, ou liste les ignorés.
+    /// `/ignore [mask]`: adds a mask, or lists the ignored users.
     Ignore(Option<String>),
     Unignore(String),
 }
 
-/// Erreur d'analyse, affichée dans l'onglet courant.
+/// Parsing error, shown in the current tab.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Unknown(String),
-    Usage(&'static Spec),
+    Usage(Spec),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unknown(name) => {
-                write!(f, "Commande inconnue : /{name}. Tapez /help pour la liste.")
+                f.write_str(&tr!("Unknown command: /{name}. Type /help for the list.", name = name))
             }
-            Self::Usage(spec) => write!(f, "Utilisation : {}", spec.usage),
+            Self::Usage(spec) => f.write_str(&tr!("Usage: {usage}", usage = spec.usage)),
         }
     }
 }
 
-/// Description d'une commande pour l'aide et la complétion.
-#[derive(Debug, PartialEq, Eq)]
+/// Description of a command for the help and the completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Spec {
     pub names: &'static [&'static str],
     pub usage: &'static str,
     pub help: &'static str,
 }
 
-pub const COMMANDS: &[Spec] = &[
-    Spec { names: &["join", "j"], usage: "/join #salon [clé]", help: "Rejoindre un salon" },
-    Spec { names: &["part", "leave"], usage: "/part [#salon] [raison]", help: "Quitter un salon" },
-    Spec { names: &["msg"], usage: "/msg <cible> <texte>", help: "Envoyer un message" },
-    Spec { names: &["query", "q"], usage: "/query <pseudo> [texte]", help: "Ouvrir une conversation privée" },
-    Spec { names: &["notice"], usage: "/notice <cible> <texte>", help: "Envoyer une notice" },
-    Spec { names: &["ns", "nickserv"], usage: "/ns <commande>", help: "Commande pour NickServ (compte)" },
-    Spec { names: &["cs", "chanserv"], usage: "/cs <commande>", help: "Commande pour ChanServ (salons)" },
-    Spec { names: &["ms", "memoserv"], usage: "/ms <commande>", help: "Commande pour MemoServ (mémos)" },
-    Spec { names: &["hs", "hostserv"], usage: "/hs <commande>", help: "Commande pour HostServ (vhost)" },
-    Spec { names: &["me"], usage: "/me <action>", help: "Décrire une action" },
-    Spec { names: &["nick"], usage: "/nick <pseudo>", help: "Changer de pseudonyme" },
-    Spec { names: &["topic"], usage: "/topic [sujet]", help: "Afficher ou changer le sujet" },
-    Spec { names: &["whois", "wi"], usage: "/whois <pseudo>", help: "Informations sur un utilisateur" },
-    Spec { names: &["away"], usage: "/away [message]", help: "Se déclarer absent" },
-    Spec { names: &["back"], usage: "/back", help: "Revenir de l'absence" },
-    Spec { names: &["kick", "k"], usage: "/kick <pseudo> [raison]", help: "Expulser du salon" },
-    Spec { names: &["ban"], usage: "/ban <masque|pseudo>", help: "Bannir du salon" },
-    Spec { names: &["unban"], usage: "/unban <masque>", help: "Lever un bannissement" },
-    Spec { names: &["op"], usage: "/op <pseudo>...", help: "Donner le statut d'opérateur" },
-    Spec { names: &["deop"], usage: "/deop <pseudo>...", help: "Retirer le statut d'opérateur" },
-    Spec { names: &["voice"], usage: "/voice <pseudo>...", help: "Donner la parole" },
-    Spec { names: &["devoice"], usage: "/devoice <pseudo>...", help: "Retirer la parole" },
-    Spec { names: &["mode"], usage: "/mode <arguments>", help: "Changer des modes" },
-    Spec { names: &["invite"], usage: "/invite <pseudo> [#salon]", help: "Inviter sur un salon" },
-    Spec { names: &["ctcp"], usage: "/ctcp <cible> <commande> [arguments]", help: "Envoyer une requête CTCP" },
-    Spec { names: &["quote", "raw"], usage: "/quote <ligne IRC>", help: "Envoyer une ligne brute" },
-    Spec { names: &["quit", "disconnect"], usage: "/quit [raison]", help: "Se déconnecter du serveur" },
-    Spec { names: &["connect", "reconnect"], usage: "/connect", help: "Se (re)connecter au serveur" },
-    Spec { names: &["close"], usage: "/close", help: "Fermer l'onglet courant" },
-    Spec { names: &["clear"], usage: "/clear", help: "Effacer l'onglet courant" },
-    Spec { names: &["ignore"], usage: "/ignore [pseudo ou masque]", help: "Ignorer quelqu'un (sans argument : la liste)" },
-    Spec { names: &["unignore"], usage: "/unignore <pseudo ou masque>", help: "Ne plus ignorer quelqu'un" },
-    Spec { names: &["help"], usage: "/help", help: "Afficher cette aide" },
-];
+/// Known commands, translated into the current language.
+pub fn commands() -> Vec<Spec> {
+    vec![
+        Spec { names: &["join", "j"], usage: tr("/join #channel [key]"), help: tr("Join a channel") },
+        Spec { names: &["part", "leave"], usage: tr("/part [#channel] [reason]"), help: tr("Leave a channel") },
+        Spec { names: &["msg"], usage: tr("/msg <target> <text>"), help: tr("Send a message") },
+        Spec { names: &["query", "q"], usage: tr("/query <nick> [text]"), help: tr("Open a private conversation") },
+        Spec { names: &["notice"], usage: tr("/notice <target> <text>"), help: tr("Send a notice") },
+        Spec { names: &["ns", "nickserv"], usage: tr("/ns <command>"), help: tr("Command for NickServ (account)") },
+        Spec { names: &["cs", "chanserv"], usage: tr("/cs <command>"), help: tr("Command for ChanServ (channels)") },
+        Spec { names: &["ms", "memoserv"], usage: tr("/ms <command>"), help: tr("Command for MemoServ (memos)") },
+        Spec { names: &["hs", "hostserv"], usage: tr("/hs <command>"), help: tr("Command for HostServ (vhost)") },
+        Spec { names: &["me"], usage: tr("/me <action>"), help: tr("Describe an action") },
+        Spec { names: &["nick"], usage: tr("/nick <nickname>"), help: tr("Change nickname") },
+        Spec { names: &["topic"], usage: tr("/topic [topic]"), help: tr("Show or change the topic") },
+        Spec { names: &["whois", "wi"], usage: tr("/whois <nick>"), help: tr("Information about a user") },
+        Spec { names: &["away"], usage: tr("/away [message]"), help: tr("Mark yourself as away") },
+        Spec { names: &["back"], usage: "/back", help: tr("Come back from away") },
+        Spec { names: &["kick", "k"], usage: tr("/kick <nick> [reason]"), help: tr("Kick from the channel") },
+        Spec { names: &["ban"], usage: tr("/ban <mask|nick>"), help: tr("Ban from the channel") },
+        Spec { names: &["unban"], usage: tr("/unban <mask>"), help: tr("Lift a ban") },
+        Spec { names: &["op"], usage: tr("/op <nick>..."), help: tr("Give operator status") },
+        Spec { names: &["deop"], usage: tr("/deop <nick>..."), help: tr("Remove operator status") },
+        Spec { names: &["voice"], usage: tr("/voice <nick>..."), help: tr("Give voice") },
+        Spec { names: &["devoice"], usage: tr("/devoice <nick>..."), help: tr("Remove voice") },
+        Spec { names: &["mode"], usage: tr("/mode <arguments>"), help: tr("Change modes") },
+        Spec { names: &["invite"], usage: tr("/invite <nick> [#channel]"), help: tr("Invite to a channel") },
+        Spec { names: &["ctcp"], usage: tr("/ctcp <target> <command> [arguments]"), help: tr("Send a CTCP request") },
+        Spec { names: &["quote", "raw"], usage: tr("/quote <IRC line>"), help: tr("Send a raw line") },
+        Spec { names: &["quit", "disconnect"], usage: tr("/quit [reason]"), help: tr("Disconnect from the server") },
+        Spec { names: &["connect", "reconnect"], usage: "/connect", help: tr("(Re)connect to the server") },
+        Spec { names: &["close"], usage: "/close", help: tr("Close the current tab") },
+        Spec { names: &["clear"], usage: "/clear", help: tr("Clear the current tab") },
+        Spec { names: &["ignore"], usage: tr("/ignore [nick or mask]"), help: tr("Ignore someone (no argument: the list)") },
+        Spec { names: &["unignore"], usage: tr("/unignore <nick or mask>"), help: tr("Stop ignoring someone") },
+        Spec { names: &["help"], usage: "/help", help: tr("Show this help") },
+    ]
+}
 
-/// Analyse une ligne saisie. `//texte` envoie `/texte` littéralement.
+/// Parses a typed line. `//text` sends `/text` literally.
 pub fn parse(line: &str) -> Result<Input, Error> {
     let Some(body) = line.strip_prefix('/') else {
         return Ok(Input::Text(line.to_owned()));
@@ -116,11 +122,11 @@ pub fn parse(line: &str) -> Result<Input, Error> {
 
     let (name, args) = split(body);
     let name = name.to_ascii_lowercase();
-    let spec = COMMANDS
-        .iter()
+    let spec = commands()
+        .into_iter()
         .find(|spec| spec.names.contains(&name.as_str()))
         .ok_or_else(|| Error::Unknown(name.clone()))?;
-    let usage = || Error::Usage(spec);
+    let usage = || Error::Usage(spec.clone());
     let required = |value: Option<&str>| value.map(str::to_owned).ok_or_else(usage);
 
     let command = match spec.names[0] {
@@ -148,7 +154,7 @@ pub fn parse(line: &str) -> Result<Input, Error> {
             Command::Notice { target: target.to_owned(), text: required(text)? }
         }
         "ns" | "cs" | "ms" | "hs" => {
-            let service = crate::suggest::service(spec.names[0]).expect("service déclaré");
+            let service = crate::suggest::service(spec.names[0]).expect("declared service");
             Command::Msg { target: service.name.to_owned(), text: required(args)? }
         }
         "me" => Command::Me(required(args)?),
@@ -201,12 +207,12 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "ignore" => Command::Ignore(owned(args.map(first_word))),
         "unignore" => Command::Unignore(required(args.map(first_word))?),
         "help" => Command::Help,
-        other => unreachable!("commande déclarée sans traitement : {other}"),
+        other => unreachable!("declared command without handling: {other}"),
     };
     Ok(Input::Command(command))
 }
 
-/// Sépare le premier mot du reste (`None` si le reste est vide).
+/// Splits the first word from the rest (`None` if the rest is empty).
 fn split(text: &str) -> (&str, Option<&str>) {
     let text = text.trim_start();
     match text.split_once(' ') {
@@ -226,10 +232,10 @@ fn owned(value: Option<&str>) -> Option<String> {
     value.map(str::to_owned).filter(|value| !value.trim().is_empty())
 }
 
-/// Noms de commandes (sans `/`) commençant par `prefix`, pour la complétion.
+/// Command names (without `/`) starting with `prefix`, for the completion.
 pub fn command_names(prefix: &str) -> Vec<String> {
     let prefix = prefix.to_ascii_lowercase();
-    COMMANDS
+    commands()
         .iter()
         .flat_map(|spec| spec.names.iter())
         .filter(|name| name.starts_with(&prefix))
@@ -244,13 +250,13 @@ mod tests {
     fn command(line: &str) -> Command {
         match parse(line) {
             Ok(Input::Command(command)) => command,
-            other => panic!("commande attendue pour {line:?}, obtenu {other:?}"),
+            other => panic!("command expected for {line:?}, got {other:?}"),
         }
     }
 
     #[test]
     fn plain_text_and_escapes() {
-        assert_eq!(parse("salut"), Ok(Input::Text("salut".into())));
+        assert_eq!(parse("hello"), Ok(Input::Text("hello".into())));
         assert_eq!(parse("//etc/hosts"), Ok(Input::Text("/etc/hosts".into())));
         assert_eq!(parse("/"), Ok(Input::Text(String::new())));
     }
@@ -262,13 +268,13 @@ mod tests {
             Command::Join { channels: "#rust".into(), key: Some("secret".into()) }
         );
         assert_eq!(
-            command("/MSG bob  salut   toi"),
-            Command::Msg { target: "bob".into(), text: "salut   toi".into() }
+            command("/MSG bob  hello   you"),
+            Command::Msg { target: "bob".into(), text: "hello   you".into() }
         );
-        assert_eq!(command("/me danse"), Command::Me("danse".into()));
+        assert_eq!(command("/me dances"), Command::Me("dances".into()));
         assert_eq!(command("/topic"), Command::Topic(None));
         assert_eq!(command("/away"), Command::Away(None));
-        assert_eq!(command("/quit à plus"), Command::Quit(Some("à plus".into())));
+        assert_eq!(command("/quit see you"), Command::Quit(Some("see you".into())));
     }
 
     #[test]
@@ -291,8 +297,8 @@ mod tests {
             Command::Part { channel: Some("#rust".into()), reason: Some("bye".into()) }
         );
         assert_eq!(
-            command("/part fini"),
-            Command::Part { channel: None, reason: Some("fini".into()) }
+            command("/part done"),
+            Command::Part { channel: None, reason: Some("done".into()) }
         );
     }
 
@@ -320,9 +326,9 @@ mod tests {
     fn reports_errors() {
         assert_eq!(parse("/frobnicate"), Err(Error::Unknown("frobnicate".into())));
         let Err(Error::Usage(spec)) = parse("/msg bob") else {
-            panic!("erreur d'utilisation attendue");
+            panic!("usage error expected");
         };
-        assert_eq!(spec.usage, "/msg <cible> <texte>");
+        assert_eq!(spec.usage, "/msg <target> <text>");
         assert!(matches!(parse("/op"), Err(Error::Usage(_))));
     }
 

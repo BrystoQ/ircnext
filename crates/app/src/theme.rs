@@ -1,4 +1,4 @@
-//! Palette de couleurs et styles des widgets.
+//! Color palette and widget styles.
 
 use iced::widget::{button, container, pick_list, scrollable, text_input};
 use iced::{Background, Border, Color, Shadow, Theme, Vector};
@@ -6,10 +6,10 @@ use ircnext_client::proto::format;
 
 use crate::settings::{HexColor, ThemeMode};
 
-/// Rayon des coins arrondis.
+/// Radius of rounded corners.
 pub const RADIUS: f32 = 8.0;
 
-/// Couleurs de l'interface, dérivées du mode clair/sombre et de l'accent.
+/// Interface colors, derived from the light/dark mode and the accent.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Colors {
     pub dark: bool,
@@ -21,7 +21,7 @@ pub struct Colors {
     pub text: Color,
     pub muted: Color,
     pub accent: Color,
-    /// Texte lisible sur fond d'accent.
+    /// Text readable on an accent background.
     pub on_accent: Color,
     pub danger: Color,
     pub warning: Color,
@@ -29,13 +29,13 @@ pub struct Colors {
 }
 
 impl Colors {
-    /// Couleurs du thème `mode` ; `system_dark` résout le mode automatique.
+    /// Colors of the `mode` theme; `system_dark` resolves the automatic mode.
     pub fn new(mode: ThemeMode, system_dark: bool, accent: HexColor) -> Self {
         let [r, g, b] = accent.0;
         let accent = Color::from_rgb8(r, g, b);
         let on_accent = if luminance(accent) > 0.55 { Color::BLACK } else { Color::WHITE };
-        // Fond, barre latérale, surface, survol, bordure, texte, secondaire,
-        // danger, avertissement, succès.
+        // Background, sidebar, surface, hover, border, text, secondary,
+        // danger, warning, success.
         let (dark, [background, sidebar, surface, hover, border, text, muted, danger, warning, success]) = match mode {
             ThemeMode::System if !system_dark => LIGHT,
             ThemeMode::System | ThemeMode::Dark => GRAPHITE,
@@ -63,7 +63,7 @@ impl Colors {
         }
     }
 
-    /// Thème iced correspondant, pour les widgets non stylés explicitement.
+    /// Matching iced theme, for widgets without an explicit style.
     pub fn theme(&self) -> Theme {
         Theme::custom(
             "ircnext",
@@ -78,9 +78,9 @@ impl Colors {
         )
     }
 
-    /// Couleur stable associée à un pseudonyme.
+    /// Stable color associated with a nickname.
     pub fn nick(&self, nick: &str) -> Color {
-        // FNV-1a : rapide, stable d'une exécution à l'autre.
+        // FNV-1a: fast, stable from one run to the next.
         let hash = nick
             .to_lowercase()
             .bytes()
@@ -90,7 +90,7 @@ impl Colors {
         hsl(hue, 0.62, lightness)
     }
 
-    /// Couleur mIRC adaptée à l'affichage.
+    /// mIRC color adapted for display.
     pub fn irc(color: format::Color) -> Option<Color> {
         color.rgb().map(|(r, g, b)| Color::from_rgb8(r, g, b))
     }
@@ -100,8 +100,8 @@ impl Colors {
     }
 }
 
-/// Palettes de base, l'accent étant choisi à part.
-#[allow(clippy::unreadable_literal)] // codes couleur au format #rrggbb
+/// Base palettes, the accent being chosen separately.
+#[allow(clippy::unreadable_literal)] // color codes in #rrggbb format
 mod palettes {
     pub type Palette = (bool, [u32; 10]);
 
@@ -146,7 +146,7 @@ fn luminance(color: Color) -> f32 {
     0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b
 }
 
-#[allow(clippy::many_single_char_names)] // notation usuelle de la conversion HSL
+#[allow(clippy::many_single_char_names)] // usual notation of the HSL conversion
 fn hsl(hue: f32, saturation: f32, lightness: f32) -> Color {
     let chroma = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
     let segment = hue / 60.0;
@@ -163,7 +163,7 @@ fn hsl(hue: f32, saturation: f32, lightness: f32) -> Color {
     Color::from_rgb(r + m, g + m, b + m)
 }
 
-// --- Conteneurs -------------------------------------------------------------
+// --- Containers -------------------------------------------------------------
 
 pub fn panel(background: Color) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {
@@ -201,7 +201,7 @@ pub fn backdrop(_: &Theme) -> container::Style {
     }
 }
 
-/// Carte regroupant des réglages.
+/// Card grouping settings.
 pub fn group(c: Colors) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {
         background: Some(c.surface.into()),
@@ -218,7 +218,7 @@ pub fn highlighted_line(c: Colors) -> impl Fn(&Theme) -> container::Style {
     }
 }
 
-/// Miniature d'un thème dans les paramètres.
+/// Thumbnail of a theme in the settings.
 pub fn preview(p: Colors) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {
         background: Some(p.background.into()),
@@ -227,7 +227,7 @@ pub fn preview(p: Colors) -> impl Fn(&Theme) -> container::Style {
     }
 }
 
-/// Pastille (compteur de non-lus).
+/// Badge (unread counter).
 pub fn badge(background: Color) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {
         background: Some(background.into()),
@@ -236,9 +236,9 @@ pub fn badge(background: Color) -> impl Fn(&Theme) -> container::Style {
     }
 }
 
-// --- Boutons ----------------------------------------------------------------
+// --- Buttons ----------------------------------------------------------------
 
-/// Élément de liste (onglet de la barre latérale, membre...).
+/// List item (sidebar tab, member...).
 pub fn list_item(c: Colors, selected: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, status| {
         let background = match status {
@@ -255,7 +255,7 @@ pub fn list_item(c: Colors, selected: bool) -> impl Fn(&Theme, button::Status) -
     }
 }
 
-/// Bouton discret (icônes d'en-tête).
+/// Discreet button (header icons).
 pub fn ghost(c: Colors) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, status| button::Style {
         background: matches!(status, button::Status::Hovered | button::Status::Pressed)
@@ -305,7 +305,7 @@ pub fn danger(c: Colors) -> impl Fn(&Theme, button::Status) -> button::Style {
     }
 }
 
-/// Vignette de choix de thème.
+/// Theme choice card.
 pub fn theme_card(c: Colors, selected: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, status| button::Style {
         background: matches!(status, button::Status::Hovered | button::Status::Pressed)
@@ -320,7 +320,7 @@ pub fn theme_card(c: Colors, selected: bool) -> impl Fn(&Theme, button::Status) 
     }
 }
 
-/// Pastille de couleur cliquable (choix de l'accent).
+/// Clickable color swatch (accent choice).
 pub fn swatch(color: Color, selected: bool, c: Colors) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, status| button::Style {
         background: Some(color.into()),
@@ -333,7 +333,7 @@ pub fn swatch(color: Color, selected: bool, c: Colors) -> impl Fn(&Theme, button
     }
 }
 
-/// Lien sans décoration (pseudonymes cliquables).
+/// Link without decoration (clickable nicknames).
 pub fn link(color: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, status| button::Style {
         background: None,
@@ -351,7 +351,7 @@ fn lighten(color: Color, amount: f32) -> Color {
     }
 }
 
-// --- Champs et défilement ---------------------------------------------------
+// --- Fields and scrolling ---------------------------------------------------
 
 pub fn input(c: Colors) -> impl Fn(&Theme, text_input::Status) -> text_input::Style {
     move |_, status| text_input::Style {
@@ -372,7 +372,7 @@ pub fn input(c: Colors) -> impl Fn(&Theme, text_input::Status) -> text_input::St
     }
 }
 
-/// Champ de saisie posé sur une carte de réglages (fond contrasté).
+/// Input field placed on a settings card (contrasting background).
 pub fn field(c: Colors) -> impl Fn(&Theme, text_input::Status) -> text_input::Style {
     move |theme, status| text_input::Style {
         background: Background::Color(c.background),
@@ -380,7 +380,7 @@ pub fn field(c: Colors) -> impl Fn(&Theme, text_input::Status) -> text_input::St
     }
 }
 
-/// Liste déroulante assortie aux champs de saisie.
+/// Pick list matching the input fields.
 pub fn select(c: Colors) -> impl Fn(&Theme, pick_list::Status) -> pick_list::Style {
     move |_, status| pick_list::Style {
         text_color: c.text,
@@ -433,7 +433,7 @@ mod tests {
     fn every_theme_keeps_text_readable() {
         for mode in ThemeMode::ALL {
             let c = Colors::new(mode, true, HexColor([0x5b, 0x8c, 0xff]));
-            // Contraste WCAG, sur la luminance relative (canaux linéarisés).
+            // WCAG contrast, on the relative luminance (linearized channels).
             let relative = |color: Color| {
                 let linear = |v: f32| if v <= 0.040_45 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
                 luminance(Color { r: linear(color.r), g: linear(color.g), b: linear(color.b), a: 1.0 })
@@ -442,8 +442,8 @@ mod tests {
                 let (l1, l2) = (relative(a), relative(b));
                 (l1.max(l2) + 0.05) / (l1.min(l2) + 0.05)
             };
-            assert!(contrast(c.text, c.background) > 7.0, "{mode}: texte");
-            assert!(contrast(c.muted, c.background) > 4.5, "{mode}: texte secondaire");
+            assert!(contrast(c.text, c.background) > 7.0, "{mode}: text");
+            assert!(contrast(c.muted, c.background) > 4.5, "{mode}: secondary text");
             assert_eq!(c.dark, luminance(c.background) < 0.5, "{mode}");
         }
     }

@@ -1,18 +1,18 @@
-//! Tags de message IRCv3 (`@clé=valeur;clé2 ...`).
+//! IRCv3 message tags (`@key=value;key2 ...`).
 //!
-//! Spécification : <https://ircv3.net/specs/extensions/message-tags>
+//! Specification: <https://ircv3.net/specs/extensions/message-tags>
 
 use std::fmt;
 
-/// Ensemble ordonné de tags attachés à un message.
+/// Ordered set of tags attached to a message.
 ///
-/// Un tag sans valeur et un tag à valeur vide sont équivalents selon la
-/// spécification : les deux sont représentés par une chaîne vide.
+/// A tag without a value and a tag with an empty value are equivalent
+/// according to the specification: both are represented by an empty string.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Tags(Vec<(String, String)>);
 
 impl Tags {
-    /// Analyse la partie tags d'une ligne, sans le `@` initial.
+    /// Parses the tags part of a line, without the leading `@`.
     pub fn parse(raw: &str) -> Self {
         let tags = raw
             .split(';')
@@ -25,7 +25,7 @@ impl Tags {
         Self(tags)
     }
 
-    /// Valeur du tag `key`, s'il est présent.
+    /// Value of the `key` tag, if present.
     pub fn get(&self, key: &str) -> Option<&str> {
         self.0
             .iter()
@@ -33,7 +33,7 @@ impl Tags {
             .map(|(_, value)| value.as_str())
     }
 
-    /// Ajoute ou remplace un tag.
+    /// Adds or replaces a tag.
     pub fn insert(&mut self, key: impl Into<String>, value: impl Into<String>) {
         let key = key.into();
         let value = value.into();
@@ -76,7 +76,7 @@ fn unescape(value: &str) -> String {
             out.push(c);
             continue;
         }
-        // Un `\` final est ignoré ; un échappement inconnu donne le caractère lui-même.
+        // A trailing `\` is ignored; an unknown escape gives the character itself.
         match chars.next() {
             Some(':') => out.push(';'),
             Some('s') => out.push(' '),

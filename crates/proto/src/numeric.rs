@@ -1,6 +1,6 @@
-//! Codes des réponses numériques utilisées par le client.
+//! Codes of the numeric replies used by the client.
 //!
-//! Référence : <https://modern.ircdocs.horse/#numerics>
+//! Reference: <https://modern.ircdocs.horse/#numerics>
 
 pub const RPL_WELCOME: u16 = 1;
 pub const RPL_ISUPPORT: u16 = 5;
@@ -39,7 +39,7 @@ pub const ERR_SASLABORTED: u16 = 906;
 pub const ERR_SASLALREADY: u16 = 907;
 pub const RPL_SASLMECHS: u16 = 908;
 
-/// Indique si un code numérique est une erreur (plages 400–599 et 902–908 hors succès).
+/// Whether a numeric code is an error (ranges 400–599 and 902–908, except successes).
 pub fn is_error(code: u16) -> bool {
     (400..600).contains(&code) || matches!(code, 902 | 904..=907)
 }

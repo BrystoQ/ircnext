@@ -1,6 +1,6 @@
 [package]
 name = "ircnext-proto"
-description = "Représentation, analyse et sérialisation du protocole IRC (sans I/O)."
+description = "Representation, parsing and serialization of the IRC protocol (no I/O)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

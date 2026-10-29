@@ -1,5 +1,5 @@
-//! État d'un réseau IRC reconstruit à partir des messages reçus : salons,
-//! membres, sujets, paramètres serveur. Aucune I/O : on applique des messages.
+//! State of an IRC network rebuilt from the received messages: channels,
+//! members, topics, server parameters. No I/O: messages are applied.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -10,26 +10,26 @@ use ircnext_proto::numeric::{
 };
 use ircnext_proto::{Command, ISupport, Message};
 
-/// Jeton identifiant nos requêtes WHOX dans les réponses 354.
+/// Token identifying our WHOX requests in the 354 replies.
 const WHOX_TOKEN: &str = "42";
 
-/// Requête WHOX récupérant, pour chaque membre de `channel` : salon, pseudo,
-/// drapeaux (absence) et compte.
+/// WHOX request fetching, for each member of `channel`: channel, nick,
+/// flags (away) and account.
 pub fn whox_request(channel: &str) -> Message {
     Message::new(Command::Who, [channel.to_owned(), format!("%tcnfa,{WHOX_TOKEN}")])
 }
 
-/// Membre d'un salon.
-/// Nombre maximal de batchs ouverts simultanément.
+/// Maximum number of batches open at the same time.
 const MAX_OPEN_BATCHES: usize = 64;
 
+/// Channel member.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
     pub nick: String,
-    /// Symboles de préfixe détenus, du plus élevé au plus bas (`@+`).
+    /// Prefix symbols held, from highest to lowest (`@+`).
     pub prefixes: Vec<char>,
     pub away: bool,
-    /// Compte services, si connu (`extended-join`, `account-notify`).
+    /// Services account, if known (`extended-join`, `account-notify`).
     pub account: Option<String>,
 }
 
@@ -43,20 +43,20 @@ impl Member {
         }
     }
 
-    /// Préfixe le plus élevé, pour l'affichage.
+    /// Highest prefix, for display.
     pub fn highest_prefix(&self) -> Option<char> {
         self.prefixes.first().copied()
     }
 }
 
-/// Salon rejoint.
+/// Joined channel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Channel {
     pub name: String,
     pub topic: Option<String>,
     pub topic_set_by: Option<String>,
     members: HashMap<String, Member>,
-    /// Une réponse `NAMES` est en cours de réception.
+    /// A `NAMES` reply is being received.
     names_pending: bool,
 }
 
@@ -79,7 +79,7 @@ impl Channel {
         self.members.get(folded_nick)
     }
 
-    /// Membres triés par rang de préfixe puis par pseudonyme.
+    /// Members sorted by prefix rank then by nickname.
     pub fn sorted_members(&self, isupport: &ISupport) -> Vec<&Member> {
         let mut members: Vec<&Member> = self.members.values().collect();
         members.sort_by_cached_key(|member| {
@@ -93,15 +93,15 @@ impl Channel {
     }
 }
 
-/// Lot IRCv3 (`BATCH`) en cours.
+/// IRCv3 batch (`BATCH`) in progress.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Batch {
-    /// Type du lot (`chathistory`, `netsplit`...).
+    /// Batch type (`chathistory`, `netsplit`...).
     pub kind: String,
     pub params: Vec<String>,
 }
 
-/// État complet d'une connexion.
+/// Full state of a connection.
 #[derive(Debug, Clone, Default)]
 pub struct Network {
     nick: String,
@@ -109,7 +109,7 @@ pub struct Network {
     caps: HashSet<String>,
     channels: BTreeMap<String, Channel>,
     batches: HashMap<String, Batch>,
-    /// Pseudonymes suivis par `MONITOR` et actuellement en ligne.
+    /// Nicknames followed by `MONITOR` and currently online.
     online: HashSet<String>,
     away: bool,
 }
@@ -122,7 +122,7 @@ impl Network {
         }
     }
 
-    /// Réinitialise l'état après l'enregistrement sur une nouvelle connexion.
+    /// Resets the state after registering on a new connection.
     pub fn reset(&mut self, nick: &str, caps: &[String]) {
         *self = Self {
             nick: nick.to_owned(),
@@ -167,7 +167,7 @@ impl Network {
         self.channels.values()
     }
 
-    /// Salons où `nick` est présent.
+    /// Channels where `nick` is present.
     pub fn channels_with(&self, nick: &str) -> Vec<String> {
         let key = self.fold(nick);
         self.channels
@@ -177,19 +177,19 @@ impl Network {
             .collect()
     }
 
-    /// Lot auquel appartient le message, s'il y en a un.
+    /// Batch the message belongs to, if any.
     pub fn batch_of(&self, message: &Message) -> Option<&Batch> {
         message.batch().and_then(|id| self.batches.get(id))
     }
 
-    /// Indique si `nick` est en ligne d'après `MONITOR` (`None` si inconnu).
+    /// Whether `nick` is online according to `MONITOR` (`None` if unknown).
     pub fn is_online(&self, nick: &str) -> Option<bool> {
         self.isupport
             .monitor
             .map(|_| self.online.contains(&self.fold(nick)))
     }
 
-    /// Met à jour l'état d'après un message reçu.
+    /// Updates the state from a received message.
     pub fn apply(&mut self, message: &Message) {
         let source = message.source_nick().unwrap_or_default();
         match &message.command {
@@ -291,7 +291,7 @@ impl Network {
     }
 
     fn apply_isupport(&mut self, message: &Message) {
-        // Paramètres : <pseudo> <jeton>... :are supported by this server
+        // Parameters: <nick> <token>... :are supported by this server
         let tokens = message.params.get(1..message.params.len().saturating_sub(1));
         let previous = self.isupport.casemapping;
         self.isupport
@@ -301,7 +301,7 @@ impl Network {
         }
     }
 
-    /// Recalcule les clés après un changement de `CASEMAPPING`.
+    /// Recomputes the keys after a `CASEMAPPING` change.
     fn rekey(&mut self) {
         let mapping = self.isupport.casemapping;
         let channels = std::mem::take(&mut self.channels);
@@ -324,7 +324,7 @@ impl Network {
                 .insert(self.fold(name), Channel::new(name));
         }
         let key = self.fold(source);
-        // `extended-join` : JOIN #salon <compte|*> :<nom réel>
+        // `extended-join`: JOIN #channel <account|*> :<real name>
         let account = message
             .param(1)
             .filter(|&account| account != "*" && message.params.len() >= 3)
@@ -337,7 +337,7 @@ impl Network {
     }
 
     fn on_names(&mut self, message: &Message) {
-        // Paramètres : <pseudo> <symbole> <salon> :<membres>
+        // Parameters: <nick> <symbol> <channel> :<members>
         let (Some(name), Some(names)) = (message.param(2), message.param(3)) else {
             return;
         };
@@ -354,7 +354,7 @@ impl Network {
                 .find(|c| !isupport.is_prefix_symbol(c))
                 .unwrap_or(entry.len());
             let (prefixes, rest) = entry.split_at(nick_start);
-            // `userhost-in-names` : pseudo!user@hôte
+            // `userhost-in-names`: nick!user@host
             let nick = rest.split('!').next().unwrap_or(rest);
             if nick.is_empty() {
                 continue;
@@ -400,7 +400,7 @@ impl Network {
     }
 
     fn on_whox(&mut self, message: &Message) {
-        // Paramètres : <moi> <jeton> <salon> <pseudo> <drapeaux> <compte|0>
+        // Parameters: <me> <token> <channel> <nick> <flags> <account|0>
         let (Some(channel), Some(nick), Some(flags)) =
             (message.param(2), message.param(3), message.param(4))
         else {
@@ -422,8 +422,8 @@ impl Network {
             return;
         };
         if let Some(id) = reference.strip_prefix('+') {
-            // Un serveur qui ouvre des batchs sans jamais les fermer ne doit
-            // pas faire grossir la mémoire indéfiniment.
+            // A server opening batches without ever closing them must not
+            // make memory grow forever.
             if self.batches.len() >= MAX_OPEN_BATCHES && !self.batches.contains_key(id) {
                 return;
             }
@@ -556,8 +556,8 @@ mod tests {
     #[test]
     fn tracks_topic() {
         let mut network = network();
-        apply(&mut network, ":s 332 me #rust :Bienvenue");
-        assert_eq!(network.channel("#rust").unwrap().topic.as_deref(), Some("Bienvenue"));
+        apply(&mut network, ":s 332 me #rust :Welcome");
+        assert_eq!(network.channel("#rust").unwrap().topic.as_deref(), Some("Welcome"));
         apply(&mut network, ":Alice!a@h TOPIC #rust :");
         let channel = network.channel("#rust").unwrap();
         assert_eq!(channel.topic, None);

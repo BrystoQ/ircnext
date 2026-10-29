@@ -1,10 +1,10 @@
-//! Mots de passe dans le trousseau du système (Trousseau d'accès sur macOS,
-//! Gestionnaire d'identifiants sur Windows, Secret Service sous Linux).
+//! Passwords in the system keychain (Keychain on macOS, Credential Manager
+//! on Windows, Secret Service on Linux).
 //!
-//! En mémoire, la configuration garde les mots de passe. À l'écriture, ils
-//! partent dans le trousseau et le fichier ne contient plus qu'un champ vide ;
-//! au chargement, chaque champ vide est complété depuis le trousseau. Si le
-//! trousseau est indisponible, le mot de passe reste dans le fichier.
+//! In memory, the configuration keeps the passwords. When writing, they go
+//! to the keychain and the file only keeps an empty field; when loading,
+//! each empty field is filled from the keychain. If the keychain is
+//! unavailable, the password stays in the file.
 
 use std::collections::BTreeMap;
 
@@ -12,18 +12,18 @@ use ircnext_client::Secret;
 
 use crate::config::AppConfig;
 
-/// Nom du service sous lequel les entrées sont rangées.
+/// Name of the service the entries are stored under.
 const SERVICE: &str = "ircnext";
 
-/// Accès à un trousseau.
+/// Access to a keychain.
 pub trait Store {
-    /// Mot de passe d'un compte, `None` s'il n'existe pas.
+    /// Password of an account, `None` if it does not exist.
     fn get(&self, account: &str) -> Result<Option<String>, String>;
     fn set(&self, account: &str, secret: &str) -> Result<(), String>;
     fn delete(&self, account: &str) -> Result<(), String>;
 }
 
-/// Trousseau du système.
+/// System keychain.
 pub struct System;
 
 impl System {
@@ -53,25 +53,24 @@ impl Store for System {
     }
 }
 
-/// Mots de passe déjà présents dans le trousseau, par compte : seuls ceux
-/// qui changent y sont réécrits (sur macOS, chaque écriture peut demander
-/// une autorisation).
+/// Passwords already in the keychain, by account: only those that change
+/// are written again (on macOS, each write may ask for permission).
 pub type Cache = BTreeMap<String, String>;
 
 fn server_account(name: &str) -> String {
-    format!("{name} — mot de passe du serveur")
+    format!("{name} — server password")
 }
 
 fn sasl_account(name: &str) -> String {
     format!("{name} — SASL")
 }
 
-/// Range les mots de passe de `config` dans le trousseau et les vide, pour
-/// obtenir la version à écrire sur le disque. Les comptes des réseaux
-/// supprimés ou renommés sont effacés du trousseau.
+/// Stores the passwords of `config` in the keychain and empties them, to
+/// get the version to write to disk. The accounts of removed or renamed
+/// networks are erased from the keychain.
 ///
-/// Renvoie la première erreur rencontrée ; le mot de passe concerné reste
-/// alors dans le fichier.
+/// Returns the first error met; the password concerned then stays in the
+/// file.
 pub fn stash(config: &mut AppConfig, store: &dyn Store, cache: &mut Cache) -> Option<String> {
     let mut error = None;
     let mut wanted = Cache::new();
@@ -107,7 +106,7 @@ pub fn stash(config: &mut AppConfig, store: &dyn Store, cache: &mut Cache) -> Op
     error
 }
 
-/// Efface du trousseau tous les comptes connus (trousseau désactivé).
+/// Erases all known accounts from the keychain (keychain disabled).
 pub fn clear(store: &dyn Store, cache: &mut Cache) -> Option<String> {
     let mut error = None;
     forget(store, cache, &Cache::new(), &mut error);
@@ -123,10 +122,10 @@ fn forget(store: &dyn Store, cache: &Cache, keep: &Cache, error: &mut Option<Str
     }
 }
 
-/// Complète depuis le trousseau les mots de passe vides de `config`.
+/// Fills the empty passwords of `config` from the keychain.
 ///
-/// Renvoie les comptes trouvés (le cache) et la liste des réseaux dont un
-/// mot de passe SASL manque.
+/// Returns the accounts found (the cache) and the list of networks missing
+/// a SASL password.
 pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>) {
     let mut cache = Cache::new();
     let mut missing = Vec::new();
@@ -149,7 +148,7 @@ pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>
                 Ok(None) | Err(_) => {}
             }
         }
-        // Un mot de passe serveur introuvable n'est pas envoyé vide.
+        // A server password that cannot be found is not sent empty.
         if connection.password.as_ref().is_some_and(|password| password.expose().is_empty()) {
             connection.password = None;
         }
@@ -158,7 +157,7 @@ pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>
     (cache, missing)
 }
 
-/// Trousseau en mémoire, pour les tests.
+/// In-memory keychain, for tests.
 #[cfg(test)]
 #[derive(Default)]
 pub struct Memory {
@@ -175,7 +174,7 @@ impl Store for Memory {
 
     fn set(&self, account: &str, secret: &str) -> Result<(), String> {
         if self.broken {
-            return Err("trousseau verrouillé".into());
+            return Err("keychain locked".into());
         }
         self.writes.set(self.writes.get() + 1);
         self.entries.borrow_mut().insert(account.to_owned(), secret.to_owned());
@@ -204,7 +203,7 @@ mod tests {
                 host: "irc.example.net".into(),
                 password: Some(Secret::new(server_password)),
                 sasl: Some(Sasl {
-                    username: "moi".into(),
+                    username: "me".into(),
                     password: Secret::new(sasl_password),
                 }),
                 ..Connection::default()
@@ -222,7 +221,7 @@ mod tests {
         let mut on_disk = original.clone();
         assert_eq!(stash(&mut on_disk, &store, &mut cache), None);
         let toml = toml::to_string(&on_disk).unwrap();
-        assert!(!toml.contains("pass\"") && !toml.contains("\"sasl\""), "aucun mot de passe dans le fichier :\n{toml}");
+        assert!(!toml.contains("pass\"") && !toml.contains("\"sasl\""), "no password in the file:\n{toml}");
         assert_eq!(store.entries.borrow().len(), 2);
 
         let mut loaded: AppConfig = toml::from_str(&toml).unwrap();
@@ -274,13 +273,13 @@ mod tests {
     }
 }
 
-/// Aller-retour dans le vrai trousseau ; à lancer à la main avec
+/// Round trip through the real keychain; run by hand with
 /// `cargo test -p ircnext -- --ignored system_keychain`.
 #[cfg(test)]
 #[test]
-#[ignore = "accède au trousseau de la machine"]
+#[ignore = "accesses the machine's keychain"]
 fn system_keychain_round_trip() {
-    let account = "test — aller-retour";
+    let account = "test — round trip";
     System.set(account, "secret").unwrap();
     assert_eq!(System.get(account).unwrap().as_deref(), Some("secret"));
     System.delete(account).unwrap();

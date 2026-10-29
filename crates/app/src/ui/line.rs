@@ -1,4 +1,4 @@
-//! Rendu d'une ligne de discussion.
+//! Rendering of a chat line.
 
 use std::borrow::Cow;
 
@@ -9,6 +9,8 @@ use ircnext_client::proto::{format, text as irc_text};
 
 use crate::app::Message;
 use crate::buffer::{Line, LineKind};
+use crate::i18n::tr;
+use crate::tr;
 use crate::server::ServerId;
 use crate::settings::{NickAlignment, Settings};
 use crate::theme::{self, Colors};
@@ -47,40 +49,44 @@ pub fn view<'a>(line: &'a Line, server: ServerId, settings: &Settings, c: Colors
         ),
         LineKind::Redacted { nick } => (
             nick_button(nick.clone(), nick, server, nick_color(nick).scale_alpha(0.6), size),
-            event_text("message supprimé", c.muted, size, true),
+            event_text(tr("message deleted"), c.muted, size, true),
         ),
         LineKind::Join { nick, mask } => {
             let mask = mask.as_ref().map(|m| format!(" ({m})")).unwrap_or_default();
-            (glyph("→", c.success, size), event(&format!("{nick}{mask} a rejoint le salon"), c, size))
+            (glyph("→", c.success, size), event(&tr!("{nick}{mask} joined the channel", nick = nick, mask = mask), c, size))
         }
         LineKind::Part { nick, reason } => (
             glyph("←", c.muted, size),
-            event(&format!("{nick} a quitté le salon{}", reason_suffix(reason.as_deref())), c, size),
+            event(&tr!("{nick} left the channel{reason}", nick = nick, reason = reason_suffix(reason.as_deref())), c, size),
         ),
         LineKind::Quit { nick, reason } => (
             glyph("←", c.danger.scale_alpha(0.8), size),
-            event(&format!("{nick} s'est déconnecté{}", reason_suffix(reason.as_deref())), c, size),
+            event(&tr!("{nick} quit{reason}", nick = nick, reason = reason_suffix(reason.as_deref())), c, size),
         ),
         LineKind::Kick { nick, by, reason } => (
             glyph("✕", c.danger, size),
-            event(&format!("{nick} a été expulsé par {by}{}", reason_suffix(reason.as_deref())), c, size),
+            event(
+                &tr!("{nick} was kicked by {by}{reason}", nick = nick, by = by, reason = reason_suffix(reason.as_deref())),
+                c,
+                size,
+            ),
         ),
         LineKind::Nick { old, new } => (
             glyph("↔", c.muted, size),
-            event(&format!("{old} s'appelle désormais {new}"), c, size),
+            event(&tr!("{old} is now known as {new}", old = old, new = new), c, size),
         ),
         LineKind::Topic { nick, topic } => {
             let text = match (nick, topic) {
-                (Some(nick), Some(topic)) => format!("{nick} a changé le sujet : {topic}"),
-                (Some(nick), None) => format!("{nick} a supprimé le sujet"),
-                (None, Some(topic)) => format!("Sujet : {topic}"),
-                (None, None) => "Aucun sujet".to_owned(),
+                (Some(nick), Some(topic)) => tr!("{nick} changed the topic: {topic}", nick = nick, topic = topic),
+                (Some(nick), None) => tr!("{nick} removed the topic", nick = nick),
+                (None, Some(topic)) => tr!("Topic: {topic}", topic = topic),
+                (None, None) => tr("No topic").to_owned(),
             };
             (glyph("✎", c.accent, size), event(&text, c, size))
         }
         LineKind::Mode { nick, modes } => (
             glyph("⚑", c.muted, size),
-            event(&format!("{nick} a défini le mode {modes}"), c, size),
+            event(&tr!("{nick} set mode {modes}", nick = nick, modes = modes), c, size),
         ),
         LineKind::Info(text) => (glyph("•", c.muted, size), event(text, c, size)),
         LineKind::Error(text) => (
@@ -179,12 +185,12 @@ fn rich(spans: Vec<Span<'_, String>>, size: f32) -> Element<'_, Message> {
         .into()
 }
 
-/// Convertit un texte avec codes mIRC en fragments stylés, liens compris.
+/// Turns a text with mIRC codes into styled spans, links included.
 fn formatted_spans<'a>(content: &'a str, base: Color, base_font: Font, c: Colors, colors: bool) -> Vec<Span<'a, String>> {
     let mut spans = Vec::new();
     for fragment in format::parse(content) {
         let style = fragment.style;
-        // Couleurs mIRC désactivées : texte uni, seuls gras, italique... restent.
+        // mIRC colors disabled: plain text, only bold, italic... remain.
         let mut foreground = style.foreground.and_then(Colors::irc).filter(|_| colors).unwrap_or(base);
         let mut background = style.background.and_then(Colors::irc).filter(|_| colors);
         if style.reverse && colors {
@@ -197,8 +203,8 @@ fn formatted_spans<'a>(content: &'a str, base: Color, base_font: Font, c: Colors
             style: if style.italic { font::Style::Italic } else { base_font.style },
             ..if style.monospace { Font::MONOSPACE } else { base_font }
         };
-        // Contrôles bidirectionnels et caractères invisibles retirés : le
-        // texte affiché d'un lien correspond ainsi exactement à sa cible.
+        // Bidirectional controls and invisible characters removed: the
+        // displayed text of a link then exactly matches its target.
         let clean = format::sanitize(fragment.text);
         let piece = |range: std::ops::Range<usize>| -> Cow<'a, str> {
             match &clean {
@@ -231,7 +237,7 @@ fn formatted_spans<'a>(content: &'a str, base: Color, base_font: Font, c: Colors
     spans
 }
 
-/// Fragments d'un texte possédé (lignes d'événements), avec liens détectés.
+/// Spans of an owned text (event lines), with detected links.
 fn linkified(content: &str, color: Color, font: Font, c: Colors) -> Vec<Span<'static, String>> {
     formatted_spans(content, color, font, c, true)
         .into_iter()

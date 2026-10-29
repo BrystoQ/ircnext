@@ -1,4 +1,4 @@
-//! Fichier de configuration : préférences, réseaux et politiques STS.
+//! Configuration file: preferences, networks and STS policies.
 
 use std::collections::BTreeMap;
 use std::io;
@@ -7,26 +7,28 @@ use std::path::{Path, PathBuf};
 use ircnext_client::Config as Connection;
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::tr;
 use crate::settings::Settings;
+use crate::tr;
 
-/// Contenu de `config.toml`.
+/// Content of `config.toml`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
     pub settings: Settings,
     pub servers: Vec<ServerEntry>,
-    /// Politiques STS mémorisées, par nom d'hôte.
+    /// Remembered STS policies, by host name.
     pub sts: BTreeMap<String, StsEntry>,
 }
 
-/// Réseau enregistré.
+/// Saved network.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServerEntry {
     pub name: String,
     #[serde(default = "enabled")]
     pub auto_connect: bool,
-    /// Commandes exécutées après la connexion (`/msg`, `/mode`...), comme la
-    /// liste « commandes de connexion » de HexChat.
+    /// Commands run after connecting (`/msg`, `/mode`...), like HexChat's
+    /// “connect commands” list.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_connect: Vec<String>,
     #[serde(flatten)]
@@ -37,14 +39,14 @@ fn enabled() -> bool {
     true
 }
 
-/// Politique STS : TLS obligatoire sur `port` jusqu'à `expires_at` (secondes UNIX).
+/// STS policy: TLS required on `port` until `expires_at` (UNIX seconds).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StsEntry {
     pub port: u16,
     pub expires_at: i64,
 }
 
-/// Erreur de chargement ou d'enregistrement.
+/// Loading or saving error.
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
@@ -56,10 +58,10 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Io(error) => write!(f, "erreur d'accès au fichier : {error}"),
-            Self::Parse(error) => write!(f, "configuration illisible : {error}"),
-            Self::Serialize(error) => write!(f, "configuration impossible à écrire : {error}"),
-            Self::NoConfigDir => f.write_str("dossier de configuration introuvable"),
+            Self::Io(error) => f.write_str(&tr!("file access error: {error}", error = error)),
+            Self::Parse(error) => f.write_str(&tr!("unreadable configuration: {error}", error = error)),
+            Self::Serialize(error) => f.write_str(&tr!("configuration cannot be written: {error}", error = error)),
+            Self::NoConfigDir => f.write_str(tr("configuration folder not found")),
         }
     }
 }
@@ -73,9 +75,9 @@ impl From<io::Error> for Error {
 }
 
 impl AppConfig {
-    /// Emplacement du fichier : `$IRCNEXT_CONFIG` s'il est défini, sinon le
-    /// dossier de configuration du système
-    /// (`~/Library/Application Support/ircnext/` sur macOS).
+    /// Location of the file: `$IRCNEXT_CONFIG` if set, otherwise the
+    /// system's configuration folder
+    /// (`~/Library/Application Support/ircnext/` on macOS).
     pub fn path() -> Result<PathBuf, Error> {
         if let Some(path) = std::env::var_os("IRCNEXT_CONFIG") {
             return Ok(PathBuf::from(path));
@@ -85,10 +87,10 @@ impl AppConfig {
             .ok_or(Error::NoConfigDir)
     }
 
-    /// Charge la configuration ; un fichier absent donne la configuration par défaut.
+    /// Loads the configuration; a missing file gives the default configuration.
     ///
-    /// Un fichier illisible est renommé en `config.toml.bak` pour ne pas être
-    /// écrasé, et l'erreur est renvoyée avec une configuration vierge.
+    /// An unreadable file is renamed to `config.toml.bak` so that it is not
+    /// overwritten, and the error is returned with a blank configuration.
     pub fn load() -> (Self, Option<Error>) {
         let path = match Self::path() {
             Ok(path) => path,
@@ -115,8 +117,8 @@ impl AppConfig {
         Ok(config)
     }
 
-    /// Enregistre de façon atomique (fichier temporaire puis renommage), avec
-    /// des droits restreints puisque le fichier peut contenir des mots de passe.
+    /// Saves atomically (temporary file then rename), with restricted
+    /// permissions since the file may contain passwords.
     pub fn save_to(&self, path: &Path) -> Result<(), Error> {
         use std::io::Write;
 
@@ -125,9 +127,9 @@ impl AppConfig {
             create_private_dir(dir)?;
         }
         let temporary = path.with_extension("toml.tmp");
-        // Un ancien fichier temporaire (ou un lien symbolique posé à sa place)
-        // est supprimé : le fichier est ensuite créé exclusivement, avec des
-        // droits restreints dès sa création.
+        // An old temporary file (or a symbolic link put in its place) is
+        // removed: the file is then created exclusively, with restricted
+        // permissions from the start.
         match std::fs::remove_file(&temporary) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error.into()),
             _ => {}
@@ -144,7 +146,7 @@ impl AppConfig {
         Ok(())
     }
 
-    /// Paramètres de connexion effectifs, après application d'une politique STS valide.
+    /// Effective connection settings, after applying a valid STS policy.
     pub fn effective_connection(&self, connection: &Connection, now: i64) -> Connection {
         let mut connection = connection.clone();
         if let Some(policy) = self.sts.get(&connection.host.to_ascii_lowercase())
@@ -156,7 +158,7 @@ impl AppConfig {
         connection
     }
 
-    /// Mémorise (ou supprime, si la durée est nulle) une politique STS.
+    /// Remembers (or removes, if the duration is zero) an STS policy.
     pub fn record_sts(&mut self, host: &str, port: u16, duration_secs: u64, now: i64) {
         let host = host.to_ascii_lowercase();
         if duration_secs == 0 {
@@ -169,7 +171,7 @@ impl AppConfig {
     }
 }
 
-/// Crée le dossier de configuration, accessible au seul utilisateur.
+/// Creates the configuration folder, accessible to the user only.
 fn create_private_dir(dir: &Path) -> io::Result<()> {
     if dir.as_os_str().is_empty() || dir.is_dir() {
         return Ok(());
@@ -181,7 +183,7 @@ fn create_private_dir(dir: &Path) -> io::Result<()> {
     builder.create(dir)
 }
 
-/// Réseau proposé dans la liste, à la manière de la liste de réseaux de HexChat.
+/// Network offered in the list, like HexChat's network list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Preset {
     pub name: &'static str,
@@ -205,7 +207,7 @@ pub const PRESETS: &[Preset] = &[
     Preset { name: "IRCnet", host: "open.ircnet.net", port: 6667, tls: false },
     Preset { name: "QuakeNet", host: "irc.quakenet.org", port: 6667, tls: false },
     Preset { name: "Undernet", host: "irc.undernet.org", port: 6667, tls: false },
-    Preset { name: "Ergo (réseau de test IRCv3)", host: "testnet.ergo.chat", port: 6697, tls: true },
+    Preset { name: "Ergo (IRCv3 testnet)", host: "testnet.ergo.chat", port: 6697, tls: true },
 ];
 
 #[cfg(test)]
@@ -246,9 +248,9 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
             let mode = std::fs::metadata(&path).unwrap().permissions().mode();
-            assert_eq!(mode & 0o777, 0o600, "fichier lisible par son seul propriétaire");
+            assert_eq!(mode & 0o777, 0o600, "file readable by its owner only");
         }
-        // Un fichier temporaire abandonné ne bloque pas l'enregistrement.
+        // An abandoned temporary file does not block saving.
         std::fs::write(path.with_extension("toml.tmp"), "reste").unwrap();
         config.save_to(&path).unwrap();
     }

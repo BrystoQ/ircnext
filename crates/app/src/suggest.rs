@@ -1,39 +1,39 @@
-//! Suggestions affichées pendant la saisie : commandes, commandes des
-//! services (NickServ, ChanServ...), salons, pseudonymes (`@`) et commandes
-//! de bots (`!`), apprises dans le salon ou proposées par le bot lui-même
-//! (brouillon IRCv3 `autocomplete`).
+//! Suggestions shown while typing: commands, service commands (NickServ,
+//! ChanServ...), channels, nicknames (`@`) and bot commands (`!`), learned in
+//! the channel or offered by the bot itself (IRCv3 `autocomplete` draft).
 
-use crate::input::COMMANDS;
+use crate::i18n::tr;
+use crate::input;
 
-/// Nombre maximal de suggestions affichées.
+/// Maximum number of suggestions shown.
 pub const MAX: usize = 8;
 
-/// Suggestion proposée sous la saisie.
+/// Suggestion offered below the input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Suggestion {
-    /// Ligne de saisie complète une fois la suggestion acceptée.
+    /// Full input line once the suggestion is accepted.
     pub text: String,
     pub label: String,
     pub detail: String,
-    /// Origine (« commande », « NickServ », nom du bot...).
+    /// Origin (“command”, “NickServ”, bot name...).
     pub source: String,
 }
 
-/// Données disponibles pour suggérer.
+/// Data available for suggesting.
 #[derive(Debug, Default)]
 pub struct Context<'a> {
-    /// Nom de l'onglet si c'est une conversation privée.
+    /// Name of the tab if it is a private conversation.
     pub query: Option<&'a str>,
     pub channels: Vec<&'a str>,
-    /// Pseudonymes, les interlocuteurs récents d'abord.
+    /// Nicknames, recent speakers first.
     pub nicks: Vec<&'a str>,
-    /// Commandes de bots vues dans l'onglet, les plus récentes d'abord.
+    /// Bot commands seen in the tab, most recent first.
     pub bot_commands: Vec<&'a str>,
-    /// Complétions proposées par des bots pour la saisie actuelle : (bot, texte).
+    /// Completions offered by bots for the current input: (bot, text).
     pub remote: Vec<(&'a str, &'a str)>,
 }
 
-/// Commande d'un service.
+/// Command of a service (usage and help in English, translated on display).
 #[derive(Debug)]
 pub struct ServiceCommand {
     pub name: &'static str,
@@ -41,17 +41,19 @@ pub struct ServiceCommand {
     pub help: &'static str,
 }
 
-/// Service de réseau et ses commandes usuelles (communes à Atheme et Anope).
+/// Network service and its usual commands (shared by Atheme and Anope).
 #[derive(Debug)]
 pub struct Service {
     pub name: &'static str,
-    /// Commande raccourcie (`ns` pour `/ns`).
+    /// Short command (`ns` for `/ns`).
     pub alias: &'static str,
     pub commands: &'static [ServiceCommand],
 }
 
+// `tr(...)` marks the texts for the translation check; they are translated
+// on display.
 macro_rules! commands {
-    ($($name:literal, $usage:literal, $help:literal;)*) => {
+    ($($name:literal, tr($usage:literal), tr($help:literal);)*) => {
         &[$(ServiceCommand { name: $name, usage: $usage, help: $help }),*]
     };
 }
@@ -61,75 +63,75 @@ pub const SERVICES: &[Service] = &[
         name: "NickServ",
         alias: "ns",
         commands: commands![
-            "IDENTIFY", "IDENTIFY [compte] <mot de passe>", "S'identifier";
-            "REGISTER", "REGISTER <mot de passe> <e-mail>", "Enregistrer son pseudonyme";
-            "GROUP", "GROUP", "Ajouter le pseudonyme actuel à son compte";
-            "UNGROUP", "UNGROUP [pseudo]", "Retirer un pseudonyme de son compte";
-            "REGAIN", "REGAIN <pseudo>", "Récupérer son pseudonyme";
-            "GHOST", "GHOST <pseudo>", "Déconnecter une session fantôme";
-            "RELEASE", "RELEASE <pseudo>", "Libérer un pseudonyme retenu";
-            "INFO", "INFO <pseudo>", "Informations sur un compte";
-            "SET", "SET <option> <valeur>", "Modifier les réglages du compte";
-            "CERT", "CERT ADD|DEL|LIST [empreinte]", "Gérer les certificats TLS";
-            "VERIFY", "VERIFY REGISTER <compte> <code>", "Valider l'inscription";
-            "LOGOUT", "LOGOUT", "Se déconnecter du compte";
-            "DROP", "DROP <compte> <mot de passe>", "Supprimer le compte";
-            "HELP", "HELP [commande]", "Aide du service";
+            "IDENTIFY", tr("IDENTIFY [account] <password>"), tr("Identify yourself");
+            "REGISTER", tr("REGISTER <password> <email>"), tr("Register your nickname");
+            "GROUP", tr("GROUP"), tr("Add the current nickname to your account");
+            "UNGROUP", tr("UNGROUP [nick]"), tr("Remove a nickname from your account");
+            "REGAIN", tr("REGAIN <nick>"), tr("Get your nickname back");
+            "GHOST", tr("GHOST <nick>"), tr("Disconnect a ghost session");
+            "RELEASE", tr("RELEASE <nick>"), tr("Release a held nickname");
+            "INFO", tr("INFO <nick>"), tr("Information about an account");
+            "SET", tr("SET <option> <value>"), tr("Change the account settings");
+            "CERT", tr("CERT ADD|DEL|LIST [fingerprint]"), tr("Manage TLS certificates");
+            "VERIFY", tr("VERIFY REGISTER <account> <code>"), tr("Confirm the registration");
+            "LOGOUT", tr("LOGOUT"), tr("Log out of the account");
+            "DROP", tr("DROP <account> <password>"), tr("Delete the account");
+            "HELP", tr("HELP [command]"), tr("Service help");
         ],
     },
     Service {
         name: "ChanServ",
         alias: "cs",
         commands: commands![
-            "REGISTER", "REGISTER <#salon>", "Enregistrer un salon";
-            "INFO", "INFO <#salon>", "Informations sur un salon";
-            "OP", "OP <#salon> [pseudo]", "Donner le statut d'opérateur";
-            "DEOP", "DEOP <#salon> [pseudo]", "Retirer le statut d'opérateur";
-            "VOICE", "VOICE <#salon> [pseudo]", "Donner la parole";
-            "DEVOICE", "DEVOICE <#salon> [pseudo]", "Retirer la parole";
-            "FLAGS", "FLAGS <#salon> [pseudo] [droits]", "Gérer les droits d'accès";
-            "ACCESS", "ACCESS <#salon> ADD|DEL|LIST", "Gérer la liste d'accès";
-            "INVITE", "INVITE <#salon>", "Se faire inviter";
-            "UNBAN", "UNBAN <#salon>", "Lever ses bannissements";
-            "TOPIC", "TOPIC <#salon> <sujet>", "Changer le sujet";
-            "KICK", "KICK <#salon> <pseudo> [raison]", "Expulser quelqu'un";
-            "AKICK", "AKICK <#salon> ADD|DEL|LIST", "Expulsions automatiques";
-            "SET", "SET <#salon> <option> <valeur>", "Modifier les réglages du salon";
-            "DROP", "DROP <#salon>", "Supprimer l'enregistrement";
-            "HELP", "HELP [commande]", "Aide du service";
+            "REGISTER", tr("REGISTER <#channel>"), tr("Register a channel");
+            "INFO", tr("INFO <#channel>"), tr("Information about a channel");
+            "OP", tr("OP <#channel> [nick]"), tr("Give operator status");
+            "DEOP", tr("DEOP <#channel> [nick]"), tr("Remove operator status");
+            "VOICE", tr("VOICE <#channel> [nick]"), tr("Give voice");
+            "DEVOICE", tr("DEVOICE <#channel> [nick]"), tr("Remove voice");
+            "FLAGS", tr("FLAGS <#channel> [nick] [flags]"), tr("Manage access rights");
+            "ACCESS", tr("ACCESS <#channel> ADD|DEL|LIST"), tr("Manage the access list");
+            "INVITE", tr("INVITE <#channel>"), tr("Get invited");
+            "UNBAN", tr("UNBAN <#channel>"), tr("Lift your bans");
+            "TOPIC", tr("TOPIC <#channel> <topic>"), tr("Change the topic");
+            "KICK", tr("KICK <#channel> <nick> [reason]"), tr("Kick someone");
+            "AKICK", tr("AKICK <#channel> ADD|DEL|LIST"), tr("Automatic kicks");
+            "SET", tr("SET <#channel> <option> <value>"), tr("Change the channel settings");
+            "DROP", tr("DROP <#channel>"), tr("Delete the registration");
+            "HELP", tr("HELP [command]"), tr("Service help");
         ],
     },
     Service {
         name: "MemoServ",
         alias: "ms",
         commands: commands![
-            "SEND", "SEND <pseudo> <texte>", "Envoyer un mémo";
-            "LIST", "LIST", "Lister ses mémos";
-            "READ", "READ <numéro|NEW>", "Lire un mémo";
-            "DEL", "DEL <numéro|ALL>", "Supprimer des mémos";
-            "HELP", "HELP [commande]", "Aide du service";
+            "SEND", tr("SEND <nick> <text>"), tr("Send a memo");
+            "LIST", tr("LIST"), tr("List your memos");
+            "READ", tr("READ <number|NEW>"), tr("Read a memo");
+            "DEL", tr("DEL <number|ALL>"), tr("Delete memos");
+            "HELP", tr("HELP [command]"), tr("Service help");
         ],
     },
     Service {
         name: "HostServ",
         alias: "hs",
         commands: commands![
-            "REQUEST", "REQUEST <vhost>", "Demander un vhost";
-            "ON", "ON", "Activer son vhost";
-            "OFF", "OFF", "Désactiver son vhost";
-            "HELP", "HELP [commande]", "Aide du service";
+            "REQUEST", tr("REQUEST <vhost>"), tr("Request a vhost");
+            "ON", tr("ON"), tr("Turn your vhost on");
+            "OFF", tr("OFF"), tr("Turn your vhost off");
+            "HELP", tr("HELP [command]"), tr("Service help");
         ],
     },
 ];
 
-/// Service désigné par son nom ou par son alias de commande.
+/// Service named by its name or by its command alias.
 pub fn service(name: &str) -> Option<&'static Service> {
     SERVICES
         .iter()
         .find(|service| service.name.eq_ignore_ascii_case(name) || service.alias.eq_ignore_ascii_case(name))
 }
 
-/// Suggestions pour la saisie `input` (curseur en fin de ligne).
+/// Suggestions for the input `input` (cursor at the end of the line).
 pub fn suggest(input: &str, ctx: &Context<'_>) -> Vec<Suggestion> {
     if !ctx.remote.is_empty() {
         return ctx
@@ -150,11 +152,11 @@ pub fn suggest(input: &str, ctx: &Context<'_>) -> Vec<Suggestion> {
     let mut suggestions = if let Some(service) = service_context(head, ctx) {
         service_commands(service, head, word)
     } else if head.is_empty() && word.starts_with('/') && !word.starts_with("//") {
-        commands(&word[1..])
+        client_commands(&word[1..])
     } else if word.starts_with(['#', '&']) {
         matching(&ctx.channels, word)
             .into_iter()
-            .map(|channel| suggestion(format!("{head}{channel} "), channel, "salon"))
+            .map(|channel| suggestion(format!("{head}{channel} "), channel, tr("channel")))
             .collect()
     } else if head.is_empty() && word.starts_with('!') {
         matching(&ctx.bot_commands, word)
@@ -165,13 +167,13 @@ pub fn suggest(input: &str, ctx: &Context<'_>) -> Vec<Suggestion> {
         let suffix = if head.is_empty() { ": " } else { " " };
         matching(&ctx.nicks, nick)
             .into_iter()
-            .map(|found| suggestion(format!("{head}{found}{suffix}"), found, "pseudo"))
+            .map(|found| suggestion(format!("{head}{found}{suffix}"), found, tr("nick")))
             .collect()
     } else {
         Vec::new()
     };
     suggestions.truncate(MAX);
-    // Rien à proposer si la saisie est déjà exactement la seule suggestion.
+    // Nothing to offer if the input already is exactly the only suggestion.
     if let [only] = suggestions.as_slice()
         && only.text.trim_end() == input.trim_end()
     {
@@ -180,8 +182,8 @@ pub fn suggest(input: &str, ctx: &Context<'_>) -> Vec<Suggestion> {
     suggestions
 }
 
-/// Service ciblé quand on tape sa sous-commande : `/ns `, `/msg NickServ `
-/// ou conversation privée avec le service.
+/// Service targeted while typing its subcommand: `/ns `, `/msg NickServ ` or
+/// private conversation with the service.
 fn service_context(head: &str, ctx: &Context<'_>) -> Option<&'static Service> {
     let tokens: Vec<&str> = head.split_whitespace().collect();
     match tokens.as_slice() {
@@ -201,15 +203,15 @@ fn service_commands(service: &Service, head: &str, word: &str) -> Vec<Suggestion
         .filter(|command| starts_with_ignore_case(command.name, word))
         .map(|command| Suggestion {
             text: format!("{head}{} ", command.name),
-            label: command.usage.to_owned(),
-            detail: command.help.to_owned(),
+            label: tr(command.usage).to_owned(),
+            detail: tr(command.help).to_owned(),
             source: service.name.to_owned(),
         })
         .collect()
 }
 
-fn commands(prefix: &str) -> Vec<Suggestion> {
-    COMMANDS
+fn client_commands(prefix: &str) -> Vec<Suggestion> {
+    input::commands()
         .iter()
         .filter_map(|spec| {
             let name = spec.names.iter().find(|name| starts_with_ignore_case(name, prefix))?;
@@ -217,13 +219,13 @@ fn commands(prefix: &str) -> Vec<Suggestion> {
                 text: format!("/{name} "),
                 label: spec.usage.to_owned(),
                 detail: spec.help.to_owned(),
-                source: "commande".to_owned(),
+                source: tr("command").to_owned(),
             })
         })
         .collect()
 }
 
-/// Candidats commençant par `prefix`, sans doublons (casse ignorée).
+/// Candidates starting with `prefix`, without duplicates (case-insensitive).
 fn matching<'a>(candidates: &[&'a str], prefix: &str) -> Vec<&'a str> {
     let mut found: Vec<&str> = Vec::new();
     for &candidate in candidates {
@@ -247,7 +249,7 @@ fn starts_with_ignore_case(value: &str, prefix: &str) -> bool {
     value.to_lowercase().starts_with(&prefix.to_lowercase())
 }
 
-/// Extrait une commande de bot (`!meteo`) d'un mot, ponctuation finale ôtée.
+/// Extracts a bot command (`!weather`) from a word, trailing punctuation removed.
 pub fn bot_command(word: &str) -> Option<&str> {
     let word = word.trim_end_matches([',', '.', ':', ';', ')', ']', '\'', '"']);
     let name = word.strip_prefix('!')?;
@@ -271,7 +273,7 @@ mod tests {
     fn suggests_client_commands_with_help() {
         let found = suggest("/jo", &Context::default());
         assert_eq!(found[0].text, "/join ");
-        assert_eq!(found[0].label, "/join #salon [clé]");
+        assert_eq!(found[0].label, "/join #channel [key]");
         assert_eq!(texts("/", &Context::default()).len(), MAX);
         assert_eq!(texts("//jo", &Context::default()), NONE);
     }
@@ -284,7 +286,7 @@ mod tests {
         assert_eq!(suggest("/ms ", &ctx).len(), 5);
         let query = Context { query: Some("NickServ"), ..Context::default() };
         assert_eq!(texts("reg", &query), ["REGISTER ", "REGAIN "]);
-        assert_eq!(texts("/ns IDENTIFY mot", &ctx), NONE);
+        assert_eq!(texts("/ns IDENTIFY word", &ctx), NONE);
     }
 
     #[test]
@@ -292,15 +294,15 @@ mod tests {
         let ctx = Context {
             channels: vec!["#rust", "#ruby", "#go"],
             nicks: vec!["alice", "Alan", "alice"],
-            bot_commands: vec!["!meteo", "!help"],
+            bot_commands: vec!["!weather", "!help"],
             ..Context::default()
         };
         assert_eq!(texts("/join #ru", &ctx), ["/join #rust ", "/join #ruby "]);
         assert_eq!(texts("@al", &ctx), ["alice: ", "Alan: "]);
-        assert_eq!(texts("merci @ali", &ctx), ["merci alice "]);
-        assert_eq!(texts("!", &ctx), ["!meteo ", "!help "]);
-        assert!(texts("bonjour !he", &ctx).is_empty(), "uniquement en début de ligne");
-        assert!(texts("al", &ctx).is_empty(), "pas de liste sans @");
+        assert_eq!(texts("thanks @ali", &ctx), ["thanks alice "]);
+        assert_eq!(texts("!", &ctx), ["!weather ", "!help "]);
+        assert!(texts("hello !he", &ctx).is_empty(), "only at the start of the line");
+        assert!(texts("al", &ctx).is_empty(), "no list without @");
     }
 
     #[test]
@@ -319,11 +321,11 @@ mod tests {
 
     #[test]
     fn extracts_bot_commands() {
-        assert_eq!(bot_command("!meteo"), Some("!meteo"));
+        assert_eq!(bot_command("!weather"), Some("!weather"));
         assert_eq!(bot_command("!help,"), Some("!help"));
         assert_eq!(bot_command("!"), None);
         assert_eq!(bot_command("!!!"), None);
         assert_eq!(bot_command("!42"), None);
-        assert_eq!(bot_command("bonjour"), None);
+        assert_eq!(bot_command("hello"), None);
     }
 }

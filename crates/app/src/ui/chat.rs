@@ -1,4 +1,4 @@
-//! Zone de discussion : en-tête, messages, indicateur de saisie et champ de saisie.
+//! Chat area: header, messages, typing indicator and input field.
 
 use std::time::Instant;
 
@@ -8,18 +8,20 @@ use ircnext_client::proto::format;
 
 use crate::app::{INPUT_ID, Message};
 use crate::buffer::{Buffer, Kind};
+use crate::i18n::tr;
 use crate::server::{BufferId, Server, Status};
 use crate::keymap::{self, Action};
 use crate::settings::Settings;
 use crate::suggest::Suggestion;
 use crate::theme::{self, Colors};
 use crate::ui::{BOLD, line};
+use crate::tr;
 
-/// Nombre maximal de lignes rendues (les plus récentes).
+/// Maximum number of lines rendered (the most recent ones).
 const RENDERED_LINES: usize = 500;
-/// Identifiant de la zone des messages (défilement au clavier).
+/// Id of the message area (keyboard scrolling).
 pub const MESSAGES_ID: &str = "messages";
-/// Identifiant du champ de recherche.
+/// Id of the search field.
 pub const SEARCH_ID: &str = "search";
 
 pub struct Props<'a> {
@@ -29,7 +31,7 @@ pub struct Props<'a> {
     pub settings: &'a Settings,
     pub colors: Colors,
     pub input: &'a str,
-    /// Recherche en cours dans l'onglet.
+    /// Search in progress in the tab.
     pub search: Option<&'a str>,
     pub suggestions: &'a [Suggestion],
     pub selected_suggestion: usize,
@@ -45,7 +47,7 @@ pub fn view<'a>(props: &Props<'a>) -> Element<'a, Message> {
         .lines()
         .rev()
         .filter(|line| match &needle {
-            // Une recherche porte sur tout l'historique, arrivées et départs compris.
+            // A search covers the whole history, joins and parts included.
             Some(needle) => line.matches(needle),
             None => settings.show_joins_parts || !line.kind.is_presence(),
         })
@@ -54,7 +56,7 @@ pub fn view<'a>(props: &Props<'a>) -> Element<'a, Message> {
     lines.reverse();
 
     let messages: Element<'_, Message> = if lines.is_empty() {
-        let hint = if needle.is_some() { "Aucun message ne correspond." } else { empty_hint(buffer) };
+        let hint = if needle.is_some() { tr("No message matches.") } else { empty_hint(buffer) };
         center(text(hint).size(14).color(c.muted)).into()
     } else {
         let column = lines.into_iter().fold(column![].padding([12, 0]), |column, entry| {
@@ -108,22 +110,22 @@ fn header<'a>(props: &Props<'a>) -> Element<'a, Message> {
             let channel = server.network.channel(&buffer.name);
             match channel.and_then(|channel| channel.topic.as_deref()) {
                 Some(topic) => format::strip(topic),
-                None if !buffer.joined => "Vous n'êtes pas sur ce salon.".to_owned(),
-                None => "Aucun sujet".to_owned(),
+                None if !buffer.joined => tr("You are not in this channel.").to_owned(),
+                None => tr("No topic").to_owned(),
             }
         }
         Kind::Query => match server.network.is_online(&buffer.name) {
-            Some(true) => "En ligne".to_owned(),
-            Some(false) => "Hors ligne".to_owned(),
-            None => "Conversation privée".to_owned(),
+            Some(true) => tr("Online").to_owned(),
+            Some(false) => tr("Offline").to_owned(),
+            None => tr("Private conversation").to_owned(),
         },
         Kind::Server => {
             let connection = &server.entry.connection;
             let status = match &server.status {
-                Status::Online => "connecté",
-                Status::Registering | Status::Connecting(_) => "connexion…",
-                Status::Waiting { .. } => "reconnexion…",
-                Status::Disconnected(_) => "déconnecté",
+                Status::Online => tr("connected"),
+                Status::Registering | Status::Connecting(_) => tr("connecting…"),
+                Status::Waiting { .. } => tr("reconnecting…"),
+                Status::Disconnected(_) => tr("disconnected"),
             };
             format!(
                 "{}:{}{} — {status}",
@@ -142,20 +144,20 @@ fn header<'a>(props: &Props<'a>) -> Element<'a, Message> {
     .width(Length::Fill)
     .clip(true);
 
-    // Infobulle : libellé suivi du premier raccourci configuré.
+    // Tooltip: label followed by the first configured shortcut.
     let hint = |label: &str, action: Action| match keymap::bindings(&settings.keybindings, action, keymap::MAC).first() {
         Some(combo) => format!("{label} ({})", combo.display(keymap::MAC)),
         None => label.to_owned(),
     };
     let mut actions = row![].spacing(4).align_y(Alignment::Center);
-    actions = actions.push(header_button("⌕", hint("Rechercher", Action::Search), Message::Action(Action::Search), c));
+    actions = actions.push(header_button("⌕", hint(tr("Search"), Action::Search), Message::Action(Action::Search), c));
     if buffer.kind == Kind::Channel {
-        let label = if settings.show_nicklist { "Masquer les membres" } else { "Afficher les membres" };
+        let label = if settings.show_nicklist { tr("Hide members") } else { tr("Show members") };
         actions = actions.push(header_button("☰", hint(label, Action::ToggleNicklist), Message::ToggleNicklist, c));
     }
     if buffer.kind != Kind::Server {
         let close = Message::CloseBuffer(server.id, buffer_id);
-        actions = actions.push(header_button("✕", hint("Fermer l'onglet", Action::CloseBuffer), close, c));
+        actions = actions.push(header_button("✕", hint(tr("Close tab"), Action::CloseBuffer), close, c));
     }
 
     container(row![title, actions].spacing(12).align_y(Alignment::Center))
@@ -196,9 +198,9 @@ fn typing_indicator<'a>(props: &Props<'a>) -> Element<'a, Message> {
     let nicks: Vec<&str> = props.buffer.typing(props.now).collect();
     let label = match nicks.as_slice() {
         [] => return space().height(20).into(),
-        [one] => format!("{one} est en train d'écrire…"),
-        [first, second] => format!("{first} et {second} écrivent…"),
-        _ => "Plusieurs personnes écrivent…".to_owned(),
+        [one] => tr!("{nick} is typing…", nick = one),
+        [first, second] => tr!("{first} and {second} are typing…", first = first, second = second),
+        _ => tr("Several people are typing…").to_owned(),
     };
     container(text(label).size(12).color(c.muted))
         .padding([2, 18])
@@ -213,14 +215,14 @@ fn lines_count(needle: Option<&str>, buffer: &Buffer) -> Option<usize> {
 fn search_bar(query: &str, found: Option<usize>, c: Colors) -> Element<'_, Message> {
     let count = match found {
         None => String::new(),
-        Some(0) => "aucun résultat".to_owned(),
-        Some(1) => "1 résultat".to_owned(),
-        Some(n) => format!("{n} résultats"),
+        Some(0) => tr("no results").to_owned(),
+        Some(1) => tr("1 result").to_owned(),
+        Some(n) => tr!("{count} results", count = n),
     };
     container(
         row![
             text("⌕").size(16).color(c.muted),
-            text_input("Rechercher dans l'onglet…", query)
+            text_input(tr("Search in the tab…"), query)
                 .id(SEARCH_ID)
                 .on_input(Message::SearchChanged)
                 .padding([6, 10])
@@ -241,7 +243,7 @@ fn search_bar(query: &str, found: Option<usize>, c: Colors) -> Element<'_, Messa
     .into()
 }
 
-/// Liste des suggestions, au-dessus du champ de saisie.
+/// List of suggestions, above the input field.
 fn suggestions<'a>(props: &Props<'a>) -> Option<Element<'a, Message>> {
     let c = props.colors;
     if props.suggestions.is_empty() {
@@ -271,7 +273,7 @@ fn suggestions<'a>(props: &Props<'a>) -> Option<Element<'a, Message>> {
                     .on_press(Message::AcceptSuggestion(index)),
             )
         });
-    let hint = text("↑↓ pour choisir · Tab ou Entrée pour valider · Échap pour fermer")
+    let hint = text(tr("↑↓ to choose · Tab or Enter to accept · Esc to close"))
         .size(11)
         .color(c.muted);
     Some(
@@ -286,12 +288,12 @@ fn suggestions<'a>(props: &Props<'a>) -> Option<Element<'a, Message>> {
 fn input<'a>(props: &Props<'a>) -> Element<'a, Message> {
     let &Props { server, buffer, colors: c, settings, .. } = props;
     let placeholder = if !server.is_online() && server.status != Status::Registering {
-        "Non connecté — tapez /connect pour vous connecter".to_owned()
+        tr("Not connected — type /connect to connect").to_owned()
     } else {
         match buffer.kind {
-            Kind::Channel => format!("Message dans {}", buffer.name),
-            Kind::Query => format!("Message à {}", buffer.name),
-            Kind::Server => "Commande… (/help pour la liste)".to_owned(),
+            Kind::Channel => tr!("Message in {channel}", channel = buffer.name),
+            Kind::Query => tr!("Message to {nick}", nick = buffer.name),
+            Kind::Server => tr("Command… (/help for the list)").to_owned(),
         }
     };
 
@@ -310,19 +312,19 @@ fn input<'a>(props: &Props<'a>) -> Element<'a, Message> {
 
 fn empty_hint(buffer: &Buffer) -> &'static str {
     match buffer.kind {
-        Kind::Server => "Les messages du serveur apparaîtront ici.",
-        Kind::Channel => "Aucun message pour l'instant.",
-        Kind::Query => "Début de la conversation.",
+        Kind::Server => tr("Server messages will appear here."),
+        Kind::Channel => tr("No messages yet."),
+        Kind::Query => tr("Start of the conversation."),
     }
 }
 
-/// Écran affiché lorsqu'aucun réseau n'est configuré.
+/// Screen shown when no network is configured.
 pub fn welcome(c: Colors, banner: Option<&str>) -> Element<'_, Message> {
     let mut content = column![
-        text("Bienvenue dans ircnext").size(26).font(BOLD).color(c.text),
-        text("Un client IRC moderne, compatible IRCv3.").size(15).color(c.muted),
+        text(tr("Welcome to ircnext")).size(26).font(BOLD).color(c.text),
+        text(tr("A modern IRC client with IRCv3 support.")).size(15).color(c.muted),
         space().height(12),
-        button(text("Ajouter un réseau").size(15))
+        button(text(tr("Add a network")).size(15))
             .padding([10, 18])
             .style(theme::primary(c))
             .on_press(Message::OpenServerForm(None)),

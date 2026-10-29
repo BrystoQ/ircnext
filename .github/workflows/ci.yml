@@ -26,7 +26,7 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Dépendances système (Linux)
+      - name: System dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev
       - name: Clippy
@@ -35,7 +35,7 @@ jobs:
         run: cargo test --workspace --locked
 
   msrv:
-    name: Version minimale de Rust (1.90)
+    name: Minimum Rust version (1.90)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -45,7 +45,7 @@ jobs:
       - run: cargo check --workspace --locked
 
   audit:
-    name: Audit des dépendances
+    name: Dependency audit
     runs-on: ubuntu-latest
     permissions:
       contents: read

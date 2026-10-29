@@ -1,9 +1,11 @@
-//! Barre latérale : réseaux et onglets, en arbre comme dans HexChat.
+//! Sidebar: networks and tabs, as a tree like in HexChat.
 
 use iced::widget::{button, column, container, row, scrollable, space, text, tooltip};
 use iced::{Alignment, Element, Length};
 
 use crate::app::Message;
+use crate::i18n::tr;
+use crate::tr;
 use crate::buffer::{Buffer, Kind};
 use crate::server::{BufferId, Server, ServerId, Status};
 use crate::theme::{self, Colors};
@@ -15,8 +17,8 @@ pub fn view(servers: &[Server], active: Option<(ServerId, BufferId)>, c: Colors)
     let header = row![
         text("ircnext").size(17).font(BOLD).color(c.text),
         space().width(Length::Fill),
-        icon_button("+", "Ajouter un réseau", Message::OpenServerForm(None), c),
-        icon_button("⚙", "Paramètres", Message::OpenSettings, c),
+        icon_button("+", tr("Add a network"), Message::OpenServerForm(None), c),
+        icon_button("⚙", tr("Settings"), Message::OpenSettings, c),
     ]
     .spacing(2)
     .align_y(Alignment::Center)
@@ -27,7 +29,7 @@ pub fn view(servers: &[Server], active: Option<(ServerId, BufferId)>, c: Colors)
     });
 
     let list: Element<'_, Message> = if servers.is_empty() {
-        container(text("Aucun réseau.\nCliquez sur + pour en ajouter un.").size(13).color(c.muted))
+        container(text(tr("No network.\nClick + to add one.")).size(13).color(c.muted))
             .padding(16)
             .into()
     } else {
@@ -50,12 +52,12 @@ fn server_section(server: &Server, active: Option<(ServerId, BufferId)>, c: Colo
     let selected = active == Some((id, server_buffer));
 
     let (status_color, status_label) = match &server.status {
-        Status::Online => (c.success, "Connecté".to_owned()),
-        Status::Registering => (c.warning, "Enregistrement…".to_owned()),
-        Status::Connecting(_) => (c.warning, "Connexion…".to_owned()),
-        Status::Waiting { retry_in, .. } => (c.warning, format!("Reconnexion dans {} s", retry_in.as_secs())),
-        Status::Disconnected(Some(_)) => (c.danger, "Déconnecté (erreur)".to_owned()),
-        Status::Disconnected(None) => (c.muted, "Déconnecté".to_owned()),
+        Status::Online => (c.success, tr("Connected").to_owned()),
+        Status::Registering => (c.warning, tr("Registering…").to_owned()),
+        Status::Connecting(_) => (c.warning, tr("Connecting…").to_owned()),
+        Status::Waiting { retry_in, .. } => (c.warning, tr!("Reconnecting in {seconds} s", seconds = retry_in.as_secs())),
+        Status::Disconnected(Some(_)) => (c.danger, tr("Disconnected (error)").to_owned()),
+        Status::Disconnected(None) => (c.muted, tr("Disconnected").to_owned()),
     };
 
     let chevron = button(text(if server.collapsed { "▸" } else { "▾" }).size(12).color(c.muted))
@@ -89,15 +91,15 @@ fn server_section(server: &Server, active: Option<(ServerId, BufferId)>, c: Colo
     .on_press(Message::Select(id, server_buffer));
 
     let power = if server.enabled {
-        icon_button("⏻", "Se déconnecter", Message::Disconnect(id), c)
+        icon_button("⏻", tr("Disconnect"), Message::Disconnect(id), c)
     } else {
-        icon_button("⏻", "Se connecter", Message::Connect(id), c)
+        icon_button("⏻", tr("Connect"), Message::Connect(id), c)
     };
     let header = row![
         chevron,
         title,
         power,
-        icon_button("✎", "Modifier le réseau", Message::OpenServerForm(Some(id)), c),
+        icon_button("✎", tr("Edit the network"), Message::OpenServerForm(Some(id)), c),
     ]
     .spacing(2)
     .align_y(Alignment::Center);

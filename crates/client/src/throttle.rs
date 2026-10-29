@@ -1,18 +1,17 @@
-//! Limitation du débit d'envoi (seau à jetons), pour éviter d'être
-//! déconnecté par le serveur pour « Excess Flood » (collage de nombreuses
-//! lignes, par exemple).
+//! Send rate limiting (token bucket), to avoid being disconnected by the
+//! server for “Excess Flood” (when pasting many lines, for example).
 
 use std::time::Duration;
 
 use tokio::time::Instant;
 
-/// Seau à jetons : `burst` messages d'affilée, puis un toutes les `interval`.
+/// Token bucket: `burst` messages in a row, then one every `interval`.
 #[derive(Debug, Clone)]
 pub struct Throttle {
     burst: u32,
     interval: Duration,
     tokens: u32,
-    /// Instant du dernier jeton ajouté.
+    /// Time of the last token added.
     refilled: Instant,
 }
 
@@ -21,7 +20,7 @@ impl Throttle {
         Self { burst, interval, tokens: burst, refilled: now }
     }
 
-    /// Consomme un jeton s'il y en a un.
+    /// Takes a token if there is one.
     pub fn try_acquire(&mut self, now: Instant) -> bool {
         self.refill(now);
         if self.tokens == 0 {
@@ -31,7 +30,7 @@ impl Throttle {
         true
     }
 
-    /// Instant où le prochain jeton sera disponible.
+    /// Time when the next token will be available.
     pub fn ready_at(&self) -> Instant {
         self.refilled + self.interval
     }
@@ -45,7 +44,7 @@ impl Throttle {
         let gained = u32::try_from(elapsed.as_nanos() / self.interval.as_nanos().max(1)).unwrap_or(u32::MAX);
         if gained > 0 {
             self.tokens = self.tokens.saturating_add(gained).min(self.burst);
-            // Seau plein : le temps écoulé au-delà ne compte plus.
+            // Full bucket: time elapsed beyond that no longer counts.
             self.refilled = if self.tokens == self.burst { now } else { self.refilled + self.interval * gained };
         }
     }

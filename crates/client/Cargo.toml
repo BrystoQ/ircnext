@@ -1,6 +1,6 @@
 [package]
 name = "ircnext-client"
-description = "Connexions IRC (TCP/TLS), enregistrement CAP/SASL et suivi d'état du réseau."
+description = "IRC connections (TCP/TLS), CAP/SASL registration and network state tracking."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

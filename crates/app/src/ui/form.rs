@@ -1,6 +1,6 @@
-//! Briques communes des formulaires de réglages, pour un rendu uniforme :
-//! des groupes en cartes, et dans chaque carte des lignes « libellé à gauche,
-//! contrôle aligné à droite », séparées par un filet.
+//! Shared building blocks of the settings forms, for a uniform look: groups
+//! as cards, and in each card rows with “label on the left, control aligned
+//! on the right”, separated by a thin line.
 
 use std::borrow::Cow;
 use std::fmt::Display;
@@ -12,13 +12,13 @@ use crate::app::Message;
 use crate::theme::{self, Colors};
 use crate::ui::BOLD;
 
-/// Largeur commune des contrôles (champs, listes, curseurs).
+/// Common width of the controls (fields, lists, sliders).
 pub const CONTROL_WIDTH: f32 = 240.0;
-/// Taille du texte des libellés et des contrôles.
+/// Text size of labels and controls.
 const LABEL_SIZE: f32 = 14.0;
 const DESCRIPTION_SIZE: f32 = 12.0;
 
-/// Page d'une section : titre puis groupes.
+/// Page of a section: title then groups.
 pub fn page<'a>(title: &'a str, groups: impl IntoIterator<Item = Element<'a, Message>>, c: Colors) -> Element<'a, Message> {
     groups
         .into_iter()
@@ -26,7 +26,7 @@ pub fn page<'a>(title: &'a str, groups: impl IntoIterator<Item = Element<'a, Mes
         .into()
 }
 
-/// Groupe de réglages : intitulé discret, puis carte contenant les lignes.
+/// Group of settings: discreet heading, then a card holding the rows.
 pub fn group<'a>(title: &'a str, rows: impl IntoIterator<Item = Element<'a, Message>>, c: Colors) -> Element<'a, Message> {
     let mut card = column![];
     for (index, entry) in rows.into_iter().enumerate() {
@@ -43,14 +43,14 @@ pub fn group<'a>(title: &'a str, rows: impl IntoIterator<Item = Element<'a, Mess
     .into()
 }
 
-/// Texte d'accompagnement sous un groupe.
+/// Accompanying text below a group.
 pub fn note<'a>(content: impl Into<Cow<'a, str>>, c: Colors) -> Element<'a, Message> {
     container(text(content.into()).size(DESCRIPTION_SIZE).color(c.muted))
         .padding([0, 4])
         .into()
 }
 
-/// Ligne de réglage.
+/// Settings row.
 pub struct Setting<'a> {
     label: Cow<'a, str>,
     description: Option<Cow<'a, str>>,
@@ -58,7 +58,7 @@ pub struct Setting<'a> {
     control: Element<'a, Message>,
 }
 
-/// Ligne « libellé à gauche, contrôle à droite ».
+/// “Label on the left, control on the right” row.
 pub fn setting<'a>(label: impl Into<Cow<'a, str>>, control: impl Into<Element<'a, Message>>) -> Setting<'a> {
     Setting { label: label.into(), description: None, error: None, control: control.into() }
 }
@@ -69,7 +69,7 @@ impl<'a> Setting<'a> {
         self
     }
 
-    /// Message d'erreur affiché sous le libellé, s'il y en a un.
+    /// Error message shown below the label, if any.
     pub fn error(mut self, error: Option<impl Into<Cow<'a, str>>>) -> Self {
         self.error = error.map(Into::into);
         self
@@ -91,7 +91,7 @@ impl<'a> Setting<'a> {
     }
 }
 
-/// Réglage occupant toute la largeur, sous son libellé (grilles, listes).
+/// Setting taking the full width, below its label (grids, lists).
 pub fn block<'a>(
     label: impl Into<Cow<'a, str>>,
     description: Option<&'a str>,
@@ -105,12 +105,12 @@ pub fn block<'a>(
     column![header, content.into()].spacing(12).padding([12, 14]).into()
 }
 
-/// Interrupteur.
+/// Switch.
 pub fn switch<'a>(value: bool, on_toggle: impl Fn(bool) -> Message + 'a) -> Element<'a, Message> {
     toggler(value).on_toggle(on_toggle).size(20).into()
 }
 
-/// Champ de texte à la largeur commune.
+/// Text field with the common width.
 pub fn input<'a>(
     placeholder: &str,
     value: &str,
@@ -125,7 +125,7 @@ pub fn input<'a>(
         .style(theme::field(c))
 }
 
-/// Liste déroulante à la largeur commune.
+/// Pick list with the common width.
 pub fn select<'a, T>(
     options: impl std::borrow::Borrow<[T]> + 'a,
     selected: Option<T>,
@@ -143,7 +143,7 @@ where
         .into()
 }
 
-/// Curseur à la largeur commune, suivi de sa valeur.
+/// Slider with the common width, followed by its value.
 pub fn range<'a>(
     bounds: std::ops::RangeInclusive<u16>,
     value: u16,
@@ -163,7 +163,7 @@ pub fn range<'a>(
 }
 
 fn divider<'a>(c: Colors) -> Element<'a, Message> {
-    // Filet en retrait des bords de la carte.
+    // Thin line inset from the card edges.
     container(container(space().height(1)).width(Length::Fill).style(theme::panel(c.border)))
         .padding([0, 14])
         .into()

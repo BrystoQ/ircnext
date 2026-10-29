@@ -1,4 +1,4 @@
-//! Routage des messages reçus vers les onglets.
+//! Routing of received messages to the tabs.
 
 use std::time::Instant;
 
@@ -11,13 +11,15 @@ use ircnext_client::whox_request;
 
 use super::{Alert, BufferId, Context, Effects, REMOTE_COMPLETION_TIMEOUT, Server, message_time, parse_time};
 use crate::buffer::{Kind, Line, LineKind};
+use crate::i18n::tr;
 use crate::suggest;
 use crate::ignore;
+use crate::tr;
 
-/// Longueur maximale de l'aperçu d'un message dans une notification.
+/// Maximum length of a message preview in a notification.
 const ALERT_PREVIEW: usize = 200;
 
-/// Réponses numériques traitées ailleurs ou sans intérêt pour l'utilisateur.
+/// Numeric replies handled elsewhere or of no interest to the user.
 const SILENT_NUMERICS: &[u16] = &[
     numeric::RPL_ISUPPORT,
     numeric::RPL_TOPICWHOTIME,
@@ -36,23 +38,23 @@ const SILENT_NUMERICS: &[u16] = &[
 ];
 
 impl Server {
-    /// Applique un message à l'état et l'affiche dans les onglets concernés.
+    /// Applies a message to the state and shows it in the relevant tabs.
     pub(super) fn receive(&mut self, message: &Message, ctx: &Context<'_>) -> Effects {
         let mut effects = Effects::default();
         let source = message.source_nick().unwrap_or_default().to_owned();
-        // Les lots d'historique (`chathistory`) ne doivent pas modifier l'état courant.
+        // History batches (`chathistory`) must not change the current state.
         let history = self
             .network
             .batch_of(message)
             .is_some_and(|batch| batch.kind.ends_with("chathistory"));
-        // Salons communs, à calculer avant que l'état n'oublie l'utilisateur.
+        // Shared channels, computed before the state forgets the user.
         let shared_channels = match message.command {
             Command::Quit | Command::Nick => self.network.channels_with(&source),
             _ => Vec::new(),
         };
         self.replaying = history;
-        // Utilisateurs ignorés : messages, notices, CTCP, invitations et
-        // indicateurs de saisie disparaissent sans trace.
+        // Ignored users: messages, notices, CTCP, invitations and typing
+        // indicators vanish without a trace.
         let ignorable = matches!(
             message.command,
             Command::Privmsg | Command::Notice | Command::Tagmsg | Command::Invite
@@ -161,7 +163,7 @@ impl Server {
             }
             Command::Invite => {
                 if let Some(channel) = message.param(1) {
-                    let text = format!("{source} vous invite sur {channel}.");
+                    let text = tr!("{nick} invites you to {channel}.", nick = source, channel = channel);
                     let id = ctx.active.filter(|id| self.buffer(*id).is_some());
                     let id = id.unwrap_or_else(|| self.server_buffer());
                     self.push(id, line(LineKind::Info(text)), ctx);
@@ -198,7 +200,7 @@ impl Server {
                         new.clone_into(&mut buffer.name);
                     }
                     self.resort();
-                    let text = format!("Le salon {old} a été renommé en {new}.");
+                    let text = tr!("Channel {old} was renamed to {new}.", old = old, new = new);
                     self.push(id, line(LineKind::Info(text)), ctx);
                 }
             }
@@ -214,7 +216,7 @@ impl Server {
                 }
             }
             Command::Error => {
-                let text = message.param(0).unwrap_or("erreur du serveur").to_owned();
+                let text = message.param(0).unwrap_or(tr("server error")).to_owned();
                 self.info(LineKind::Error(text), ctx);
             }
             Command::Numeric(RPL_ENDOFMOTD | ERR_NOMOTD) => {
@@ -253,7 +255,7 @@ impl Server {
         } else if from_server || target == "*" {
             self.server_buffer()
         } else if is_notice {
-            // Notices privées (services...) : conversation existante ou onglet courant.
+            // Private notices (services...): existing conversation or current tab.
             self.find(source)
                 .or(ctx.active.filter(|id| self.buffer(*id).is_some()))
                 .unwrap_or_else(|| self.server_buffer())
@@ -283,7 +285,7 @@ impl Server {
         line.highlight = !own && !from_server && self.mentions_me(body, ctx);
         let private = !is_notice && self.buffer(id).is_some_and(|b| b.kind == Kind::Query);
         if !history && !own && !is_notice && (line.highlight || private) {
-            let title = if private { source.to_owned() } else { format!("{source} dans {stripped}") };
+            let title = if private { source.to_owned() } else { tr!("{nick} in {channel}", nick = source, channel = stripped) };
             let text = match &line.kind {
                 LineKind::Action { text, .. } => format!("{source} {text}"),
                 LineKind::Message { text, .. } => text.clone(),
@@ -314,7 +316,7 @@ impl Server {
     fn on_ctcp(&mut self, ctcp: Ctcp<'_>, source: &str, is_reply: bool, own: bool, ctx: &Context<'_>) {
         let params = ctcp.params.unwrap_or_default();
         if is_reply {
-            let text = format!("Réponse CTCP {} de {source} : {params}", ctcp.command);
+            let text = tr!("CTCP {command} reply from {nick}: {reply}", command = ctcp.command, nick = source, reply = params);
             self.info(LineKind::Info(text), ctx);
             return;
         }
@@ -326,7 +328,7 @@ impl Server {
             "VERSION" if !version.is_empty() => Some(version.to_owned()),
             "VERSION" => Some(format!("ircnext {}", env!("CARGO_PKG_VERSION"))),
             "PING" => Some(params.chars().take(64).collect()),
-            // En UTC : l'heure locale révélerait le fuseau horaire.
+            // In UTC: the local time would reveal the time zone.
             "TIME" => Some(chrono::Utc::now().to_rfc2822()),
             "CLIENTINFO" => Some("ACTION CLIENTINFO PING TIME VERSION".to_owned()),
             _ => None,
@@ -334,7 +336,7 @@ impl Server {
         if let Some(reply) = reply {
             let _ = self.send(Message::notice(source, text::ctcp(ctcp.command, Some(&reply))));
         }
-        let text = format!("Requête CTCP {} de {source}", ctcp.command);
+        let text = tr!("CTCP {command} request from {nick}", command = ctcp.command, nick = source);
         self.info(LineKind::Info(text), ctx);
     }
 
@@ -355,7 +357,7 @@ impl Server {
         }
     }
 
-    /// Réponse d'un bot à une demande de complétion encore en cours.
+    /// Reply from a bot to a completion request still pending.
     fn on_completion_reply(&mut self, edits: Vec<CompletionEdit>, source: &str) {
         let Some(pending) = &mut self.remote_completion else {
             return;
@@ -394,7 +396,7 @@ impl Server {
         effects
     }
 
-    /// Demande les derniers messages d'un salon ou d'une conversation.
+    /// Requests the latest messages of a channel or a conversation.
     pub(super) fn request_history(&self, target: &str) {
         let wanted = usize::from(self.prefs.history_lines);
         if wanted == 0 {
@@ -439,7 +441,7 @@ impl Server {
         }
     }
 
-    /// Fin du MOTD : l'enregistrement est complet et `ISUPPORT` connu.
+    /// End of the MOTD: registration is complete and `ISUPPORT` known.
     fn on_motd_end(&self) {
         if self.network.isupport().monitor.is_none() {
             return;
@@ -458,7 +460,7 @@ impl Server {
         let Command::Numeric(code) = message.command else {
             return;
         };
-        // Paramètres : <notre pseudo> [contexte...] :<texte>
+        // Parameters: <our nick> [context...] :<text>
         let params = message.params.get(1..).unwrap_or_default();
         let text = params.join(" ");
         let kind = if numeric::is_error(code) {

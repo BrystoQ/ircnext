@@ -1,7 +1,7 @@
 name: Release
 
-# Publier une version : pousser une étiquette « vX.Y.Z » identique à la
-# version du Cargo.toml, par exemple `git tag v0.1.0 && git push origin v0.1.0`.
+# To publish a version, push a “vX.Y.Z” tag matching the version in
+# Cargo.toml, for example `git tag v0.1.0 && git push origin v0.1.0`.
 on:
   push:
     tags: ["v*"]
@@ -14,7 +14,7 @@ env:
 
 jobs:
   build:
-    name: Compilation (${{ matrix.name }})
+    name: Build (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
@@ -26,7 +26,7 @@ jobs:
             os: windows-latest
             targets: x86_64-pc-windows-msvc
           - name: Linux
-            # La plus ancienne glibc disponible, pour tourner sur plus de distributions.
+            # Oldest glibc available, to run on more distributions.
             os: ubuntu-22.04
             targets: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
@@ -37,21 +37,21 @@ jobs:
           targets: ${{ matrix.targets }}
       - uses: Swatinem/rust-cache@v2
 
-      - name: Vérification de la version
+      - name: Version check
         shell: bash
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::L'étiquette $GITHUB_REF_NAME ne correspond pas à la version $version du Cargo.toml."
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in Cargo.toml."
             exit 1
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
-      - name: Dépendances système (Linux)
+      - name: System dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev
 
-      - name: Paquet macOS (application universelle)
+      - name: macOS package (universal app)
         if: runner.os == 'macOS'
         run: |
           cargo build --release --locked -p ircnext --target aarch64-apple-darwin
@@ -78,12 +78,12 @@ jobs:
           </dict>
           </plist>
           EOF
-          # Signature ad hoc : sans elle, macOS refuse de lancer le binaire universel.
+          # Ad hoc signature: without it, macOS refuses to run the universal binary.
           codesign --force --deep --sign - "$app"
           ditto -c -k --keepParent "$app" "dist/ircnext-$VERSION-macos.zip"
           rm -rf "$app"
 
-      - name: Paquet Windows
+      - name: Windows package
         if: runner.os == 'Windows'
         shell: bash
         run: |
@@ -92,7 +92,7 @@ jobs:
           cp target/release/ircnext.exe LICENSE README.md dist/ircnext/
           cd dist && 7z a "ircnext-$VERSION-windows-x64.zip" ircnext >/dev/null && rm -rf ircnext
 
-      - name: Paquet Linux
+      - name: Linux package
         if: runner.os == 'Linux'
         run: |
           cargo build --release --locked -p ircnext
@@ -107,7 +107,7 @@ jobs:
           path: dist/*
 
   release:
-    name: Publication
+    name: Publish
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -115,9 +115,9 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Sommes de contrôle
+      - name: Checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt
-      - name: Création de la release
+      - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

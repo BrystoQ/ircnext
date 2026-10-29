@@ -1,9 +1,9 @@
-//! Raccourcis clavier configurables.
+//! Configurable keyboard shortcuts.
 //!
-//! Une combinaison s'écrit `Mod+Shift+K` dans la configuration. `Mod` désigne
-//! ⌘ sur macOS et Ctrl sous Windows et Linux, si bien qu'un même réglage
-//! convient aux deux. `Ctrl` désigne la touche Contrôle elle-même (distincte
-//! de ⌘ sur macOS, confondue avec `Mod` ailleurs).
+//! A combination is written `Mod+Shift+K` in the configuration. `Mod` means
+//! ⌘ on macOS and Ctrl on Windows and Linux, so the same setting works on
+//! both. `Ctrl` means the Control key itself (distinct from ⌘ on macOS, the
+//! same as `Mod` elsewhere).
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -12,10 +12,12 @@ use iced::keyboard::key::{Code, Named, Physical};
 use iced::keyboard::{Key, Modifiers};
 use serde::{Deserialize, Serialize};
 
-/// Système courant : détermine le sens de `Mod` et les raccourcis par défaut.
+use crate::i18n::tr;
+
+/// Current system: decides what `Mod` means and the default shortcuts.
 pub const MAC: bool = cfg!(target_os = "macos");
 
-/// Groupe d'actions, pour l'affichage dans les paramètres.
+/// Group of actions, for display in the settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Group {
     Navigation,
@@ -29,17 +31,17 @@ impl Group {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Navigation => "Navigation",
-            Self::Display => "Affichage",
-            Self::Formatting => "Mise en forme (codes mIRC)",
-            Self::Application => "Application",
+            Self::Navigation => tr("Navigation"),
+            Self::Display => tr("Display"),
+            Self::Formatting => tr("Formatting (mIRC codes)"),
+            Self::Application => tr("Application"),
         }
     }
 }
 
 macro_rules! actions {
-    ($($variant:ident => $group:ident, $label:literal, mac: [$($mac:literal),*], other: [$($other:literal),*];)*) => {
-        /// Action déclenchable par un raccourci.
+    ($($variant:ident => $group:ident, $label:expr, mac: [$($mac:literal),*], other: [$($other:literal),*];)*) => {
+        /// Action a shortcut can trigger.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
         #[serde(rename_all = "snake_case")]
         pub enum Action {
@@ -61,7 +63,7 @@ macro_rules! actions {
                 }
             }
 
-            /// Raccourcis par défaut, selon le système.
+            /// Default shortcuts, depending on the system.
             pub fn defaults(self, mac: bool) -> &'static [&'static str] {
                 match self {
                     $(Self::$variant => if mac { &[$($mac),*] } else { &[$($other),*] },)*
@@ -71,58 +73,58 @@ macro_rules! actions {
     };
 }
 
-// Conventions reprises de HexChat, irssi, des navigateurs et des messageries
-// (Slack, Discord) : Ctrl+Tab / Ctrl+Page pour les onglets, Alt+chiffre
-// (⌘+chiffre sur macOS), ⌘/Ctrl+W pour fermer, codes mIRC sur B/I/U/K...
+// Conventions taken from HexChat, irssi, web browsers and chat apps (Slack,
+// Discord): Ctrl+Tab / Ctrl+Page for tabs, Alt+digit (⌘+digit on macOS),
+// ⌘/Ctrl+W to close, mIRC codes on B/I/U/K...
 actions! {
-    NextBuffer => Navigation, "Onglet suivant",
+    NextBuffer => Navigation, tr("Next tab"),
         mac: ["Ctrl+Tab", "Mod+Alt+Right", "Alt+Down"], other: ["Ctrl+Tab", "Ctrl+PageDown", "Alt+Down"];
-    PreviousBuffer => Navigation, "Onglet précédent",
+    PreviousBuffer => Navigation, tr("Previous tab"),
         mac: ["Ctrl+Shift+Tab", "Mod+Alt+Left", "Alt+Up"], other: ["Ctrl+Shift+Tab", "Ctrl+PageUp", "Alt+Up"];
-    NextUnread => Navigation, "Onglet non lu suivant",
+    NextUnread => Navigation, tr("Next unread tab"),
         mac: ["Alt+Shift+Down"], other: ["Alt+Shift+Down", "Alt+A"];
-    PreviousUnread => Navigation, "Onglet non lu précédent",
+    PreviousUnread => Navigation, tr("Previous unread tab"),
         mac: ["Alt+Shift+Up"], other: ["Alt+Shift+Up"];
-    GoTo1 => Navigation, "Aller à l'onglet 1", mac: ["Mod+1"], other: ["Alt+1"];
-    GoTo2 => Navigation, "Aller à l'onglet 2", mac: ["Mod+2"], other: ["Alt+2"];
-    GoTo3 => Navigation, "Aller à l'onglet 3", mac: ["Mod+3"], other: ["Alt+3"];
-    GoTo4 => Navigation, "Aller à l'onglet 4", mac: ["Mod+4"], other: ["Alt+4"];
-    GoTo5 => Navigation, "Aller à l'onglet 5", mac: ["Mod+5"], other: ["Alt+5"];
-    GoTo6 => Navigation, "Aller à l'onglet 6", mac: ["Mod+6"], other: ["Alt+6"];
-    GoTo7 => Navigation, "Aller à l'onglet 7", mac: ["Mod+7"], other: ["Alt+7"];
-    GoTo8 => Navigation, "Aller à l'onglet 8", mac: ["Mod+8"], other: ["Alt+8"];
-    GoTo9 => Navigation, "Aller au dernier onglet", mac: ["Mod+9"], other: ["Alt+9"];
-    QuickSwitcher => Navigation, "Recherche rapide d'onglet", mac: ["Mod+T", "Mod+J"], other: ["Mod+T", "Mod+J"];
-    Search => Navigation, "Rechercher dans l'onglet", mac: ["Mod+F"], other: ["Mod+F"];
-    CloseBuffer => Navigation, "Fermer l'onglet", mac: ["Mod+W"], other: ["Mod+W", "Mod+F4"];
-    MarkAllRead => Navigation, "Tout marquer comme lu", mac: ["Shift+Escape"], other: ["Shift+Escape"];
+    GoTo1 => Navigation, tr("Go to tab 1"), mac: ["Mod+1"], other: ["Alt+1"];
+    GoTo2 => Navigation, tr("Go to tab 2"), mac: ["Mod+2"], other: ["Alt+2"];
+    GoTo3 => Navigation, tr("Go to tab 3"), mac: ["Mod+3"], other: ["Alt+3"];
+    GoTo4 => Navigation, tr("Go to tab 4"), mac: ["Mod+4"], other: ["Alt+4"];
+    GoTo5 => Navigation, tr("Go to tab 5"), mac: ["Mod+5"], other: ["Alt+5"];
+    GoTo6 => Navigation, tr("Go to tab 6"), mac: ["Mod+6"], other: ["Alt+6"];
+    GoTo7 => Navigation, tr("Go to tab 7"), mac: ["Mod+7"], other: ["Alt+7"];
+    GoTo8 => Navigation, tr("Go to tab 8"), mac: ["Mod+8"], other: ["Alt+8"];
+    GoTo9 => Navigation, tr("Go to the last tab"), mac: ["Mod+9"], other: ["Alt+9"];
+    QuickSwitcher => Navigation, tr("Quick tab switcher"), mac: ["Mod+T", "Mod+J"], other: ["Mod+T", "Mod+J"];
+    Search => Navigation, tr("Search in the tab"), mac: ["Mod+F"], other: ["Mod+F"];
+    CloseBuffer => Navigation, tr("Close tab"), mac: ["Mod+W"], other: ["Mod+W", "Mod+F4"];
+    MarkAllRead => Navigation, tr("Mark all as read"), mac: ["Shift+Escape"], other: ["Shift+Escape"];
 
-    ScrollUp => Display, "Remonter d'une page", mac: ["PageUp", "Shift+PageUp"], other: ["PageUp", "Shift+PageUp"];
-    ScrollDown => Display, "Descendre d'une page", mac: ["PageDown", "Shift+PageDown"], other: ["PageDown", "Shift+PageDown"];
-    ScrollTop => Display, "Début de l'historique", mac: ["Mod+Home", "Mod+Up"], other: ["Mod+Home"];
-    ScrollBottom => Display, "Derniers messages", mac: ["Mod+End", "Mod+Down"], other: ["Mod+End"];
-    ToggleNicklist => Display, "Afficher/masquer les membres", mac: ["Mod+Shift+U"], other: ["Mod+Shift+U"];
-    ToggleSidebar => Display, "Afficher/masquer la barre latérale", mac: ["Mod+Shift+S"], other: ["Mod+Shift+S"];
-    ClearBuffer => Display, "Effacer l'onglet", mac: ["Mod+L"], other: ["Mod+L"];
-    ZoomIn => Display, "Agrandir le texte", mac: ["Mod+Equal", "Mod+Plus"], other: ["Mod+Equal", "Mod+Plus"];
-    ZoomOut => Display, "Réduire le texte", mac: ["Mod+Minus"], other: ["Mod+Minus"];
-    ZoomReset => Display, "Taille de texte par défaut", mac: ["Mod+0"], other: ["Mod+0"];
+    ScrollUp => Display, tr("Page up"), mac: ["PageUp", "Shift+PageUp"], other: ["PageUp", "Shift+PageUp"];
+    ScrollDown => Display, tr("Page down"), mac: ["PageDown", "Shift+PageDown"], other: ["PageDown", "Shift+PageDown"];
+    ScrollTop => Display, tr("Start of history"), mac: ["Mod+Home", "Mod+Up"], other: ["Mod+Home"];
+    ScrollBottom => Display, tr("Latest messages"), mac: ["Mod+End", "Mod+Down"], other: ["Mod+End"];
+    ToggleNicklist => Display, tr("Show/hide members"), mac: ["Mod+Shift+U"], other: ["Mod+Shift+U"];
+    ToggleSidebar => Display, tr("Show/hide sidebar"), mac: ["Mod+Shift+S"], other: ["Mod+Shift+S"];
+    ClearBuffer => Display, tr("Clear tab"), mac: ["Mod+L"], other: ["Mod+L"];
+    ZoomIn => Display, tr("Larger text"), mac: ["Mod+Equal", "Mod+Plus"], other: ["Mod+Equal", "Mod+Plus"];
+    ZoomOut => Display, tr("Smaller text"), mac: ["Mod+Minus"], other: ["Mod+Minus"];
+    ZoomReset => Display, tr("Default text size"), mac: ["Mod+0"], other: ["Mod+0"];
 
-    Bold => Formatting, "Gras", mac: ["Mod+B"], other: ["Mod+B"];
-    Italic => Formatting, "Italique", mac: ["Mod+I"], other: ["Mod+I"];
-    Underline => Formatting, "Souligné", mac: ["Mod+U"], other: ["Mod+U"];
-    Strikethrough => Formatting, "Barré", mac: ["Mod+Shift+X"], other: ["Mod+Shift+X"];
-    Color => Formatting, "Couleur", mac: ["Mod+K"], other: ["Mod+K"];
-    Reverse => Formatting, "Inversion des couleurs", mac: ["Mod+R"], other: ["Mod+R"];
-    ResetFormat => Formatting, "Annuler la mise en forme", mac: ["Mod+O"], other: ["Mod+O"];
+    Bold => Formatting, tr("Bold"), mac: ["Mod+B"], other: ["Mod+B"];
+    Italic => Formatting, tr("Italic"), mac: ["Mod+I"], other: ["Mod+I"];
+    Underline => Formatting, tr("Underline"), mac: ["Mod+U"], other: ["Mod+U"];
+    Strikethrough => Formatting, tr("Strikethrough"), mac: ["Mod+Shift+X"], other: ["Mod+Shift+X"];
+    Color => Formatting, tr("Color"), mac: ["Mod+K"], other: ["Mod+K"];
+    Reverse => Formatting, tr("Reverse colors"), mac: ["Mod+R"], other: ["Mod+R"];
+    ResetFormat => Formatting, tr("Reset formatting"), mac: ["Mod+O"], other: ["Mod+O"];
 
-    AddNetwork => Application, "Ajouter un réseau", mac: ["Mod+N"], other: ["Mod+N"];
-    OpenSettings => Application, "Paramètres", mac: ["Mod+Comma"], other: ["Mod+Comma", "Mod+P"];
-    Quit => Application, "Quitter", mac: ["Mod+Q"], other: ["Mod+Q"];
+    AddNetwork => Application, tr("Add a network"), mac: ["Mod+N"], other: ["Mod+N"];
+    OpenSettings => Application, tr("Settings"), mac: ["Mod+Comma"], other: ["Mod+Comma", "Mod+P"];
+    Quit => Application, tr("Quit"), mac: ["Mod+Q"], other: ["Mod+Q"];
 }
 
 impl Action {
-    /// Numéro d'onglet visé par `GoToN` (le 9 vise le dernier).
+    /// Tab number targeted by `GoToN` (9 targets the last one).
     pub fn goto_index(self) -> Option<usize> {
         let index = match self {
             Self::GoTo1 => 1,
@@ -140,29 +142,31 @@ impl Action {
     }
 }
 
-/// Touches à rôle fixe, rappelées dans les paramètres.
-pub const FIXED_KEYS: &[(&str, &str)] = &[
-    ("Tab / Maj+Tab", "Compléter (pseudos, commandes, salons)"),
-    ("↑ / ↓", "Historique de saisie, ou choix d'une suggestion"),
-    ("Entrée", "Envoyer, ou valider la suggestion"),
-    ("Échap", "Fermer les suggestions, la recherche ou la fenêtre ouverte"),
-];
+/// Keys with a fixed role, listed in the settings.
+pub fn fixed_keys() -> [(&'static str, &'static str); 4] {
+    [
+        (tr("Tab / Shift+Tab"), tr("Complete (nicknames, commands, channels)")),
+        ("↑ / ↓", tr("Input history, or choose a suggestion")),
+        (tr("Enter"), tr("Send, or accept the suggestion")),
+        (tr("Esc"), tr("Close the suggestions, the search or the open window")),
+    ]
+}
 
-/// Combinaison de touches.
+/// Key combination.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(clippy::struct_excessive_bools)] // un indicateur par touche de modification
+#[allow(clippy::struct_excessive_bools)] // one flag per modifier key
 pub struct Combo {
-    /// ⌘ sur macOS, Ctrl ailleurs.
+    /// ⌘ on macOS, Ctrl elsewhere.
     pub command: bool,
-    /// Contrôle sur macOS (toujours faux ailleurs, où il se confond avec `command`).
+    /// Control on macOS (always false elsewhere, where it is `command`).
     pub ctrl: bool,
     pub alt: bool,
     pub shift: bool,
-    /// Nom canonique de la touche (`K`, `1`, `PageDown`, `Comma`...).
+    /// Canonical key name (`K`, `1`, `PageDown`, `Comma`...).
     pub key: String,
 }
 
-/// Touches nommées reconnues, avec leur nom canonique.
+/// Recognized named keys, with their canonical name.
 const NAMED_KEYS: &[(Named, &str)] = &[
     (Named::Tab, "Tab"),
     (Named::Enter, "Enter"),
@@ -193,7 +197,7 @@ const NAMED_KEYS: &[(Named, &str)] = &[
     (Named::F12, "F12"),
 ];
 
-/// Ponctuation, nommée pour éviter toute ambiguïté avec le séparateur `+`.
+/// Punctuation, named to avoid any ambiguity with the `+` separator.
 const PUNCTUATION: &[(char, &str)] = &[
     (',', "Comma"),
     ('.', "Period"),
@@ -223,7 +227,7 @@ const DIGITS: [(Code, char); 10] = [
 ];
 
 impl Combo {
-    /// Analyse une combinaison écrite `Mod+Shift+K` (casse indifférente).
+    /// Parses a combination written `Mod+Shift+K` (case-insensitive).
     pub fn parse(text: &str, mac: bool) -> Option<Self> {
         let mut parts: Vec<&str> = text.split('+').map(str::trim).collect();
         let key = canonical_key(parts.pop()?)?;
@@ -240,10 +244,10 @@ impl Combo {
         Some(combo)
     }
 
-    /// Combinaison correspondant à un appui de touche (`None` pour une
-    /// touche de modification seule ou une touche non reconnue).
+    /// Combination matching a key press (`None` for a lone modifier key or
+    /// an unrecognized key).
     pub fn from_key(key: &Key, physical: Physical, modifiers: Modifiers, mac: bool) -> Option<Self> {
-        // Chiffres : touche physique, pour que ⌘1 fonctionne aussi en AZERTY.
+        // Digits: physical key, so that ⌘1 also works on AZERTY keyboards.
         let digit = match physical {
             Physical::Code(code) => DIGITS.iter().find(|(c, _)| *c == code).map(|(_, d)| d.to_string()),
             Physical::Unidentified(_) => None,
@@ -263,7 +267,7 @@ impl Combo {
         })
     }
 
-    /// Forme enregistrée dans la configuration (`Mod+Shift+K`).
+    /// Form saved in the configuration (`Mod+Shift+K`).
     pub fn to_config(&self) -> String {
         let mut text = String::new();
         for (on, name) in [(self.ctrl, "Ctrl"), (self.command, "Mod"), (self.alt, "Alt"), (self.shift, "Shift")] {
@@ -276,7 +280,7 @@ impl Combo {
         text
     }
 
-    /// Forme lisible selon le système : `⌘⇧K` sur macOS, `Ctrl+Maj+K` ailleurs.
+    /// Readable form for the system: `⌘⇧K` on macOS, `Ctrl+Shift+K` elsewhere.
     pub fn display(&self, mac: bool) -> String {
         let key = display_key(&self.key, mac);
         if mac {
@@ -289,7 +293,7 @@ impl Combo {
             text + &key
         } else {
             let mut text = String::new();
-            for (on, name) in [(self.command, "Ctrl"), (self.alt, "Alt"), (self.shift, "Maj")] {
+            for (on, name) in [(self.command, "Ctrl"), (self.alt, "Alt"), (self.shift, tr("Shift"))] {
                 if on {
                     let _ = write!(text, "{name}+");
                 }
@@ -298,18 +302,18 @@ impl Combo {
         }
     }
 
-    /// Au moins une touche de modification autre que Maj.
+    /// At least one modifier key other than Shift.
     pub fn has_modifier(&self) -> bool {
         self.command || self.ctrl || self.alt
     }
 
-    /// Touche seule, sans aucune modification.
+    /// Bare key, without any modifier.
     pub fn is_bare(&self, key: &str) -> bool {
         !self.has_modifier() && !self.shift && self.key == key
     }
 }
 
-/// Nom canonique d'une touche, tel qu'écrit dans la configuration.
+/// Canonical name of a key, as written in the configuration.
 fn canonical_key(name: &str) -> Option<String> {
     let mut chars = name.chars();
     if let (Some(c), None) = (chars.next(), chars.next()) {
@@ -334,22 +338,22 @@ fn display_key(key: &str, mac: bool) -> String {
         "Right" => "→",
         "Tab" => "⇥",
         "Enter" if mac => "↩",
-        "Enter" => "Entrée",
+        "Enter" => tr("Enter"),
         "Escape" if mac => "⎋",
-        "Escape" => "Échap",
+        "Escape" => tr("Esc"),
         "Backspace" => "⌫",
         "Delete" if mac => "⌦",
-        "Delete" => "Suppr",
+        "Delete" => tr("Del"),
         "PageUp" if mac => "⇞",
         "PageUp" => "Page↑",
         "PageDown" if mac => "⇟",
         "PageDown" => "Page↓",
         "Home" if mac => "↖",
-        "Home" => "Début",
+        "Home" => tr("Home"),
         "End" if mac => "↘",
-        "End" => "Fin",
-        "Space" => "Espace",
-        "Insert" => "Inser",
+        "End" => tr("End"),
+        "Space" => tr("Space"),
+        "Insert" => tr("Ins"),
         other => {
             return PUNCTUATION
                 .iter()
@@ -360,10 +364,10 @@ fn display_key(key: &str, mac: bool) -> String {
     symbol.to_owned()
 }
 
-/// Raccourcis personnalisés (les actions absentes gardent leurs défauts).
+/// Custom shortcuts (missing actions keep their defaults).
 pub type Overrides = BTreeMap<Action, Vec<String>>;
 
-/// Raccourcis effectifs d'une action.
+/// Effective shortcuts of an action.
 pub fn bindings(overrides: &Overrides, action: Action, mac: bool) -> Vec<Combo> {
     match overrides.get(&action) {
         Some(custom) => custom.iter().filter_map(|text| Combo::parse(text, mac)).collect(),
@@ -371,7 +375,7 @@ pub fn bindings(overrides: &Overrides, action: Action, mac: bool) -> Vec<Combo> 
     }
 }
 
-/// Action associée à une combinaison.
+/// Action bound to a combination.
 pub fn action_for(overrides: &Overrides, combo: &Combo, mac: bool) -> Option<Action> {
     Action::ALL
         .iter()
@@ -379,7 +383,7 @@ pub fn action_for(overrides: &Overrides, combo: &Combo, mac: bool) -> Option<Act
         .find(|&action| bindings(overrides, action, mac).contains(combo))
 }
 
-/// Autres actions utilisant déjà `combo`.
+/// Other actions already using `combo`.
 pub fn conflicts(overrides: &Overrides, combo: &Combo, except: Action, mac: bool) -> Vec<Action> {
     Action::ALL
         .iter()
@@ -388,7 +392,7 @@ pub fn conflicts(overrides: &Overrides, combo: &Combo, except: Action, mac: bool
         .collect()
 }
 
-/// Indique si une combinaison est réservée à une touche à rôle fixe.
+/// Whether a combination is reserved for a fixed-role key.
 pub fn is_reserved(combo: &Combo) -> bool {
     let bare_or_shift = !combo.has_modifier();
     bare_or_shift && matches!(combo.key.as_str(), "Tab" | "Enter" | "Up" | "Down")
@@ -404,8 +408,8 @@ mod tests {
         for &action in Action::ALL {
             for mac in [true, false] {
                 for text in action.defaults(mac) {
-                    let combo = Combo::parse(text, mac).unwrap_or_else(|| panic!("{action:?} : {text}"));
-                    assert!(!is_reserved(&combo), "{action:?} : {text} est réservé");
+                    let combo = Combo::parse(text, mac).unwrap_or_else(|| panic!("{action:?}: {text}"));
+                    assert!(!is_reserved(&combo), "{action:?}: {text} is reserved");
                 }
             }
         }
@@ -417,7 +421,7 @@ mod tests {
         for mac in [true, false] {
             for &action in Action::ALL {
                 for combo in bindings(&none, action, mac) {
-                    assert_eq!(conflicts(&none, &combo, action, mac), [], "{} (mac : {mac})", combo.to_config());
+                    assert_eq!(conflicts(&none, &combo, action, mac), [], "{} (mac: {mac})", combo.to_config());
                 }
             }
         }
@@ -437,12 +441,12 @@ mod tests {
         let combo = Combo::parse("shift+mod+k", true).unwrap();
         assert_eq!(combo.to_config(), "Mod+Shift+K");
         assert_eq!(combo.display(true), "⇧⌘K");
-        assert_eq!(combo.display(false), "Ctrl+Maj+K");
+        assert_eq!(combo.display(false), "Ctrl+Shift+K");
         assert_eq!(Combo::parse("Mod+,", false).unwrap().to_config(), "Mod+Comma");
         assert_eq!(Combo::parse("Mod+Comma", true).unwrap().display(true), "⌘,");
         assert_eq!(Combo::parse("Ctrl+PageDown", false).unwrap().display(false), "Ctrl+Page↓");
         assert_eq!(Combo::parse("Hyper+K", false), None);
-        assert_eq!(Combo::parse("Mod+Inconnue", false), None);
+        assert_eq!(Combo::parse("Mod+Unknown", false), None);
     }
 
     #[test]
@@ -453,7 +457,7 @@ mod tests {
         let unidentified = Physical::Unidentified(iced::keyboard::key::NativeCode::Unidentified);
         assert_eq!(Combo::from_key(&w, unidentified, cmd, true), Combo::parse("Mod+W", true));
         assert_eq!(Combo::from_key(&w, unidentified, ctrl, false), Combo::parse("Mod+W", false));
-        // AZERTY : la touche « 1 » produit « & », mais reste la touche physique Digit1.
+        // AZERTY: the “1” key produces “&”, but stays the physical Digit1 key.
         let ampersand = Key::Character("&".into());
         assert_eq!(Combo::from_key(&ampersand, Physical::Code(Code::Digit1), cmd, true), Combo::parse("Mod+1", true));
         let shift = Key::Named(Named::Shift);

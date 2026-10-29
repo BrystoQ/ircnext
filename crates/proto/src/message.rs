@@ -1,6 +1,6 @@
-//! Message IRC : analyse d'une ligne reçue et sérialisation d'une ligne à émettre.
+//! IRC message: parsing of a received line and serialization of a line to send.
 //!
-//! Grammaire de référence : <https://modern.ircdocs.horse/#messages>
+//! Reference grammar: <https://modern.ircdocs.horse/#messages>
 
 use std::fmt;
 use std::str::FromStr;
@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::tags::Tags;
 
-/// Un message IRC complet.
+/// A complete IRC message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
     pub tags: Tags,
@@ -18,21 +18,21 @@ pub struct Message {
     pub params: Vec<String>,
 }
 
-/// Erreur d'analyse d'une ligne IRC.
+/// Parsing error of an IRC line.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ParseError {
-    #[error("ligne vide")]
+    #[error("empty line")]
     Empty,
-    #[error("source vide après `:`")]
+    #[error("empty source after `:`")]
     EmptySource,
-    #[error("commande manquante")]
+    #[error("missing command")]
     MissingCommand,
-    #[error("commande invalide : {0:?}")]
+    #[error("invalid command: {0:?}")]
     InvalidCommand(String),
 }
 
 impl Message {
-    /// Construit un message sans tags ni source, prêt à être envoyé.
+    /// Builds a message without tags or source, ready to be sent.
     pub fn new<P>(command: Command, params: impl IntoIterator<Item = P>) -> Self
     where
         P: Into<String>,
@@ -45,17 +45,17 @@ impl Message {
         }
     }
 
-    /// Paramètre à l'index donné.
+    /// Parameter at the given index.
     pub fn param(&self, index: usize) -> Option<&str> {
         self.params.get(index).map(String::as_str)
     }
 
-    /// Pseudonyme (ou nom de serveur) de la source du message.
+    /// Nickname (or server name) of the message source.
     pub fn source_nick(&self) -> Option<&str> {
         self.source.as_ref().map(|source| source.name.as_str())
     }
 
-    /// Horodatage fourni par le serveur (capacité `server-time`), au format ISO 8601.
+    /// Timestamp given by the server (`server-time` capability), in ISO 8601 format.
     pub fn server_time(&self) -> Option<&str> {
         self.tags.get("time")
     }
@@ -159,10 +159,10 @@ impl FromStr for Message {
 }
 
 impl fmt::Display for Message {
-    /// Sérialise le message au format filaire, sans `\r\n` final.
+    /// Serializes the message to the wire format, without the final `\r\n`.
     ///
-    /// Les caractères `\r`, `\n` et `\0` sont retirés des paramètres : ils
-    /// permettraient sinon d'injecter des commandes supplémentaires.
+    /// The `\r`, `\n` and `\0` characters are removed from the parameters:
+    /// they would otherwise allow injecting extra commands.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.tags.is_empty() {
             write!(f, "@{} ", self.tags)?;
@@ -189,10 +189,10 @@ fn split_word(s: &str) -> (&str, &str) {
     s.split_once(' ').unwrap_or((s, ""))
 }
 
-/// Source d'un message : `nick!user@host` ou nom de serveur.
+/// Source of a message: `nick!user@host` or server name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Source {
-    /// Pseudonyme, ou nom de serveur.
+    /// Nickname, or server name.
     pub name: String,
     pub user: Option<String>,
     pub host: Option<String>,
@@ -215,7 +215,7 @@ impl Source {
         }
     }
 
-    /// Partie `user@host`, si connue.
+    /// `user@host` part, if known.
     pub fn mask(&self) -> Option<String> {
         match (&self.user, &self.host) {
             (Some(user), Some(host)) => Some(format!("{user}@{host}")),
@@ -240,20 +240,20 @@ impl fmt::Display for Source {
 
 macro_rules! commands {
     ($($variant:ident => $name:literal),* $(,)?) => {
-        /// Verbe d'un message IRC.
+        /// Verb of an IRC message.
         ///
-        /// Les commandes courantes ont leur propre variante ; les autres sont
-        /// conservées telles quelles (en majuscules) dans [`Command::Other`].
+        /// Common commands have their own variant; the others are kept as is
+        /// (uppercase) in [`Command::Other`].
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub enum Command {
             $($variant,)*
-            /// Réponse numérique (`001`, `353`, ...).
+            /// Numeric reply (`001`, `353`, ...).
             Numeric(u16),
             Other(String),
         }
 
         impl Command {
-            /// Interprète un verbe, sans tenir compte de la casse.
+            /// Parses a verb, case-insensitively.
             pub fn parse(raw: &str) -> Result<Self, ParseError> {
                 if raw.len() == 3 && raw.bytes().all(|b| b.is_ascii_digit()) {
                     return raw

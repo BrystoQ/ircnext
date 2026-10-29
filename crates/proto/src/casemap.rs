@@ -1,14 +1,14 @@
-//! Comparaison de pseudos et de salons selon le `CASEMAPPING` du serveur.
+//! Comparison of nicknames and channels according to the server's `CASEMAPPING`.
 
-/// Règle de normalisation de casse annoncée par le serveur.
+/// Case folding rule announced by the server.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum CaseMapping {
-    /// Seules les lettres ASCII sont repliées.
+    /// Only ASCII letters are folded.
     Ascii,
-    /// ASCII plus `[]\~` ↔ `{}|^` (valeur par défaut historique).
+    /// ASCII plus `[]\~` ↔ `{}|^` (historical default).
     #[default]
     Rfc1459,
-    /// Comme `rfc1459`, sans `~` ↔ `^`.
+    /// Like `rfc1459`, without `~` ↔ `^`.
     Rfc1459Strict,
 }
 
@@ -33,7 +33,7 @@ impl CaseMapping {
         }
     }
 
-    /// Forme canonique d'un nom, utilisable comme clé de table.
+    /// Canonical form of a name, usable as a map key.
     pub fn fold(self, s: &str) -> String {
         s.chars().map(|c| self.fold_char(c)).collect()
     }
