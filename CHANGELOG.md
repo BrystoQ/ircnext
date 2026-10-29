@@ -4,6 +4,10 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+### Ajouté
+
+- Identification par certificat client : SASL `EXTERNAL` et CertFP. Le formulaire du réseau propose de créer un certificat auto-signé, rangé dans `certs/` à côté de la configuration.
+
 ### Sécurité
 
 - Mots de passe (serveur et SASL) rangés dans le trousseau du système : Trousseau d'accès sur macOS, Gestionnaire d'identifiants sur Windows, Secret Service sous Linux. Les mots de passe déjà présents dans le fichier y sont déplacés au prochain enregistrement ; réglage dans *Confidentialité*.
