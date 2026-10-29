@@ -1,18 +1,18 @@
-//! Extensions IRCv3 qui ne relèvent pas de la grammaire de base :
-//! réponses standard, politique STS, tags clients.
+//! IRCv3 extensions outside the base grammar: standard replies, STS policy,
+//! client tags.
 //!
-//! Références :
+//! References:
 //! - <https://ircv3.net/specs/extensions/standard-replies>
 //! - <https://ircv3.net/specs/extensions/sts>
 //! - <https://ircv3.net/specs/client-tags/typing>
-//! - Brouillon de complétion par les bots (non ratifié) :
+//! - Bot completion draft (not ratified):
 //!   <https://github.com/ircv3/ircv3-specifications/pull/415>
 
 use std::time::Duration;
 
 use crate::message::{Command, Message};
 
-/// Gravité d'une réponse standard.
+/// Severity of a standard reply.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReplyKind {
     Fail,
@@ -20,13 +20,13 @@ pub enum ReplyKind {
     Note,
 }
 
-/// Réponse standard (`FAIL`, `WARN` ou `NOTE`).
+/// Standard reply (`FAIL`, `WARN` or `NOTE`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StandardReply<'a> {
     pub kind: ReplyKind,
-    /// Commande concernée, ou `*`.
+    /// Command concerned, or `*`.
     pub command: &'a str,
-    /// Code lisible par machine (`ACCOUNT_REQUIRED`...).
+    /// Machine-readable code (`ACCOUNT_REQUIRED`...).
     pub code: &'a str,
     pub context: &'a [String],
     pub description: &'a str,
@@ -53,18 +53,18 @@ impl<'a> StandardReply<'a> {
     }
 }
 
-/// Politique STS annoncée dans la valeur de la capacité `sts`.
+/// STS policy announced in the value of the `sts` capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StsPolicy {
-    /// Port TLS à utiliser (présent uniquement sur une connexion en clair).
+    /// TLS port to use (only present on a plain-text connection).
     pub port: Option<u16>,
-    /// Durée de validité (présente uniquement sur une connexion sécurisée).
+    /// Validity duration (only present on a secure connection).
     pub duration: Option<Duration>,
     pub preload: bool,
 }
 
 impl StsPolicy {
-    /// Analyse `port=6697,duration=2592000,preload`.
+    /// Parses `port=6697,duration=2592000,preload`.
     pub fn parse(value: &str) -> Self {
         let mut policy = Self {
             port: None,
@@ -84,7 +84,7 @@ impl StsPolicy {
     }
 }
 
-/// État de saisie transmis par le tag client `+typing`.
+/// Typing state sent by the `+typing` client tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Typing {
     Active,
@@ -112,7 +112,7 @@ impl Typing {
         }
     }
 
-    /// Message `TAGMSG` signalant l'état de saisie à `target`.
+    /// `TAGMSG` message reporting the typing state to `target`.
     pub fn message(self, target: &str) -> Message {
         let mut message = Message::new(Command::Tagmsg, [target]);
         message.tags.insert(Self::TAG, self.as_str());
@@ -120,11 +120,11 @@ impl Typing {
     }
 }
 
-/// Complétion proposée par un bot (brouillon IRCv3 `autocomplete`).
+/// Completion offered by a bot (IRCv3 `autocomplete` draft).
 ///
-/// Le client envoie le texte en cours de saisie dans un `TAGMSG` ; le bot
-/// répond par une liste de modifications : effacer `erase` caractères en fin
-/// de texte, puis ajouter `append`.
+/// The client sends the text being typed in a `TAGMSG`; the bot replies with
+/// a list of edits: erase `erase` characters at the end of the text, then
+/// append `append`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionEdit {
     pub erase: usize,
@@ -135,15 +135,15 @@ impl CompletionEdit {
     pub const REQUEST_TAG: &str = "+draft/autocomplete-request";
     pub const RESPONSE_TAG: &str = "+draft/autocomplete-response";
 
-    /// Message `TAGMSG` demandant à `target` de compléter `text`.
+    /// `TAGMSG` message asking `target` to complete `text`.
     pub fn request(target: &str, text: &str) -> Message {
         let mut message = Message::new(Command::Tagmsg, [target]);
         message.tags.insert(Self::REQUEST_TAG, text);
         message
     }
 
-    /// Réponses séparées par des tabulations, chacune précédée d'autant de
-    /// retours arrière (0x08) que de caractères à effacer.
+    /// Tab-separated replies, each preceded by as many backspaces (0x08) as
+    /// characters to erase.
     pub fn parse_response(value: &str) -> Vec<Self> {
         value
             .split('\t')
@@ -158,7 +158,7 @@ impl CompletionEdit {
             .collect()
     }
 
-    /// Applique la modification à `text`.
+    /// Applies the edit to `text`.
     pub fn apply(&self, text: &str) -> String {
         let keep = match self.erase {
             0 => text.len(),
@@ -169,34 +169,34 @@ impl CompletionEdit {
 }
 
 impl Message {
-    /// Complétions proposées par un bot, si le message en contient.
+    /// Completions offered by a bot, if the message has any.
     pub fn completion_edits(&self) -> Option<Vec<CompletionEdit>> {
         self.tags
             .get(CompletionEdit::RESPONSE_TAG)
             .map(CompletionEdit::parse_response)
     }
 
-    /// Identifiant unique du message (`msgid`).
+    /// Unique id of the message (`msgid`).
     pub fn msgid(&self) -> Option<&str> {
         self.tags.get("msgid").filter(|id| !id.is_empty())
     }
 
-    /// Référence du lot (`batch`) auquel appartient le message.
+    /// Reference of the batch (`batch`) the message belongs to.
     pub fn batch(&self) -> Option<&str> {
         self.tags.get("batch").filter(|id| !id.is_empty())
     }
 
-    /// Compte de l'expéditeur (`account-tag`).
+    /// Account of the sender (`account-tag`).
     pub fn account(&self) -> Option<&str> {
         self.tags.get("account").filter(|account| !account.is_empty())
     }
 
-    /// Expéditeur identifié comme bot (tag défini par `ISUPPORT BOT`).
+    /// Sender identified as a bot (tag defined by `ISUPPORT BOT`).
     pub fn is_from_bot(&self) -> bool {
         self.tags.get("bot").is_some()
     }
 
-    /// État de saisie (`+typing`), s'il est présent.
+    /// Typing state (`+typing`), if present.
     pub fn typing(&self) -> Option<Typing> {
         self.tags.get(Typing::TAG).and_then(Typing::parse)
     }

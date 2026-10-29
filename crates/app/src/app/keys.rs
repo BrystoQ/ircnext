@@ -1,4 +1,4 @@
-//! Clavier : touches à rôle fixe et actions des raccourcis configurables.
+//! Keyboard: fixed-role keys and actions of the configurable shortcuts.
 
 use std::time::Duration;
 
@@ -15,16 +15,16 @@ use crate::ui::chat::{MESSAGES_ID, SEARCH_ID};
 use crate::ui::settings_form;
 use crate::ui::switcher::{SWITCHER_ID, Switcher};
 
-/// Défilement d'une page (en pixels logiques).
+/// Scrolling of one page (in logical pixels).
 const PAGE: f32 = 400.0;
-/// Délai laissé aux `QUIT` pour partir avant de fermer l'application.
+/// Time given to the `QUIT`s to leave before closing the application.
 const QUIT_DELAY: Duration = Duration::from_millis(1500);
 
 impl App {
-    /// Appui de touche. `captured` indique qu'un widget l'a déjà traité
-    /// (le champ de saisie pour les flèches, par exemple).
+    /// Key press. `captured` means a widget already handled it (the input
+    /// field for the arrows, for example).
     pub(super) fn on_key(&mut self, combo: Combo, captured: bool) -> Task<Message> {
-        // Enregistrement d'un nouveau raccourci dans les paramètres.
+        // Recording a new shortcut in the settings.
         if let Some(Modal::Settings(form)) = &mut self.modal
             && form.is_capturing()
         {
@@ -53,11 +53,11 @@ impl App {
         let Some(action) = keymap::action_for(&self.config.settings.keybindings, &combo, MAC) else {
             return Task::none();
         };
-        // Une touche seule déjà utilisée par un champ reste au champ.
+        // A bare key already used by a field stays with the field.
         if captured && !combo.has_modifier() {
             return Task::none();
         }
-        // Une fenêtre ouverte ne laisse passer que les actions globales.
+        // An open window only lets global actions through.
         if self.modal.is_some() && !matches!(action, Action::Quit | Action::OpenSettings | Action::QuickSwitcher) {
             return Task::none();
         }
@@ -81,7 +81,7 @@ impl App {
             | Action::GoTo9 => {
                 let buffers = self.ordered_buffers();
                 let index = action.goto_index().unwrap_or(1);
-                // Le dernier raccourci vise toujours le dernier onglet, comme dans les navigateurs.
+                // The last shortcut always targets the last tab, as in web browsers.
                 let target = if action == Action::GoTo9 { buffers.last() } else { buffers.get(index - 1) };
                 match target.copied() {
                     Some((server, buffer)) => self.select(server, buffer),
@@ -114,7 +114,7 @@ impl App {
             }
             Action::ScrollUp => operation::scroll_by(MESSAGES_ID, AbsoluteOffset { x: 0.0, y: PAGE }),
             Action::ScrollDown => operation::scroll_by(MESSAGES_ID, AbsoluteOffset { x: 0.0, y: -PAGE }),
-            // Défilement ancré en bas : 0 est le bas, 1 le haut.
+            // Scrolling anchored at the bottom: 0 is the bottom, 1 the top.
             Action::ScrollTop => operation::snap_to(MESSAGES_ID, RelativeOffset { x: 0.0, y: 1.0 }),
             Action::ScrollBottom => operation::snap_to(MESSAGES_ID, RelativeOffset { x: 0.0, y: 0.0 }),
             Action::ToggleNicklist => self.update(Message::ToggleNicklist),
@@ -146,7 +146,7 @@ impl App {
         }
     }
 
-    /// Onglets dans l'ordre de la barre latérale.
+    /// Tabs in sidebar order.
     pub(super) fn ordered_buffers(&self) -> Vec<(ServerId, BufferId)> {
         self.servers
             .iter()
@@ -154,8 +154,8 @@ impl App {
             .collect()
     }
 
-    /// Passe à l'onglet suivant (`step` = 1) ou précédent (-1), éventuellement
-    /// en ne s'arrêtant que sur les onglets non lus.
+    /// Moves to the next (`step` = 1) or previous (-1) tab, possibly
+    /// stopping only on unread tabs.
     fn cycle_buffer(&mut self, step: isize, unread_only: bool) -> Task<Message> {
         let all = self.ordered_buffers();
         if all.is_empty() {
@@ -165,7 +165,7 @@ impl App {
         let start = self
             .active
             .and_then(|active| all.iter().position(|&b| b == active))
-            // Sans onglet actif, on part d'avant le premier (ou du premier en arrière).
+            // Without an active tab, start before the first one (or at the first one going backwards).
             .map_or(if step > 0 { -1 } else { 0 }, usize::cast_signed);
         let is_unread = |&(server, buffer): &(ServerId, BufferId)| {
             self.server(server)
@@ -181,7 +181,7 @@ impl App {
         }
     }
 
-    /// Agrandit (`1`), réduit (`-1`) ou rétablit (`0`) la taille du texte.
+    /// Enlarges (`1`), shrinks (`-1`) or resets (`0`) the text size.
     fn zoom(&mut self, direction: i8) -> Task<Message> {
         let settings = &mut self.config.settings;
         let range = Settings::FONT_SIZES;
@@ -194,7 +194,7 @@ impl App {
         Task::none()
     }
 
-    /// Ajoute un code de mise en forme mIRC à la saisie.
+    /// Appends a mIRC formatting code to the input.
     fn insert_format(&mut self, code: char) -> Task<Message> {
         if self.modal.is_some() || self.active.is_none() {
             return Task::none();
@@ -203,7 +203,7 @@ impl App {
         Task::batch([operation::focus(INPUT_ID), operation::move_cursor_to_end(INPUT_ID)])
     }
 
-    /// Envoie `QUIT` sur chaque réseau connecté, puis ferme l'application.
+    /// Sends `QUIT` on each connected network, then closes the application.
     fn quit_application(&mut self) -> Task<Message> {
         let reason = Some(self.config.settings.quit_message.clone()).filter(|r| !r.is_empty());
         let connected: Vec<ServerId> = self.servers.iter().filter(|s| s.is_online()).map(|s| s.id).collect();

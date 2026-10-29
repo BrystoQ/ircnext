@@ -1,7 +1,7 @@
-//! Enregistrement de la connexion : négociation CAP, authentification SASL
-//! et choix du pseudonyme, sous forme de machine à états sans I/O.
+//! Connection registration: CAP negotiation, SASL authentication and
+//! nickname choice, as a state machine without I/O.
 //!
-//! Références :
+//! References:
 //! - <https://ircv3.net/specs/extensions/capability-negotiation>
 //! - <https://ircv3.net/specs/extensions/sasl-3.1>
 //! - <https://ircv3.net/specs/extensions/sts>
@@ -17,7 +17,7 @@ use ircnext_proto::{Command, Message};
 
 use crate::config::{Config, Sasl};
 
-/// Capacités IRCv3 demandées lorsque le serveur les propose.
+/// IRCv3 capabilities requested when the server offers them.
 const WANTED_CAPS: &[&str] = &[
     "account-notify",
     "account-tag",
@@ -43,56 +43,56 @@ const WANTED_CAPS: &[&str] = &[
     "userhost-in-names",
 ];
 
-/// Taille maximale d'un fragment `AUTHENTICATE`.
+/// Maximum size of an `AUTHENTICATE` chunk.
 const SASL_CHUNK: usize = 400;
 
-/// Nombre maximal de capacités retenues (protection contre un serveur hostile).
+/// Maximum number of capabilities kept (protection against a hostile server).
 const MAX_CAPS: usize = 256;
 
-/// Nombre de variantes `pseudo_` essayées avant d'ajouter un suffixe numérique.
+/// Number of `nick_` variants tried before adding a numeric suffix.
 const UNDERSCORE_ATTEMPTS: usize = 3;
 
-/// Résultat d'un enregistrement réussi.
+/// Result of a successful registration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Registered {
-    /// Pseudonyme effectivement attribué.
+    /// Nickname actually given.
     pub nick: String,
-    /// Capacités acceptées par le serveur.
+    /// Capabilities accepted by the server.
     pub caps: Vec<String>,
-    /// Politique STS annoncée sur une connexion TLS vérifiée, à mémoriser ;
-    /// son port est celui de la connexion en cours.
+    /// STS policy advertised on a verified TLS connection, to remember; its
+    /// port is the one of the current connection.
     pub sts: Option<StsPolicy>,
-    /// SASL configuré mais non utilisé : la connexion n'est pas chiffrée.
+    /// SASL configured but not used: the connection is not encrypted.
     pub sasl_refused: bool,
 }
 
-/// Avancement après le traitement d'un message.
+/// Progress after handling a message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Progress {
-    /// Messages à envoyer (éventuellement aucun) ; l'enregistrement continue.
+    /// Messages to send (possibly none); registration goes on.
     Continue(Vec<Message>),
     Done(Registered),
-    /// Le serveur exige TLS (STS) : il faut se reconnecter sur ce port.
+    /// The server requires TLS (STS): reconnect on this port.
     UpgradeToTls { port: u16 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum State {
-    /// En attente de la liste complète des capacités (`CAP LS`).
+    /// Waiting for the full list of capabilities (`CAP LS`).
     Listing,
-    /// `CAP REQ` envoyé, en attente de `ACK`/`NAK`.
+    /// `CAP REQ` sent, waiting for `ACK`/`NAK`.
     Requesting,
     Authenticating,
-    /// `CAP END` envoyé (ou serveur sans CAP) : attente de `001`.
+    /// `CAP END` sent (or server without CAP): waiting for `001`.
     Waiting,
 }
 
-/// Mécanisme SASL utilisé.
+/// SASL mechanism used.
 #[derive(Debug)]
 enum Mechanism {
-    /// Compte et mot de passe.
+    /// Account and password.
     Plain(Sasl),
-    /// Certificat client présenté pendant la négociation TLS.
+    /// Client certificate presented during the TLS handshake.
     External,
 }
 
@@ -105,12 +105,12 @@ impl Mechanism {
     }
 }
 
-/// Machine à états de l'enregistrement.
+/// Registration state machine.
 #[derive(Debug)]
 pub struct Registration {
     state: State,
     tls: bool,
-    /// TLS avec certificat vérifié : seule condition pour mémoriser STS.
+    /// TLS with a verified certificate: the only condition to remember STS.
     verified: bool,
     port: u16,
     sasl_refused: bool,
@@ -124,7 +124,7 @@ pub struct Registration {
 }
 
 impl Registration {
-    /// Crée la machine à états et renvoie les premiers messages à envoyer.
+    /// Creates the state machine and returns the first messages to send.
     pub fn start(config: &Config) -> (Self, Vec<Message>) {
         let registration = Self {
             state: State::Listing,
@@ -141,7 +141,7 @@ impl Registration {
             sasl: if config.uses_external() {
                 Some(Mechanism::External)
             } else {
-                // Jamais de mot de passe en clair sur le réseau.
+                // Never a password in clear text on the network.
                 config.sasl.clone().filter(|_| config.can_send_credentials()).map(Mechanism::Plain)
             },
             available: Vec::new(),
@@ -160,7 +160,7 @@ impl Registration {
         (registration, messages)
     }
 
-    /// Pseudonyme actuellement demandé au serveur.
+    /// Nickname currently requested from the server.
     pub fn nick(&self) -> &str {
         &self.nick
     }
@@ -197,7 +197,7 @@ impl Registration {
         let subcommand = message.param(1).unwrap_or_default().to_ascii_uppercase();
         match subcommand.as_str() {
             "LS" if self.state == State::Listing => {
-                // `CAP * LS * :...` annonce une suite sur plusieurs lignes.
+                // `CAP * LS * :...` announces a list spread over several lines.
                 let (more, list) = match (message.param(2), message.param(3)) {
                     (Some("*"), Some(list)) => (true, list),
                     (Some(list), _) => (false, list),
@@ -275,7 +275,7 @@ impl Registration {
     fn sasl_payload(&self) -> Vec<Message> {
         let sasl = match self.sasl.as_ref().filter(|_| self.state == State::Authenticating) {
             Some(Mechanism::Plain(sasl)) => sasl,
-            // L'identité vient du certificat : réponse vide.
+            // The identity comes from the certificate: empty reply.
             Some(Mechanism::External) => {
                 return vec![Message::new(Command::Authenticate, ["+"])];
             }
@@ -292,11 +292,11 @@ impl Registration {
             .as_bytes()
             .chunks(SASL_CHUNK)
             .map(|chunk| {
-                let chunk = std::str::from_utf8(chunk).expect("le base64 est de l'ASCII");
+                let chunk = std::str::from_utf8(chunk).expect("base64 is ASCII");
                 Message::new(Command::Authenticate, [chunk])
             })
             .collect();
-        // Un dernier fragment plein doit être suivi de `+` pour signaler la fin.
+        // A full last chunk must be followed by `+` to mark the end.
         if encoded.len() % SASL_CHUNK == 0 {
             messages.push(Message::new(Command::Authenticate, ["+"]));
         }
@@ -308,8 +308,8 @@ impl Registration {
         vec![Message::new(Command::Cap, ["END"])]
     }
 
-    /// Pseudonymes de secours configurés, puis `pseudo_`, `pseudo__`... et
-    /// enfin un suffixe numérique.
+    /// Configured alternative nicknames, then `nick_`, `nick__`... and
+    /// finally a numeric suffix.
     fn next_nick(&mut self) -> Message {
         self.nick_attempts += 1;
         let generated = self.nick_attempts.saturating_sub(self.alt_nicks.len());
@@ -348,7 +348,7 @@ mod tests {
     fn lines(progress: Progress) -> Vec<String> {
         match progress {
             Progress::Continue(messages) => messages.iter().map(ToString::to_string).collect(),
-            other => panic!("progression inattendue : {other:?}"),
+            other => panic!("unexpected progress: {other:?}"),
         }
     }
 
@@ -372,7 +372,7 @@ mod tests {
             ["CAP END"]
         );
         let Progress::Done(registered) = reg.handle(&msg(":s 001 me :Welcome")) else {
-            panic!("devrait être enregistré");
+            panic!("should be registered");
         };
         assert_eq!(registered.caps, ["multi-prefix", "server-time"]);
     }
@@ -386,7 +386,7 @@ mod tests {
     fn external(tls: bool) -> Config {
         Config {
             tls,
-            client_cert: Some("moi.pem".into()),
+            client_cert: Some("me.pem".into()),
             sasl_external: true,
             ..config(true)
         }
@@ -415,7 +415,7 @@ mod tests {
         let (mut reg, _) = Registration::start(&external(true));
         assert_eq!(lines(reg.handle(&msg(":s CAP * LS :sasl=PLAIN"))), ["CAP END"]);
 
-        // Sans TLS, pas de certificat : retour au mot de passe, refusé en clair.
+        // Without TLS, no certificate: back to the password, refused in clear text.
         let (mut reg, _) = Registration::start(&external(false));
         assert_eq!(lines(reg.handle(&msg(":s CAP * LS :sasl=EXTERNAL,PLAIN"))), ["CAP END"]);
     }
@@ -477,11 +477,11 @@ mod tests {
         let (mut reg, _) = Registration::start(&config(false));
         reg.handle(&msg(":s CAP * LS :sts=duration=60"));
         let Progress::Done(registered) = reg.handle(&msg(":s 001 me :Welcome")) else {
-            panic!("devrait être enregistré");
+            panic!("should be registered");
         };
-        let policy = registered.sts.expect("politique STS");
+        let policy = registered.sts.expect("STS policy");
         assert_eq!(policy.duration, Some(std::time::Duration::from_secs(60)));
-        assert_eq!(policy.port, Some(6697), "port de la connexion en cours");
+        assert_eq!(policy.port, Some(6697), "port of the current connection");
     }
 
     #[test]
@@ -490,7 +490,7 @@ mod tests {
         let (mut reg, _) = Registration::start(&config);
         reg.handle(&msg(":s CAP * LS :sts=duration=60"));
         let Progress::Done(registered) = reg.handle(&msg(":s 001 me :Welcome")) else {
-            panic!("devrait être enregistré");
+            panic!("should be registered");
         };
         assert_eq!(registered.sts, None);
     }
@@ -502,7 +502,7 @@ mod tests {
         assert_eq!(lines(reg.handle(&msg(":s CAP * LS :sasl=PLAIN server-time"))), ["CAP REQ server-time"]);
         reg.handle(&msg(":s CAP * ACK :server-time"));
         let Progress::Done(registered) = reg.handle(&msg(":s 001 me :Welcome")) else {
-            panic!("devrait être enregistré");
+            panic!("should be registered");
         };
         assert!(registered.sasl_refused);
 
@@ -513,11 +513,11 @@ mod tests {
 
     #[test]
     fn tries_alternative_nicks_first() {
-        let config = Config { alt_nicks: vec!["moi".into(), "toi".into()], ..config(false) };
+        let config = Config { alt_nicks: vec!["me2".into(), "me3".into()], ..config(false) };
         let (mut reg, _) = Registration::start(&config);
         let in_use = msg(":s 433 * me :Nickname is already in use");
-        assert_eq!(lines(reg.handle(&in_use)), ["NICK moi"]);
-        assert_eq!(lines(reg.handle(&in_use)), ["NICK toi"]);
+        assert_eq!(lines(reg.handle(&in_use)), ["NICK me2"]);
+        assert_eq!(lines(reg.handle(&in_use)), ["NICK me3"]);
         assert_eq!(lines(reg.handle(&in_use)), ["NICK me_"]);
     }
 
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn sasl_payload_of_exact_chunk_size_ends_with_plus() {
         let (mut reg, _) = Registration::start(&config(false));
-        // 300 octets bruts → exactement 400 caractères base64, soit un fragment plein.
+        // 300 raw bytes → exactly 400 base64 characters, i.e. one full chunk.
         reg.sasl = Some(Mechanism::Plain(Sasl {
             username: "u".repeat(149),
             password: Secret::new(String::new()),

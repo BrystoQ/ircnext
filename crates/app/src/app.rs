@@ -1,4 +1,4 @@
-//! État global de l'application, messages et logique de mise à jour (architecture Elm).
+//! Global application state, messages and update logic (Elm architecture).
 
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
@@ -17,6 +17,7 @@ use crate::completion::Completion;
 use crate::secrets;
 use crate::suggest::{self, Suggestion};
 use crate::config::{AppConfig, ServerEntry};
+use crate::i18n::{self, tr};
 use crate::ignore;
 use crate::input::{self, Command, Input};
 use crate::keychain;
@@ -29,14 +30,15 @@ use crate::ui::server_form::{self, ServerForm};
 use crate::ui::settings_form::{self, SettingsForm};
 use crate::ui::switcher::{self, Switcher};
 use crate::ui::{chat, nicklist, sidebar};
+use crate::tr;
 
 mod keys;
 
-/// Identifiant du champ de saisie (pour lui donner le focus).
+/// Id of the input field (to focus it).
 pub const INPUT_ID: &str = "input";
-/// Intervalle minimal entre deux notifications de saisie « active ».
+/// Minimum interval between two “active” typing notifications.
 const TYPING_THROTTLE: Duration = Duration::from_secs(3);
-/// Taille maximale de l'historique de saisie.
+/// Maximum size of the input history.
 const INPUT_HISTORY: usize = 100;
 
 #[derive(Debug, Clone)]
@@ -46,13 +48,13 @@ pub enum Message {
     InputChanged(String),
     AcceptSuggestion(usize),
     Submit,
-    /// Appui de touche ; `captured` : déjà traité par un widget.
+    /// Key press; `captured`: already handled by a widget.
     Key { combo: Combo, captured: bool },
     Shortcut(Shortcut),
     Action(Action),
     Switcher(switcher::Msg),
     SearchChanged(String),
-    /// La fenêtre gagne ou perd le focus.
+    /// The window gains or loses focus.
     WindowFocus { window: window::Id, focused: bool },
     OpenLogs,
     Exit,
@@ -76,7 +78,7 @@ pub enum Message {
     Tick(Instant),
 }
 
-/// Touches à rôle fixe (non configurables).
+/// Keys with a fixed role (not configurable).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shortcut {
     Complete { backwards: bool },
@@ -92,16 +94,16 @@ enum Modal {
     Switcher(Switcher),
 }
 
-/// État de la fenêtre principale.
+/// State of the main window.
 #[derive(Debug, Clone, Copy)]
 struct WindowState {
     id: Option<window::Id>,
     focused: bool,
-    /// Le système est en mode sombre.
+    /// The system is in dark mode.
     dark: bool,
 }
 
-/// Dernière notification de saisie envoyée.
+/// Last typing notification sent.
 #[derive(Debug, Clone, Copy)]
 struct TypingSent {
     server: ServerId,
@@ -112,30 +114,30 @@ struct TypingSent {
 #[derive(Debug)]
 pub struct App {
     config: AppConfig,
-    /// Fichier de configuration ; `None` désactive l'enregistrement (tests).
+    /// Configuration file; `None` disables saving (tests).
     config_path: Option<PathBuf>,
     servers: Vec<Server>,
     next_server: u64,
     active: Option<(ServerId, BufferId)>,
     input: String,
     completion: Option<Completion>,
-    /// Suggestions affichées au-dessus de la saisie.
+    /// Suggestions shown above the input.
     suggestions: Vec<Suggestion>,
     selected_suggestion: usize,
-    /// Suggestions fermées avec Échap, jusqu'à la prochaine frappe.
+    /// Suggestions closed with Esc, until the next keystroke.
     suggestions_dismissed: bool,
     history: Vec<String>,
     history_cursor: Option<usize>,
-    /// Saisie mise de côté pendant la navigation dans l'historique.
+    /// Input set aside while browsing the history.
     draft: String,
     typing_sent: Option<TypingSent>,
     modal: Option<Modal>,
-    /// Recherche dans l'onglet courant (barre affichée si `Some`).
+    /// Search in the current tab (bar shown if `Some`).
     search: Option<String>,
     window: WindowState,
-    /// Notifications du système activées (jamais dans les tests).
+    /// System notifications enabled (never in tests).
     system_notifications: bool,
-    /// Mots de passe déjà rangés dans le trousseau du système.
+    /// Passwords already stored in the system keychain.
     keychain: keychain::Cache,
     banner: Option<String>,
     now: Instant,
@@ -144,10 +146,11 @@ pub struct App {
 impl App {
     pub fn boot() -> (Self, Task<Message>) {
         let (mut config, error) = AppConfig::load();
+        i18n::set_language(config.settings.language);
         let (keychain, missing) = keychain::restore(&mut config, &keychain::System);
-        let banner = error.map(|error| format!("Configuration : {error}")).or_else(|| {
+        let banner = error.map(|error| tr!("Configuration: {error}", error = error)).or_else(|| {
             (!missing.is_empty())
-                .then(|| format!("Mot de passe SASL introuvable dans le trousseau : {}", missing.join(", ")))
+                .then(|| tr!("SASL password not found in the keychain: {networks}", networks = missing.join(", ")))
         });
         let mut app = Self::new(config, AppConfig::path().ok(), banner);
         app.keychain = keychain;
@@ -202,7 +205,7 @@ impl App {
             Some((server, _)) => format!("{} · ircnext", server.name()),
             None => "ircnext".to_owned(),
         };
-        // Onglets attendant une réponse : mention ou message privé non lu.
+        // Tabs waiting for an answer: unread mention or private message.
         let mentions = self
             .servers
             .iter()
@@ -216,7 +219,7 @@ impl App {
         }
     }
 
-    /// Préférences transmises aux réseaux.
+    /// Preferences passed on to the networks.
     fn sync_prefs(&mut self) {
         let settings = &self.config.settings;
         let prefs = Prefs {
@@ -229,7 +232,7 @@ impl App {
         }
     }
 
-    /// Dossier des journaux, à côté du fichier de configuration.
+    /// Logs folder, next to the configuration file.
     fn log_dir(&self) -> Option<PathBuf> {
         Some(self.config_path.as_ref()?.parent()?.join("logs"))
     }
@@ -238,7 +241,7 @@ impl App {
         self.colors().theme()
     }
 
-    /// Paramètres effectifs (ceux du panneau ouvert, pour l'aperçu en direct).
+    /// Effective settings (those of the open panel, for the live preview).
     fn settings(&self) -> &Settings {
         match &self.modal {
             Some(Modal::Settings(form)) => &form.draft,
@@ -313,7 +316,7 @@ impl App {
                 if let Some(dir) = self.log_dir() {
                     let _ = std::fs::create_dir_all(&dir);
                     if let Err(error) = open::that_detached(&dir) {
-                        self.banner = Some(format!("Impossible d'ouvrir le dossier des journaux : {error}"));
+                        self.banner = Some(tr!("Cannot open the logs folder: {error}", error = error));
                     }
                 }
             }
@@ -321,10 +324,10 @@ impl App {
             Message::OpenUrl(link) => match ircnext_client::proto::text::safe_url(&link) {
                 Some(url) => {
                     if let Err(error) = open::that_detached(&url) {
-                        self.banner = Some(format!("Impossible d'ouvrir le lien : {error}"));
+                        self.banner = Some(tr!("Cannot open the link: {error}", error = error));
                     }
                 }
-                None => self.banner = Some(format!("Lien refusé (adresse non web ou suspecte) : {link}")),
+                None => self.banner = Some(tr!("Link refused (not a web address, or suspicious): {link}", link = link)),
             },
             Message::OpenQuery(id, nick) => {
                 let effects = self.execute(id, None, Command::Query { nick, text: None });
@@ -367,6 +370,7 @@ impl App {
             Message::SaveSettings => {
                 if let Some(Modal::Settings(form)) = self.modal.take() {
                     self.config.settings = form.finish();
+                    i18n::set_language(self.config.settings.language);
                     self.sync_prefs();
                     self.save();
                 }
@@ -435,19 +439,19 @@ impl App {
         Task::batch(tasks)
     }
 
-    /// Notifications et alertes de fenêtre pour les messages signalés.
+    /// Notifications and window alerts for flagged messages.
     fn alert(&mut self, id: ServerId, alerts: Vec<Alert>) -> Task<Message> {
         let settings = &self.config.settings;
         let mut attention = false;
         for alert in alerts {
             let wanted = if alert.private { settings.notify_queries } else { settings.notify_mentions };
-            // Onglet affiché dans une fenêtre au premier plan : rien à signaler.
+            // Tab shown in a foreground window: nothing to report.
             let visible = self.window.focused && self.active == Some((id, alert.buffer));
             if !wanted || visible || (self.window.focused && !settings.notify_when_focused) {
                 continue;
             }
             if self.system_notifications {
-                let body = if settings.notify_preview { alert.body.as_str() } else { "Nouveau message" };
+                let body = if settings.notify_preview { alert.body.as_str() } else { tr("New message") };
                 notify::show(&alert.title, body, settings.notify_sound);
             }
             attention |= !self.window.focused;
@@ -460,7 +464,7 @@ impl App {
         }
     }
 
-    /// Exécute les commandes de connexion du réseau, dans l'onglet serveur.
+    /// Runs the network's connect commands, in the server tab.
     fn run_connect_commands(&mut self, id: ServerId) -> Task<Message> {
         let Some(server) = self.server(id) else {
             return Task::none();
@@ -470,7 +474,7 @@ impl App {
         Task::batch(commands.iter().map(|command| self.run_line(id, buffer, command)).collect::<Vec<_>>())
     }
 
-    /// Exécute une commande sur un réseau, dans l'onglet donné (ou l'onglet serveur).
+    /// Runs a command on a network, in the given tab (or the server tab).
     fn execute(&mut self, id: ServerId, buffer: Option<BufferId>, command: Command) -> Effects {
         let active = self.active.filter(|(server, _)| *server == id).map(|(_, b)| b);
         let Some(server) = self.servers.iter_mut().find(|s| s.id == id) else {
@@ -533,7 +537,7 @@ impl App {
             .active_buffer()
             .filter(|(_, buffer)| buffer.kind == Kind::Query)
             .map(|(_, buffer)| buffer.name.as_str());
-        // Les mots de passe envoyés à NickServ ne restent pas dans l'historique.
+        // Passwords sent to NickServ are not kept in the history.
         if self.history.last() != Some(&text) && !secrets::input_has_secret(&text, query) {
             self.history.push(text.clone());
             if self.history.len() > INPUT_HISTORY {
@@ -548,7 +552,7 @@ impl App {
         self.run_line(id, buffer, &text)
     }
 
-    /// Exécute une ligne saisie (texte ou commande) dans un onglet.
+    /// Runs a typed line (text or command) in a tab.
     fn run_line(&mut self, id: ServerId, buffer: BufferId, text: &str) -> Task<Message> {
         match input::parse(text) {
             Ok(Input::Command(Command::Ignore(mask))) => return self.ignore(id, buffer, mask),
@@ -574,20 +578,20 @@ impl App {
         }
     }
 
-    /// `/ignore` : ajoute un masque, ou affiche la liste.
+    /// `/ignore`: adds a mask, or shows the list.
     fn ignore(&mut self, id: ServerId, buffer: BufferId, mask: Option<String>) -> Task<Message> {
         let text = match mask {
-            None if self.config.settings.ignored.is_empty() => "Personne n'est ignoré.".to_owned(),
-            None => format!("Ignorés : {}", self.config.settings.ignored.join(", ")),
+            None if self.config.settings.ignored.is_empty() => tr("Nobody is ignored.").to_owned(),
+            None => tr!("Ignored: {masks}", masks = self.config.settings.ignored.join(", ")),
             Some(mask) => {
                 let normalized = ignore::normalize(&mask);
                 let ignored = &mut self.config.settings.ignored;
                 if ignored.iter().any(|known| ignore::normalize(known) == normalized) {
-                    format!("{mask} est déjà ignoré.")
+                    tr!("{mask} is already ignored.", mask = mask)
                 } else {
                     ignored.push(mask.clone());
                     self.save();
-                    format!("{mask} est désormais ignoré ({normalized}).")
+                    tr!("{mask} is now ignored ({normalized}).", mask = mask, normalized = normalized)
                 }
             }
         };
@@ -602,15 +606,15 @@ impl App {
         ignored.retain(|known| ignore::normalize(known) != normalized);
         let text = if ignored.len() < before {
             self.save();
-            format!("{mask} n'est plus ignoré.")
+            tr!("{mask} is no longer ignored.", mask = mask)
         } else {
-            format!("{mask} n'était pas ignoré.")
+            tr!("{mask} was not ignored.", mask = mask)
         };
         self.info(id, buffer, text);
         Task::none()
     }
 
-    /// Ligne d'information dans un onglet.
+    /// Information line in a tab.
     fn info(&mut self, id: ServerId, buffer: BufferId, text: String) {
         let active = self.active.filter(|(server, _)| *server == id).map(|(_, b)| b);
         if let Some(server) = self.servers.iter_mut().find(|s| s.id == id) {
@@ -743,7 +747,7 @@ impl App {
         iced::widget::operation::move_cursor_to_end(INPUT_ID)
     }
 
-    /// Complétion : commandes, salons, puis interlocuteurs récents et membres.
+    /// Completion: commands, channels, then recent speakers and members.
     fn complete(&mut self, backwards: bool) {
         if let Some(completion) = &mut self.completion
             && completion.text() == self.input
@@ -777,8 +781,8 @@ impl App {
         }
     }
 
-    /// Sans complétion locale, demande aux bots de compléter une commande
-    /// (`!...` dans un salon, ou toute saisie en conversation privée).
+    /// Without a local completion, asks bots to complete a command (`!...`
+    /// in a channel or a private conversation).
     fn request_bot_completion(&mut self) {
         let Some((server_id, buffer_id)) = self.active else {
             return;
@@ -788,8 +792,8 @@ impl App {
         let Some(server) = self.server_mut(server_id) else {
             return;
         };
-        // Seules les commandes de bots (`!...`) sont envoyées : la saisie est
-        // visible du destinataire, et jamais adressée aux services.
+        // Only bot commands (`!...`) are sent: the input is visible to the
+        // recipient, and never sent to services.
         let wanted = match server.buffer(buffer_id) {
             Some(buffer) if buffer.kind == Kind::Channel => true,
             Some(buffer) if buffer.kind == Kind::Query => suggest::service(&buffer.name).is_none(),
@@ -800,12 +804,12 @@ impl App {
         }
     }
 
-    /// Recalcule les suggestions affichées pour la saisie courante.
+    /// Recomputes the suggestions shown for the current input.
     fn refresh_suggestions(&mut self) {
         let found = match self.active_buffer() {
             Some(_) if self.suggestions_dismissed || self.history_cursor.is_some() || self.modal.is_some() => Vec::new(),
             Some((server, buffer)) => {
-                let buffer_id = self.active.expect("onglet actif").1;
+                let buffer_id = self.active.expect("active tab").1;
                 let mut nicks: Vec<&str> = buffer.recent_speakers().collect();
                 match server.network.channel(&buffer.name) {
                     Some(channel) => nicks.extend(
@@ -867,13 +871,13 @@ impl App {
             }
         };
         let editing = form.editing;
-        // Le nom identifie le réseau, notamment dans le trousseau du système.
+        // The name identifies the network, in the system keychain in particular.
         let taken = self
             .servers
             .iter()
             .any(|server| Some(server.id) != editing && server.entry.name.eq_ignore_ascii_case(&entry.name));
         if taken {
-            form.set_error("Un réseau porte déjà ce nom.".into());
+            form.set_error(tr("A network already has this name.").into());
             return Task::none();
         }
         self.modal = None;
@@ -886,9 +890,9 @@ impl App {
             }
             iced::widget::operation::focus(INPUT_ID)
         } else {
-            // « Ajouter et se connecter » : connexion immédiate quel que soit `auto_connect`.
+            // “Add and connect”: immediate connection whatever `auto_connect` says.
             let id = self.add_server(entry);
-            let server = self.server_mut(id).expect("réseau ajouté");
+            let server = self.server_mut(id).expect("network added");
             server.enabled = true;
             let buffer = server.server_buffer();
             self.select(id, buffer)
@@ -914,14 +918,14 @@ impl App {
             None
         };
         if let Err(error) = on_disk.save_to(path) {
-            self.banner = Some(format!("Impossible d'enregistrer la configuration : {error}"));
+            self.banner = Some(tr!("Cannot save the configuration: {error}", error = error));
             return;
         }
-        // Trousseau désactivé : les mots de passe sont maintenant dans le
-        // fichier, les entrées du trousseau peuvent disparaître.
+        // Keychain disabled: the passwords are now in the file, so the
+        // keychain entries can go.
         let keychain_error = keychain_error.or_else(|| (!use_keychain).then(|| keychain::clear(&keychain::System, &mut self.keychain)).flatten());
         if let Some(error) = keychain_error {
-            self.banner = Some(format!("Trousseau du système indisponible, mots de passe gardés dans le fichier : {error}"));
+            self.banner = Some(tr!("System keychain unavailable, passwords kept in the file: {error}", error = error));
         }
     }
 
@@ -963,7 +967,7 @@ impl App {
             .then(|| sidebar::view(&self.servers, self.active, colors));
         let main: Element<'_, Message> = match self.active_buffer() {
             Some((server, buffer)) => {
-                let id = self.active.expect("onglet actif").1;
+                let id = self.active.expect("active tab").1;
                 let chat = chat::view(&chat::Props {
                     server,
                     buffer_id: id,
@@ -1013,9 +1017,9 @@ impl App {
     }
 }
 
-/// Clé d'abonnement d'une connexion : seuls l'identifiant et la génération
-/// comptent, pour qu'une modification de configuration ne coupe pas la
-/// connexion sans demande explicite.
+/// Subscription key of a connection: only the id and the generation count,
+/// so that a configuration change does not drop the connection unless
+/// explicitly asked.
 #[derive(Debug, Clone)]
 struct ConnectionKey {
     id: ServerId,
@@ -1054,9 +1058,12 @@ mod tests {
     use ircnext_client::proto::Message as IrcMessage;
     use ircnext_client::Registered;
 
-    /// Application de démonstration alimentée par de faux événements réseau.
+    /// Demo application fed with fake network events.
     fn demo() -> App {
         let mut config = AppConfig::default();
+        // Tests do not depend on the machine's language.
+        config.settings.language = i18n::Language::English;
+        i18n::set_language(config.settings.language);
         config.servers.push(ServerEntry {
             name: "Libera.Chat".into(),
             auto_connect: false,
@@ -1070,20 +1077,20 @@ mod tests {
         for line in [
             ":s 005 me CHANTYPES=# PREFIX=(ov)@+ NETWORK=Libera.Chat MONITOR=100 :are supported",
             ":me!u@h JOIN #rust",
-            ":s 332 me #rust :Le langage Rust · https://www.rust-lang.org · soyez bienveillants",
+            ":s 332 me #rust :The Rust language · https://www.rust-lang.org · be kind",
             ":s 353 me = #rust :@alice +bob carol dave erin @me",
             ":s 366 me #rust :End",
             ":me!u@h JOIN #ircnext",
-            ":alice!a@h PRIVMSG #rust :Quelqu'un a testé la nouvelle version de \x02tokio\x02 ?",
-            ":bob!b@h PRIVMSG #rust :oui, la doc est ici : https://docs.rs/tokio",
-            ":carol!c@h PRIVMSG #rust :\x0304rouge\x03, \x0309vert\x03 et \x1ditalique\x1d : les codes mIRC marchent",
-            ":dave!d@h PRIVMSG #rust :\x01ACTION prépare un café\x01",
+            ":alice!a@h PRIVMSG #rust :Has anyone tried the new \x02tokio\x02 release?",
+            ":bob!b@h PRIVMSG #rust :yes, the docs are here: https://docs.rs/tokio",
+            ":carol!c@h PRIVMSG #rust :\x0304red\x03, \x0309green\x03 and \x1ditalic\x1d: mIRC codes work",
+            ":dave!d@h PRIVMSG #rust :\x01ACTION makes some coffee\x01",
             ":erin!e@h JOIN #rust",
-            ":alice!a@h PRIVMSG #rust :me: tu en penses quoi d'ircnext ?",
-            ":me!u@h PRIVMSG #rust :franchement, ça a l'air propre",
-            "@bot :helper!h@h PRIVMSG #rust :Rappel : réunion à 18 h",
+            ":alice!a@h PRIVMSG #rust :me: what do you think of ircnext?",
+            ":me!u@h PRIVMSG #rust :honestly, it looks clean",
+            "@bot :helper!h@h PRIVMSG #rust :Reminder: meeting at 6 pm",
             ":bob!b@h NICK bobby",
-            ":zoe!z@h PRIVMSG me :salut, tu as deux minutes ?",
+            ":zoe!z@h PRIVMSG me :hi, got two minutes?",
             ":carol!c@h PRIVMSG #ircnext :hello",
             "@+typing=active :carol!c@h TAGMSG #rust",
         ] {
@@ -1092,7 +1099,7 @@ mod tests {
         }
         let buffer = app.servers[0].find("#rust").unwrap();
         let _ = app.update(Message::Select(id, buffer));
-        app.input = "Message en cours de saisie".into();
+        app.input = "Message being typed".into();
         app
     }
 
@@ -1101,10 +1108,10 @@ mod tests {
         let app = demo();
         let server = &app.servers[0];
         let rust = server.buffer(server.find("#rust").unwrap()).unwrap();
-        assert_eq!(rust.unread, 0, "onglet actif");
+        assert_eq!(rust.unread, 0, "active tab");
         let query = server.buffer(server.find("zoe").unwrap()).unwrap();
         assert!(query.highlighted);
-        assert_eq!(app.title(), "(1) #rust — Libera.Chat · ircnext", "message privé de zoe non lu");
+        assert_eq!(app.title(), "(1) #rust — Libera.Chat · ircnext", "unread private message from zoe");
     }
 
     fn inject(app: &mut App, line: &str) {
@@ -1121,47 +1128,47 @@ mod tests {
     fn suggestions_follow_typing_and_keyboard() {
         let mut app = demo();
         let _ = app.update(Message::InputChanged("/jo".into()));
-        assert_eq!(labels(&app), ["/join #salon [clé]"]);
+        assert_eq!(labels(&app), ["/join #channel [key]"]);
         let _ = app.update(Message::Submit);
-        assert_eq!(app.input, "/join ", "Entrée valide la suggestion");
+        assert_eq!(app.input, "/join ", "Enter accepts the suggestion");
 
         let _ = app.update(Message::InputChanged("/join #".into()));
         assert_eq!(labels(&app), ["#ircnext", "#rust"]);
         let _ = app.update(Message::Shortcut(Shortcut::HistoryNext));
         let _ = app.update(Message::Shortcut(Shortcut::Complete { backwards: false }));
-        assert_eq!(app.input, "/join #rust ", "↓ puis Tab");
+        assert_eq!(app.input, "/join #rust ", "↓ then Tab");
 
         let _ = app.update(Message::InputChanged("/ns ".into()));
-        assert!(labels(&app).contains(&"IDENTIFY [compte] <mot de passe>"));
+        assert!(labels(&app).contains(&"IDENTIFY [account] <password>"));
         let _ = app.update(Message::Shortcut(Shortcut::Escape));
         assert_eq!(labels(&app), Vec::<&str>::new());
         let _ = app.update(Message::InputChanged("/ns ID".into()));
-        assert_eq!(app.suggestions.len(), 1, "réouverture à la frappe suivante");
+        assert_eq!(app.suggestions.len(), 1, "reopened on the next keystroke");
     }
 
     #[test]
     fn suggests_learned_and_remote_bot_commands() {
         let mut app = demo();
-        inject(&mut app, "@bot :helper!h@h PRIVMSG #rust :Commandes : !meteo, !quote");
+        inject(&mut app, "@bot :helper!h@h PRIVMSG #rust :Commands: !weather, !quote");
         inject(&mut app, ":carol!c@h PRIVMSG #rust :!quote 42");
         let _ = app.update(Message::InputChanged("!".into()));
-        assert_eq!(labels(&app), ["!quote", "!meteo"]);
+        assert_eq!(labels(&app), ["!quote", "!weather"]);
 
-        // Réponse d'un bot (brouillon IRCv3) à une demande envoyée pour « !meteo Par ».
+        // Reply from a bot (IRCv3 draft) to a request sent for “!weather Par”.
         let (_, buffer) = app.active.unwrap();
         app.servers[0].remote_completion = Some(crate::server::RemoteCompletion {
             buffer,
-            request: "!meteo Par".into(),
+            request: "!weather Par".into(),
             sent: Instant::now(),
             replies: Vec::new(),
         });
-        let _ = app.update(Message::InputChanged("!meteo Par".into()));
+        let _ = app.update(Message::InputChanged("!weather Par".into()));
         inject(&mut app, "@+draft/autocomplete-response=is\t\u{8}\u{8}\u{8}Pau :helper!h@h TAGMSG #rust");
         assert_eq!(labels(&app), ["Paris", "Pau"]);
         assert_eq!(app.suggestions[1].source, "helper");
         let _ = app.update(Message::Submit);
-        assert_eq!(app.input, "!meteo Paris");
-        assert_eq!(labels(&app), Vec::<&str>::new(), "réponse périmée une fois la saisie modifiée");
+        assert_eq!(app.input, "!weather Paris");
+        assert_eq!(labels(&app), Vec::<&str>::new(), "reply outdated once the input changes");
     }
 
     #[test]
@@ -1172,7 +1179,7 @@ mod tests {
         assert_eq!(app.config.settings.ignored, ["Troll"]);
         app.input = "/ignore troll".into();
         let _ = app.update(Message::Submit);
-        assert_eq!(app.config.settings.ignored.len(), 1, "pas de doublon (casse ignorée)");
+        assert_eq!(app.config.settings.ignored.len(), 1, "no duplicate (case-insensitive)");
         app.input = "/unignore troll".into();
         let _ = app.update(Message::Submit);
         assert_eq!(app.config.settings.ignored, Vec::<String>::new());
@@ -1181,11 +1188,11 @@ mod tests {
     #[test]
     fn runs_connect_commands_after_registration() {
         let mut app = demo();
-        app.servers[0].entry.on_connect = vec!["/ignore bavard".into()];
+        app.servers[0].entry.on_connect = vec!["/ignore chatty".into()];
         let id = app.servers[0].id;
         let registered = Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false };
         let _ = app.update(Message::Client(id, Event::Registered(registered)));
-        assert_eq!(app.config.settings.ignored, ["bavard"]);
+        assert_eq!(app.config.settings.ignored, ["chatty"]);
     }
 
     #[test]
@@ -1196,10 +1203,10 @@ mod tests {
             let _ = app.update(Message::Form(msg));
         }
         let _ = app.update(Message::SaveServerForm);
-        assert_eq!(app.servers.len(), 1, "nom déjà pris");
-        assert!(matches!(app.modal, Some(Modal::Server(_))), "le formulaire reste ouvert");
+        assert_eq!(app.servers.len(), 1, "name already taken");
+        assert!(matches!(app.modal, Some(Modal::Server(_))), "the form stays open");
 
-        // Modifier un réseau sans changer son nom reste possible.
+        // Editing a network without renaming it is still possible.
         let id = app.servers[0].id;
         let _ = app.update(Message::OpenServerForm(Some(id)));
         let _ = app.update(Message::Form(server_form::Msg::Host("irc.eu.libera.chat".into())));
@@ -1211,14 +1218,14 @@ mod tests {
     #[test]
     fn title_counts_unread_mentions() {
         let mut app = demo();
-        inject(&mut app, ":alice!a@h PRIVMSG #ircnext :me: regarde ça");
-        assert!(app.title().starts_with("(2) "), "zoe et #ircnext : {}", app.title());
+        inject(&mut app, ":alice!a@h PRIVMSG #ircnext :me: look at this");
+        assert!(app.title().starts_with("(2) "), "zoe and #ircnext: {}", app.title());
         app.config.settings.title_unread_count = false;
         assert!(!app.title().starts_with('('));
     }
 
     fn press(app: &mut App, combo: &str) {
-        let combo = Combo::parse(combo, keymap::MAC).expect("combinaison valide");
+        let combo = Combo::parse(combo, keymap::MAC).expect("valid combination");
         let _ = app.update(Message::Key { combo, captured: false });
     }
 
@@ -1229,7 +1236,7 @@ mod tests {
     #[test]
     fn navigation_shortcuts() {
         let mut app = demo();
-        // Depuis #rust, seul « zoe » est non lu après lui : Alt+Maj+↓ y mène.
+        // From #rust, only “zoe” is unread after it: Alt+Shift+↓ leads there.
         press(&mut app, "Alt+Shift+Down");
         assert_eq!(active_name(&app), "zoe");
 
@@ -1249,9 +1256,9 @@ mod tests {
     #[test]
     fn editing_and_display_shortcuts() {
         let mut app = demo();
-        app.input = "salut".into();
+        app.input = "hello".into();
         press(&mut app, "Mod+B");
-        assert_eq!(app.input, "salut\x02");
+        assert_eq!(app.input, "hello\x02");
 
         let size = app.config.settings.font_size;
         press(&mut app, "Mod+Equal");
@@ -1289,14 +1296,22 @@ mod tests {
         assert!(matches!(app.modal, Some(Modal::Switcher(_))));
     }
 
-    /// Génère des captures de l'interface dans `target/snapshots/`.
+    /// Renders screenshots of the interface into `target/snapshots/<language>/`.
     /// `cargo test -p ircnext -- --ignored snapshots`
     #[test]
-    #[ignore = "génère des fichiers PNG"]
+    #[ignore = "writes PNG files"]
     fn snapshots() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/snapshots");
-        let _ = std::fs::remove_dir_all(&dir);
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/snapshots");
+        let _ = std::fs::remove_dir_all(&root);
+        for (language, folder) in [(i18n::Language::English, "en"), (i18n::Language::French, "fr")] {
+            snapshots_in(language, &root.join(folder));
+        }
+    }
+
+    fn snapshots_in(language: i18n::Language, dir: &std::path::Path) {
         let mut app = demo();
+        app.config.settings.language = language;
+        i18n::set_language(language);
         for mode in ThemeMode::ALL.into_iter().skip(1) {
             app.config.settings.theme = mode;
             render(&app, &dir.join(format!("{mode:?}").to_lowercase()));
@@ -1328,7 +1343,7 @@ mod tests {
     fn render(app: &App, path: &std::path::Path) {
         let mut simulator =
             iced_test::Simulator::with_size(iced::Settings::default(), (1200.0, 780.0), app.view());
-        let snapshot = simulator.snapshot(&app.theme()).expect("rendu");
-        assert!(snapshot.matches_image(path).expect("écriture PNG"));
+        let snapshot = simulator.snapshot(&app.theme()).expect("rendering");
+        assert!(snapshot.matches_image(path).expect("PNG writing"));
     }
 }

@@ -1,11 +1,11 @@
-//! Liste d'ignorés : pseudonymes ou masques `pseudo!ident@hôte` avec jokers.
+//! Ignore list: nicknames or `nick!ident@host` masks with wildcards.
 
 use ircnext_client::proto::Source;
 
-/// Indique si `source` correspond à l'un des masques.
+/// Whether `source` matches one of the masks.
 ///
-/// Un masque sans `!` ni `@` désigne un pseudonyme (`bob` équivaut à
-/// `bob!*@*`). La comparaison ignore la casse.
+/// A mask without `!` or `@` is a nickname (`bob` is the same as `bob!*@*`).
+/// The comparison is case-insensitive.
 pub fn is_ignored(masks: &[String], source: &Source) -> bool {
     if masks.is_empty() {
         return false;
@@ -20,7 +20,7 @@ pub fn is_ignored(masks: &[String], source: &Source) -> bool {
     masks.iter().any(|mask| glob(&normalize(mask), &full))
 }
 
-/// Forme complète et en minuscules d'un masque.
+/// Full, lowercase form of a mask.
 pub fn normalize(mask: &str) -> String {
     let mask = mask.trim().to_lowercase();
     match (mask.contains('!'), mask.contains('@')) {
@@ -31,12 +31,12 @@ pub fn normalize(mask: &str) -> String {
     }
 }
 
-/// Correspondance avec jokers `*` (toute suite) et `?` (un caractère).
+/// Matching with `*` (any sequence) and `?` (one character) wildcards.
 fn glob(pattern: &str, text: &str) -> bool {
     let pattern: Vec<char> = pattern.chars().collect();
     let text: Vec<char> = text.chars().collect();
     let (mut p, mut t) = (0, 0);
-    // Dernière étoile rencontrée et position correspondante dans le texte.
+    // Last star met and the matching position in the text.
     let mut backtrack: Option<(usize, usize)> = None;
     while t < text.len() {
         match pattern.get(p) {

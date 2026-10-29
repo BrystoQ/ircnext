@@ -1,8 +1,9 @@
-//! Protocole IRC sans I/O : représentation des messages, analyse, sérialisation
-//! et utilitaires associés (tags IRCv3, casemapping, `RPL_ISUPPORT`, formatage mIRC).
+//! IRC protocol without I/O: message representation, parsing, serialization
+//! and related utilities (IRCv3 tags, casemapping, `RPL_ISUPPORT`, mIRC
+//! formatting).
 //!
-//! Cette crate ne fait aucune entrée/sortie : elle transforme des lignes en
-//! valeurs typées et inversement, ce qui la rend entièrement testable.
+//! This crate does no input/output: it turns lines into typed values and
+//! back, which makes it fully testable.
 
 pub mod casemap;
 pub mod format;

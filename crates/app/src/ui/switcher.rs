@@ -1,17 +1,18 @@
-//! Recherche rapide d'onglet (« quick switcher »), comme dans Slack ou Discord.
+//! Quick tab switcher, as in Slack or Discord.
 
 use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length};
 
 use crate::app::Message;
+use crate::i18n::tr;
 use crate::buffer::Kind;
 use crate::server::{BufferId, Server, ServerId};
 use crate::theme::{self, Colors};
 use crate::ui::BOLD;
 
-/// Identifiant du champ de recherche.
+/// Id of the search field.
 pub const SWITCHER_ID: &str = "switcher";
-/// Nombre maximal de résultats affichés.
+/// Maximum number of results shown.
 const MAX_RESULTS: usize = 10;
 
 #[derive(Debug, Clone, Default)]
@@ -27,11 +28,11 @@ pub enum Msg {
 }
 
 impl Switcher {
-    /// Onglets correspondant à la recherche, les plus pertinents d'abord.
+    /// Tabs matching the search, most relevant first.
     ///
-    /// Sans recherche : les onglets non lus d'abord (mentions en tête), hors
-    /// onglet courant. Avec recherche : début du nom, puis contenu, puis
-    /// lettres dans l'ordre (`rst` trouve `#rust`).
+    /// Without a search: unread tabs first (mentions on top), except the
+    /// current tab. With a search: start of the name, then content, then
+    /// letters in order (`rst` finds `#rust`).
     pub fn results(&self, servers: &[Server], active: Option<(ServerId, BufferId)>) -> Vec<(ServerId, BufferId)> {
         let query = self.query.trim().to_lowercase();
         let mut scored: Vec<(u8, usize, (ServerId, BufferId))> = Vec::new();
@@ -111,17 +112,17 @@ impl Switcher {
             );
         }
         if results.is_empty() {
-            list = list.push(container(text("Aucun onglet ne correspond.").size(13).color(c.muted)).padding(12));
+            list = list.push(container(text(tr("No tab matches.")).size(13).color(c.muted)).padding(12));
         }
 
-        let input = text_input("Aller à un salon, une conversation ou un réseau…", &self.query)
+        let input = text_input(tr("Go to a channel, a conversation or a network…"), &self.query)
             .id(SWITCHER_ID)
             .on_input(|query| Message::Switcher(Msg::Query(query)))
             .on_submit(Message::Switcher(Msg::Submit))
             .padding([12, 14])
             .size(16)
             .style(theme::input(c));
-        let hint = text("↑↓ pour choisir · Entrée pour ouvrir · Échap pour fermer").size(11).color(c.muted);
+        let hint = text(tr("↑↓ to choose · Enter to open · Esc to close")).size(11).color(c.muted);
 
         container(column![input, list, hint].spacing(10))
             .padding(16)
@@ -131,7 +132,7 @@ impl Switcher {
     }
 }
 
-/// Lettres de `needle` présentes dans `haystack`, dans l'ordre.
+/// Letters of `needle` found in `haystack`, in order.
 fn is_subsequence(needle: &str, haystack: &str) -> bool {
     let mut letters = haystack.chars();
     needle.chars().all(|wanted| letters.any(|c| c == wanted))

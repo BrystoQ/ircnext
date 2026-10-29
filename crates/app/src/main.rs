@@ -1,6 +1,6 @@
-//! ircnext : client IRC moderne, compatible IRCv3.
+//! ircnext: a modern IRC client with IRCv3 support.
 
-// Pas de fenêtre de console derrière l'application sous Windows.
+// No console window behind the application on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
@@ -8,6 +8,7 @@ mod buffer;
 mod certificate;
 mod completion;
 mod config;
+mod i18n;
 mod ignore;
 mod input;
 mod keychain;

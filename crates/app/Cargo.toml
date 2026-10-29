@@ -1,6 +1,6 @@
 [package]
 name = "ircnext"
-description = "Client IRC moderne écrit en Rust, compatible IRCv3."
+description = "A modern IRC client written in Rust, with IRCv3 support."
 readme = "../../README.md"
 keywords = ["irc", "ircv3", "chat", "client", "iced"]
 categories = ["network-programming", "gui"]
@@ -23,6 +23,7 @@ notify-rust = "4"
 open = "5"
 rcgen = "0.14"
 serde = { version = "1", features = ["derive"] }
+sys-locale = "0.3"
 tokio = { version = "1", features = ["time"] }
 toml = "0.9"
 

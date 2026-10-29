@@ -1,46 +1,46 @@
-//! Paramètres annoncés par le serveur via `RPL_ISUPPORT` (005).
+//! Parameters announced by the server through `RPL_ISUPPORT` (005).
 //!
-//! Référence : <https://modern.ircdocs.horse/#rplisupport-parameters>
+//! Reference: <https://modern.ircdocs.horse/#rplisupport-parameters>
 
 use crate::casemap::CaseMapping;
 
-/// Catégorie d'un mode de salon, qui détermine s'il prend un argument.
+/// Category of a channel mode, which decides whether it takes an argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModeKind {
-    /// Liste (`b`, `e`, `I`) : argument à l'ajout comme au retrait.
+    /// List (`b`, `e`, `I`): argument when adding as when removing.
     List,
-    /// Toujours un argument (`k`).
+    /// Always an argument (`k`).
     AlwaysArg,
-    /// Argument uniquement à l'ajout (`l`).
+    /// Argument only when adding (`l`).
     ArgOnSet,
-    /// Jamais d'argument (`m`, `n`, `t`...).
+    /// Never an argument (`m`, `n`, `t`...).
     NoArg,
-    /// Préfixe de membre (`o`, `v`...) : argument = pseudonyme.
+    /// Member prefix (`o`, `v`...): argument = nickname.
     Prefix,
 }
 
-/// État `ISUPPORT` d'une connexion.
+/// `ISUPPORT` state of a connection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ISupport {
     pub network: Option<String>,
     pub casemapping: CaseMapping,
-    /// Préfixes de salon (`#`, `&`...).
+    /// Channel prefixes (`#`, `&`...).
     pub chantypes: String,
-    /// Paires (mode, symbole) triées du plus élevé au plus bas : `[('o', '@'), ('v', '+')]`.
+    /// (mode, symbol) pairs sorted from highest to lowest: `[('o', '@'), ('v', '+')]`.
     pub prefix: Vec<(char, char)>,
-    /// Groupes A, B, C, D de `CHANMODES`.
+    /// Groups A, B, C, D of `CHANMODES`.
     pub chanmodes: [String; 4],
-    /// Symboles autorisés devant une cible de message (`@#salon`).
+    /// Symbols allowed before a message target (`@#channel`).
     pub statusmsg: String,
-    /// Nombre maximal de messages par requête `CHATHISTORY` (`Some(0)` = illimité).
+    /// Maximum number of messages per `CHATHISTORY` request (`Some(0)` = unlimited).
     pub chathistory: Option<usize>,
-    /// Taille maximale de la liste `MONITOR` (`Some(usize::MAX)` = illimitée).
+    /// Maximum size of the `MONITOR` list (`Some(usize::MAX)` = unlimited).
     pub monitor: Option<usize>,
-    /// Mode utilisateur marquant un bot (`BOT=B`).
+    /// User mode marking a bot (`BOT=B`).
     pub bot_mode: Option<char>,
-    /// Le serveur n'accepte que de l'UTF-8.
+    /// The server only accepts UTF-8.
     pub utf8_only: bool,
-    /// Le serveur prend en charge `WHO` étendu (WHOX).
+    /// The server supports extended `WHO` (WHOX).
     pub whox: bool,
 }
 
@@ -63,8 +63,8 @@ impl Default for ISupport {
 }
 
 impl ISupport {
-    /// Applique les jetons d'un message 005 (sans le pseudonyme initial ni le
-    /// texte final « are supported by this server »).
+    /// Applies the tokens of a 005 message (without the leading nickname nor
+    /// the trailing “are supported by this server” text).
     pub fn apply<'a>(&mut self, tokens: impl IntoIterator<Item = &'a str>) {
         let defaults = Self::default();
         for token in tokens {
@@ -120,22 +120,22 @@ impl ISupport {
         }
     }
 
-    /// Indique si `target` désigne un salon.
+    /// Whether `target` is a channel.
     pub fn is_channel(&self, target: &str) -> bool {
         target.chars().next().is_some_and(|c| self.chantypes.contains(c))
     }
 
-    /// Retire un éventuel préfixe `STATUSMSG` (`@#salon` → `#salon`).
+    /// Removes a possible `STATUSMSG` prefix (`@#channel` → `#channel`).
     pub fn strip_statusmsg<'a>(&self, target: &'a str) -> &'a str {
         target.trim_start_matches(|c| self.statusmsg.contains(c))
     }
 
-    /// Rang d'un symbole de préfixe (0 = le plus élevé).
+    /// Rank of a prefix symbol (0 = the highest).
     pub fn prefix_rank(&self, symbol: char) -> Option<usize> {
         self.prefix.iter().position(|&(_, s)| s == symbol)
     }
 
-    /// Symbole associé à un mode de préfixe (`o` → `@`).
+    /// Symbol associated with a prefix mode (`o` → `@`).
     pub fn prefix_symbol(&self, mode: char) -> Option<char> {
         self.prefix.iter().find(|&&(m, _)| m == mode).map(|&(_, s)| s)
     }
@@ -176,7 +176,7 @@ fn parse_prefix(value: &str) -> Option<Vec<(char, char)>> {
     Some(modes.chars().zip(symbols.chars()).collect())
 }
 
-/// Un changement de mode de salon, une fois les arguments associés.
+/// A channel mode change, once the arguments are associated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModeChange {
     pub adding: bool,
@@ -184,7 +184,7 @@ pub struct ModeChange {
     pub arg: Option<String>,
 }
 
-/// Associe chaque mode d'une chaîne `+ov-b` à son argument éventuel.
+/// Associates each mode of a `+ov-b` string with its possible argument.
 pub fn parse_channel_modes(isupport: &ISupport, modes: &str, args: &[String]) -> Vec<ModeChange> {
     let mut args = args.iter();
     let mut adding = true;

@@ -1,60 +1,60 @@
-//! Paramètres d'une connexion à un serveur IRC.
+//! Settings of a connection to an IRC server.
 
 use std::fmt;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-/// Tout ce qui est nécessaire pour se connecter et s'enregistrer sur un serveur.
+/// Everything needed to connect and register on a server.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default)]
-#[allow(clippy::struct_excessive_bools)] // options indépendantes de la connexion
+#[allow(clippy::struct_excessive_bools)] // independent connection options
 pub struct Config {
     pub host: String,
     pub port: u16,
     pub tls: bool,
-    /// Accepte les certificats invalides ou auto-signés (déconseillé).
+    /// Accepts invalid or self-signed certificates (not recommended).
     pub accept_invalid_certs: bool,
     pub nick: String,
-    /// Pseudonymes essayés, dans l'ordre, si `nick` est déjà pris.
+    /// Nicknames tried, in order, if `nick` is already taken.
     pub alt_nicks: Vec<String>,
     pub username: String,
     pub realname: String,
-    /// Mot de passe serveur (`PASS`).
+    /// Server password (`PASS`).
     pub password: Option<Secret>,
     pub sasl: Option<Sasl>,
-    /// Certificat client présenté pendant la négociation TLS (`CertFP`) :
-    /// fichier PEM contenant le certificat puis sa clé privée.
+    /// Client certificate presented during the TLS handshake (`CertFP`): PEM
+    /// file holding the certificate then its private key.
     pub client_cert: Option<PathBuf>,
-    /// Identification SASL `EXTERNAL` par le certificat client, à la place
-    /// du mot de passe.
+    /// SASL `EXTERNAL` identification with the client certificate, instead
+    /// of the password.
     pub sasl_external: bool,
-    /// Salons rejoints automatiquement après l'enregistrement.
+    /// Channels joined automatically after registration.
     pub autojoin: Vec<String>,
-    /// Reconnexion automatique après une coupure.
+    /// Automatic reconnection after an outage.
     pub auto_reconnect: bool,
 }
 
 impl Config {
-    /// Les identifiants (SASL) peuvent être envoyés : connexion chiffrée, ou
-    /// serveur local (bouncer sur la même machine).
+    /// The credentials (SASL) can be sent: encrypted connection, or local
+    /// server (bouncer on the same machine).
     pub fn can_send_credentials(&self) -> bool {
         self.tls || is_loopback(&self.host)
     }
 
-    /// Identification SASL `EXTERNAL` possible : demandée, avec un certificat
-    /// client présenté sur une connexion TLS.
+    /// SASL `EXTERNAL` identification possible: requested, with a client
+    /// certificate presented on a TLS connection.
     pub fn uses_external(&self) -> bool {
         self.sasl_external && self.tls && self.client_cert.is_some()
     }
 
-    /// Connexion TLS dont le certificat est vérifié.
+    /// TLS connection whose certificate is verified.
     pub fn is_verified_tls(&self) -> bool {
         self.tls && !self.accept_invalid_certs
     }
 }
 
-/// `localhost` ou adresse de bouclage (`127.0.0.0/8`, `::1`).
+/// `localhost` or loopback address (`127.0.0.0/8`, `::1`).
 pub fn is_loopback(host: &str) -> bool {
     let host = host.trim_start_matches('[').trim_end_matches(']');
     host.eq_ignore_ascii_case("localhost")
@@ -82,14 +82,14 @@ impl Default for Config {
     }
 }
 
-/// Identifiants SASL `PLAIN`.
+/// SASL `PLAIN` credentials.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Sasl {
     pub username: String,
     pub password: Secret,
 }
 
-/// Chaîne sensible, masquée dans les sorties de débogage.
+/// Sensitive string, masked in debug output.
 #[derive(Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Secret(String);

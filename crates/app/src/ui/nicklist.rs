@@ -1,10 +1,11 @@
-//! Liste des membres d'un salon.
+//! Member list of a channel.
 
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Font, Length, font};
 use ircnext_client::{Channel, Member};
 
 use crate::app::Message;
+use crate::tr;
 use crate::server::Server;
 use crate::settings::Settings;
 use crate::theme::{self, Colors};
@@ -21,10 +22,7 @@ pub fn view<'a>(server: &'a Server, channel: &'a Channel, settings: &Settings, c
         list.push(member_item(server, member, nick_colors, c))
     });
 
-    let header = text(format!(
-        "{count} {}",
-        if count > 1 { "utilisateurs" } else { "utilisateur" }
-    ))
+    let header = text(if count == 1 { tr!("{count} user", count = count) } else { tr!("{count} users", count = count) })
     .size(12)
     .font(BOLD)
     .color(c.muted);

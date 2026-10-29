@@ -1,21 +1,21 @@
-//! Création de certificats clients auto-signés, pour s'identifier par
-//! certificat (SASL `EXTERNAL`, `CertFP`) sans passer par `openssl`.
+//! Creation of self-signed client certificates, to identify with a
+//! certificate (SASL `EXTERNAL`, `CertFP`) without going through `openssl`.
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use crate::config::AppConfig;
 
-/// Crée un certificat pour le réseau `network` dans le dossier `certs` de la
-/// configuration, et renvoie son chemin.
+/// Creates a certificate for the network `network` in the `certs` folder of
+/// the configuration, and returns its path.
 pub fn create(network: &str, nick: &str) -> io::Result<PathBuf> {
     let config = AppConfig::path().map_err(|error| io::Error::other(error.to_string()))?;
     let dir = config.parent().unwrap_or(Path::new(".")).join("certs");
     write(&dir, network, nick)
 }
 
-/// Écrit le certificat et sa clé dans un nouveau fichier PEM de `dir`, lisible
-/// par le seul utilisateur. Un fichier existant n'est jamais remplacé.
+/// Writes the certificate and its key to a new PEM file in `dir`, readable
+/// by the user only. An existing file is never replaced.
 fn write(dir: &Path, network: &str, nick: &str) -> io::Result<PathBuf> {
     let key = rcgen::KeyPair::generate().map_err(io::Error::other)?;
     let name = if nick.trim().is_empty() { "ircnext" } else { nick.trim() };
@@ -43,10 +43,10 @@ fn write(dir: &Path, network: &str, nick: &str) -> io::Result<PathBuf> {
             Err(error) => return Err(error),
         }
     }
-    unreachable!("la boucle ne se termine que par un retour")
+    unreachable!("the loop only ends with a return")
 }
 
-/// Nom de fichier tiré du nom du réseau (lettres, chiffres, `-`, `_` et `.`).
+/// File name taken from the network name (letters, digits, `-`, `_` and `.`).
 fn file_stem(network: &str) -> String {
     let stem: String = network
         .trim()
@@ -54,7 +54,7 @@ fn file_stem(network: &str) -> String {
         .map(|c| if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') { c } else { '_' })
         .collect();
     let stem = stem.trim_start_matches('.');
-    if stem.is_empty() { "certificat".to_owned() } else { stem.to_owned() }
+    if stem.is_empty() { "certificate".to_owned() } else { stem.to_owned() }
 }
 
 fn create_private_dir(dir: &Path) -> io::Result<()> {
@@ -74,8 +74,8 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ircnext-certs-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
 
-        let first = write(&dir, "Libera.Chat", "moi").unwrap();
-        let second = write(&dir, "Libera.Chat", "moi").unwrap();
+        let first = write(&dir, "Libera.Chat", "me").unwrap();
+        let second = write(&dir, "Libera.Chat", "me").unwrap();
         assert_eq!(first.file_name().unwrap(), "Libera.Chat.pem");
         assert_eq!(second.file_name().unwrap(), "Libera.Chat-2.pem");
         let (chain, _) = ircnext_client::connection::load_identity(&first).unwrap();
@@ -84,7 +84,7 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
             let mode = std::fs::metadata(&first).unwrap().permissions().mode();
-            assert_eq!(mode & 0o777, 0o600, "clé privée lisible par son seul propriétaire");
+            assert_eq!(mode & 0o777, 0o600, "private key readable by its owner only");
         }
         std::fs::remove_dir_all(&dir).unwrap();
     }
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn file_names_stay_inside_the_folder() {
         assert_eq!(file_stem("../../etc/passwd"), "_.._etc_passwd");
-        assert_eq!(file_stem("Mon réseau"), "Mon_réseau");
-        assert_eq!(file_stem("  "), "certificat");
+        assert_eq!(file_stem("My network"), "My_network");
+        assert_eq!(file_stem("  "), "certificate");
     }
 }

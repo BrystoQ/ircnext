@@ -46,7 +46,7 @@ fn lines(server: &Server, name: &str) -> Vec<LineKind> {
     let id = if name == server.name() {
         server.server_buffer()
     } else {
-        server.find(name).unwrap_or_else(|| panic!("onglet {name} absent"))
+        server.find(name).unwrap_or_else(|| panic!("tab {name} missing"))
     };
     server.buffer(id).unwrap().lines().map(|l| l.kind.clone()).collect()
 }
@@ -67,8 +67,8 @@ fn self_join_creates_channel_and_records_autojoin() {
 #[test]
 fn channel_messages_count_as_unread_with_highlight() {
     let mut server = server();
-    receive(&mut server, ":alice!a@h PRIVMSG #rust :salut tout le monde");
-    receive(&mut server, ":bob!b@h PRIVMSG #rust :hé me, ça va ?");
+    receive(&mut server, ":alice!a@h PRIVMSG #rust :hi everyone");
+    receive(&mut server, ":bob!b@h PRIVMSG #rust :hey me, how are you?");
     let buffer = server.buffer(server.find("#rust").unwrap()).unwrap();
     assert_eq!(buffer.unread, 2);
     assert!(buffer.highlighted);
@@ -88,14 +88,14 @@ fn active_buffer_does_not_accumulate_unread() {
 fn custom_highlight_words() {
     let mut server = server();
     let settings = Settings { highlight_words: vec!["rustacean".into()], ..Settings::default() };
-    receive_with(&mut server, ":alice!a@h PRIVMSG #rust :salut Rustacean !", &settings, None);
+    receive_with(&mut server, ":alice!a@h PRIVMSG #rust :hi Rustacean!", &settings, None);
     assert!(last(&server, "#rust").highlight);
 }
 
 #[test]
 fn private_messages_open_a_query() {
     let mut server = server();
-    receive(&mut server, ":alice!a@h PRIVMSG me :coucou");
+    receive(&mut server, ":alice!a@h PRIVMSG me :hey");
     let buffer = server.buffer(server.find("Alice").unwrap()).unwrap();
     assert_eq!(buffer.kind, Kind::Query);
     assert!(buffer.highlighted);
@@ -104,7 +104,7 @@ fn private_messages_open_a_query() {
 #[test]
 fn echoed_own_messages_go_to_the_target_buffer() {
     let mut server = server();
-    receive(&mut server, ":me!u@h PRIVMSG alice :mon message");
+    receive(&mut server, ":me!u@h PRIVMSG alice :my message");
     let line = last(&server, "alice");
     assert!(line.own);
     assert_eq!(server.buffer(server.find("alice").unwrap()).unwrap().unread, 0);
@@ -113,10 +113,10 @@ fn echoed_own_messages_go_to_the_target_buffer() {
 #[test]
 fn actions_and_prefixes() {
     let mut server = server();
-    receive(&mut server, ":me!u@h PRIVMSG #rust :\x01ACTION danse\x01");
+    receive(&mut server, ":me!u@h PRIVMSG #rust :\x01ACTION dances\x01");
     assert_eq!(
         last(&server, "#rust").kind,
-        LineKind::Action { nick: "me".into(), text: "danse".into() }
+        LineKind::Action { nick: "me".into(), text: "dances".into() }
     );
     receive(&mut server, ":me!u@h PRIVMSG #rust :op talk");
     assert!(matches!(
@@ -155,23 +155,23 @@ fn history_batch_does_not_change_state() {
     let mut server = server();
     receive(&mut server, ":s BATCH +h1 chathistory #rust");
     receive(&mut server, "@batch=h1;time=2020-01-01T00:00:00.000Z :carol!c@h JOIN #rust");
-    receive(&mut server, "@batch=h1;time=2020-01-01T00:00:01.000Z;msgid=m1 :carol!c@h PRIVMSG #rust :vieux");
+    receive(&mut server, "@batch=h1;time=2020-01-01T00:00:01.000Z;msgid=m1 :carol!c@h PRIVMSG #rust :old");
     receive(&mut server, ":s BATCH -h1");
     let channel = server.network.channel("#rust").unwrap();
     assert!(channel.member("carol").is_none());
-    // L'historique est inséré avant les lignes plus récentes.
+    // History is inserted before more recent lines.
     let kinds = lines(&server, "#rust");
     assert_eq!(kinds[0], LineKind::Join { nick: "carol".into(), mask: Some("c@h".into()) });
 
-    // Un doublon (même msgid) est ignoré.
-    receive(&mut server, "@time=2020-01-01T00:00:01.000Z;msgid=m1 :carol!c@h PRIVMSG #rust :vieux");
+    // A duplicate (same msgid) is ignored.
+    receive(&mut server, "@time=2020-01-01T00:00:01.000Z;msgid=m1 :carol!c@h PRIVMSG #rust :old");
     assert_eq!(lines(&server, "#rust").len(), kinds.len());
 }
 
 #[test]
 fn redaction_replaces_message() {
     let mut server = server();
-    receive(&mut server, "@msgid=x1 :bob!b@h PRIVMSG #rust :oups");
+    receive(&mut server, "@msgid=x1 :bob!b@h PRIVMSG #rust :oops");
     receive(&mut server, ":bob!b@h REDACT #rust x1");
     assert_eq!(last(&server, "#rust").kind, LineKind::Redacted { nick: "bob".into() });
 }
@@ -210,7 +210,7 @@ fn sending_text_requires_a_connection() {
     let settings = Settings::default();
     let ctx = Context { settings: &settings, active: None };
     let id = server.find("#rust").unwrap();
-    assert_eq!(server.send_text(id, "hello", &ctx), Err("Non connecté.".into()));
+    assert_eq!(server.send_text(id, "hello", &ctx), Err("Not connected.".into()));
     let server_buffer = server.server_buffer();
     assert!(server.send_text(server_buffer, "hello", &ctx).is_err());
 }
@@ -265,24 +265,24 @@ fn limits_ctcp_replies() {
 #[test]
 fn masks_passwords_sent_to_nickserv() {
     let mut server = server();
-    // Écho du serveur (echo-message) d'un IDENTIFY envoyé à NickServ.
+    // Server echo (echo-message) of an IDENTIFY sent to NickServ.
     receive(&mut server, ":me!u@h PRIVMSG NickServ :IDENTIFY hunter2");
     let LineKind::Message { text, .. } = last(&server, "NickServ").kind else {
-        panic!("message attendu");
+        panic!("message expected");
     };
     assert_eq!(text, "IDENTIFY ••••••••");
-    // Les messages ordinaires et ceux des autres ne sont pas touchés.
-    receive(&mut server, ":alice!a@h PRIVMSG me :IDENTIFY ceci");
-    assert!(matches!(last(&server, "alice").kind, LineKind::Message { ref text, .. } if text == "IDENTIFY ceci"));
+    // Ordinary messages and those from others are left alone.
+    receive(&mut server, ":alice!a@h PRIVMSG me :IDENTIFY this");
+    assert!(matches!(last(&server, "alice").kind, LineKind::Message { ref text, .. } if text == "IDENTIFY this"));
 }
 
 #[test]
 fn drops_messages_from_ignored_users() {
     let mut server = server();
     let settings = Settings { ignored: vec!["*!*@spam.example".into()], ..Settings::default() };
-    receive_with(&mut server, ":troll!t@spam.example PRIVMSG #rust :pub", &settings, None);
-    receive_with(&mut server, ":troll!t@spam.example PRIVMSG me :pub", &settings, None);
-    receive_with(&mut server, ":alice!a@ok.example PRIVMSG #rust :bonjour", &settings, None);
+    receive_with(&mut server, ":troll!t@spam.example PRIVMSG #rust :ad", &settings, None);
+    receive_with(&mut server, ":troll!t@spam.example PRIVMSG me :ad", &settings, None);
+    receive_with(&mut server, ":alice!a@ok.example PRIVMSG #rust :hello", &settings, None);
     let texts: Vec<_> = lines(&server, "#rust")
         .into_iter()
         .filter_map(|kind| match kind {
@@ -290,22 +290,22 @@ fn drops_messages_from_ignored_users() {
             _ => None,
         })
         .collect();
-    assert_eq!(texts, ["bonjour"]);
-    assert!(server.find("troll").is_none(), "aucun onglet ouvert pour un ignoré");
+    assert_eq!(texts, ["hello"]);
+    assert!(server.find("troll").is_none(), "no tab opened for an ignored user");
 }
 
 #[test]
 fn raises_alerts_for_mentions_and_private_messages_only() {
     let mut server = server();
-    receive(&mut server, ":alice!a@h PRIVMSG #rust :bonjour à tous");
+    receive(&mut server, ":alice!a@h PRIVMSG #rust :hello all");
     assert_eq!(server.take_alerts(), []);
-    receive(&mut server, ":alice!a@h PRIVMSG #rust :me: tu es là ?");
-    receive(&mut server, ":bob!b@h PRIVMSG me :\x01ACTION fait coucou\x01");
+    receive(&mut server, ":alice!a@h PRIVMSG #rust :me: are you there?");
+    receive(&mut server, ":bob!b@h PRIVMSG me :\x01ACTION waves\x01");
     let alerts = server.take_alerts();
     assert_eq!(alerts.len(), 2);
-    assert_eq!(alerts[0].title, "alice dans #rust");
+    assert_eq!(alerts[0].title, "alice in #rust");
     assert!(!alerts[0].private);
-    assert_eq!(alerts[1].body, "bob fait coucou");
+    assert_eq!(alerts[1].body, "bob waves");
     assert!(alerts[1].private);
 }
 
@@ -313,14 +313,14 @@ fn raises_alerts_for_mentions_and_private_messages_only() {
 fn history_replay_raises_no_alert() {
     let mut server = server();
     receive(&mut server, ":s BATCH +h chathistory #rust");
-    receive(&mut server, "@batch=h :alice!a@h PRIVMSG #rust :me: ancien message");
+    receive(&mut server, "@batch=h :alice!a@h PRIVMSG #rust :me: old message");
     receive(&mut server, ":s BATCH -h");
     assert_eq!(server.take_alerts(), []);
 }
 
 #[test]
 fn part_uses_the_configured_message() {
-    let settings = Settings { part_message: "à plus".into(), ..Settings::default() };
+    let settings = Settings { part_message: "see you".into(), ..Settings::default() };
     let ctx = Context { settings: &settings, active: None };
-    assert_eq!(super::outgoing::default_part_message_for_tests(&ctx).as_deref(), Some("à plus"));
+    assert_eq!(super::outgoing::default_part_message_for_tests(&ctx).as_deref(), Some("see you"));
 }

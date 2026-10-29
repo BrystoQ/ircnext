@@ -1,8 +1,8 @@
-//! Client IRC : connexions TCP/TLS, enregistrement IRCv3 (CAP, SASL, STS)
-//! et reconstruction de l'état du réseau.
+//! IRC client: TCP/TLS connections, IRCv3 registration (CAP, SASL, STS) and
+//! tracking of the network state.
 //!
-//! La logique protocolaire ([`registration`], [`network`]) est sans I/O et
-//! testée isolément ; seul [`client`] et [`connection`] touchent au réseau.
+//! The protocol logic ([`registration`], [`network`]) has no I/O and is
+//! tested on its own; only [`client`] and [`connection`] touch the network.
 
 pub mod client;
 pub mod config;

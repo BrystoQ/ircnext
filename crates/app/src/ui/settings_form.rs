@@ -1,20 +1,21 @@
-//! Panneau des paramètres. Les modifications sont prévisualisées en direct et
-//! appliquées à l'enregistrement.
+//! Settings panel. Changes are previewed live and applied on save.
 
 use iced::widget::{button, column, container, row, scrollable, space, text, text_input};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::app::Message;
+use crate::i18n::{Language, tr};
 use crate::settings::{ACCENT_PRESETS, HexColor, NickAlignment, Settings, ThemeMode, is_valid_time_format};
 use crate::theme::{self, Colors};
-use crate::keymap::{self, Action, Combo, FIXED_KEYS, Group, MAC};
+use crate::keymap::{self, Action, Combo, Group, MAC};
 use crate::ui::{BOLD, form};
+use crate::tr;
 
-/// Tailles d'historique proposées.
+/// Scrollback sizes offered.
 const SCROLLBACK_CHOICES: [usize; 5] = [500, 1000, 2000, 5000, 10_000];
-/// Largeur des boutons ＋ et ↺ des raccourcis.
+/// Width of the ＋ and ↺ shortcut buttons.
 const TRAILING_BUTTON: f32 = 30.0;
-/// Lignes d'historique proposées à l'arrivée sur un salon.
+/// History lines offered when joining a channel.
 const HISTORY_CHOICES: [u16; 6] = [0, 50, 100, 200, 500, 1000];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,34 +40,35 @@ impl Section {
 
     fn label(self) -> &'static str {
         match self {
-            Self::Appearance => "Apparence",
-            Self::Chat => "Discussion",
-            Self::Notifications => "Notifications",
-            Self::Privacy => "Confidentialité",
-            Self::Identity => "Identité",
-            Self::Shortcuts => "Raccourcis",
+            Self::Appearance => tr("Appearance"),
+            Self::Chat => tr("Chat"),
+            Self::Notifications => tr("Notifications"),
+            Self::Privacy => tr("Privacy"),
+            Self::Identity => tr("Identity"),
+            Self::Shortcuts => tr("Shortcuts"),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SettingsForm {
-    /// Paramètres en cours d'édition (utilisés pour l'aperçu).
+    /// Settings being edited (used for the preview).
     pub draft: Settings,
     section: Section,
     accent: String,
     timestamp_format: String,
     highlight_words: String,
     ignored: String,
-    /// Action dont on attend la nouvelle combinaison.
+    /// Action waiting for its new key combination.
     capturing: Option<Action>,
-    /// Information après une modification de raccourci (conflit résolu...).
+    /// Notice after a shortcut change (resolved conflict...).
     shortcut_notice: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Msg {
     Section(Section),
+    Language(Language),
     Theme(ThemeMode),
     Accent(HexColor),
     AccentText(String),
@@ -129,7 +131,7 @@ impl SettingsForm {
         }
     }
 
-    /// Une combinaison de touches est attendue.
+    /// A key combination is expected.
     pub fn is_capturing(&self) -> bool {
         self.capturing.is_some()
     }
@@ -183,9 +185,10 @@ impl SettingsForm {
             }
             Msg::ResetAllBindings => {
                 draft.keybindings.clear();
-                self.shortcut_notice = Some("Raccourcis par défaut rétablis.".to_owned());
+                self.shortcut_notice = Some(tr("Default shortcuts restored.").to_owned());
             }
             Msg::Section(section) => self.section = section,
+            Msg::Language(language) => draft.language = language,
             Msg::Theme(mode) => draft.theme = mode,
             Msg::Accent(color) => {
                 draft.accent = color;
@@ -224,7 +227,7 @@ impl SettingsForm {
         }
     }
 
-    /// Paramètres validés, prêts à être enregistrés.
+    /// Validated settings, ready to be saved.
     pub fn finish(&self) -> Settings {
         let mut settings = self.draft.clone();
         settings.sanitize();
@@ -252,16 +255,16 @@ impl SettingsForm {
         };
 
         let actions = row![
-            text(format!("Fichier : {}", home_relative(crate::config::AppConfig::path().ok())))
+            text(tr!("File: {path}", path = home_relative(crate::config::AppConfig::path().ok())))
                 .size(11)
                 .color(c.muted)
                 .width(Length::Fill)
                 .wrapping(text::Wrapping::None),
-            button(text("Annuler").size(14))
+            button(text(tr("Cancel")).size(14))
                 .padding([8, 16])
                 .style(theme::secondary(c))
                 .on_press(Message::CloseModal),
-            button(text("Enregistrer").size(14))
+            button(text(tr("Save")).size(14))
                 .padding([8, 16])
                 .style(theme::primary(c))
                 .on_press(Message::SaveSettings),
@@ -270,7 +273,7 @@ impl SettingsForm {
         .align_y(Alignment::Center);
 
         let body = row![
-            column![text("Paramètres").size(20).font(BOLD).color(c.text), navigation]
+            column![text(tr("Settings")).size(20).font(BOLD).color(c.text), navigation]
                 .spacing(18)
                 .width(170),
             scrollable(container(content).padding(iced::Padding { right: 16.0, bottom: 8.0, ..iced::Padding::ZERO }))
@@ -310,56 +313,66 @@ impl SettingsForm {
         ]
         .spacing(12)
         .align_y(Alignment::Center);
-        let accent_error = HexColor::parse(&self.accent).is_none().then_some("Format attendu : #rrggbb");
+        let accent_error = HexColor::parse(&self.accent).is_none().then_some(tr("Expected format: #rrggbb"));
 
         form::page(
-            "Apparence",
+            tr("Appearance"),
             [
                 form::group(
-                    "Couleurs",
+                    tr("Language"),
+                    [form::setting(
+                        tr("Interface language"),
+                        form::select(Language::ALL, Some(draft.language), |l| Message::Settings(Msg::Language(l)), c),
+                    )
+                    .description(tr("Applied when saving"))
+                    .view(c)],
+                    c,
+                ),
+                form::group(
+                    tr("Colors"),
                     [
-                        form::block("Thème", None, theme_grid(draft, system_dark, c), c),
-                        form::setting("Couleur d'accent", accent).error(accent_error).view(c),
+                        form::block(tr("Theme"), None, theme_grid(draft, system_dark, c), c),
+                        form::setting(tr("Accent color"), accent).error(accent_error).view(c),
                     ],
                     c,
                 ),
                 form::group(
-                    "Texte et mise en page",
+                    tr("Text and layout"),
                     [
                         form::setting(
-                            "Taille du texte",
+                            tr("Text size"),
                             form::range(Settings::FONT_SIZES, draft.font_size, 1, "px", |s| {
                                 Message::Settings(Msg::FontSize(s))
                             }, c),
                         )
                         .view(c),
-                        toggle("Police à chasse fixe", Some("Pour les messages"), draft.monospace, Msg::Monospace, c),
-                        toggle("Affichage compact", Some("Réduit l'espace entre les lignes"), draft.compact, Msg::Compact, c),
-                        toggle("Barre latérale des réseaux", None, draft.show_sidebar, Msg::ShowSidebar, c),
+                        toggle(tr("Monospace font"), Some(tr("For messages")), draft.monospace, Msg::Monospace, c),
+                        toggle(tr("Compact layout"), Some(tr("Less space between lines")), draft.compact, Msg::Compact, c),
+                        toggle(tr("Network sidebar"), None, draft.show_sidebar, Msg::ShowSidebar, c),
                     ],
                     c,
                 ),
                 form::group(
-                    "Pseudonymes",
+                    tr("Nicknames"),
                     [
                         form::setting(
-                            "Largeur de la colonne",
+                            tr("Column width"),
                             form::range(Settings::NICK_COLUMN_WIDTHS, draft.nick_column_width, 4, "px", |w| {
                                 Message::Settings(Msg::NickColumnWidth(w))
                             }, c),
                         )
                         .view(c),
                         form::setting(
-                            "Alignement",
+                            tr("Alignment"),
                             form::select(NickAlignment::ALL, Some(draft.nick_alignment), |a| {
                                 Message::Settings(Msg::NickAlignment(a))
                             }, c),
                         )
                         .view(c),
-                        toggle("Couleurs de pseudonymes", None, draft.nick_colors, Msg::NickColors, c),
-                        toggle("Statut devant le pseudonyme", Some("@ opérateur, + parole"), draft.show_nick_prefix, Msg::ShowNickPrefix, c),
-                        toggle("Badge « BOT »", Some("Pour les bots identifiés (IRCv3)"), draft.show_bot_badge, Msg::ShowBotBadge, c),
-                        toggle("Couleurs mIRC", Some("Couleurs dans le texte des messages"), draft.show_colors, Msg::ShowColors, c),
+                        toggle(tr("Nickname colors"), None, draft.nick_colors, Msg::NickColors, c),
+                        toggle(tr("Status before the nickname"), Some(tr("@ operator, + voice")), draft.show_nick_prefix, Msg::ShowNickPrefix, c),
+                        toggle(tr("“BOT” badge"), Some(tr("For identified bots (IRCv3)")), draft.show_bot_badge, Msg::ShowBotBadge, c),
+                        toggle(tr("mIRC colors"), Some(tr("Colors in message text")), draft.show_colors, Msg::ShowColors, c),
                     ],
                     c,
                 ),
@@ -371,58 +384,58 @@ impl SettingsForm {
     fn chat(&self, c: Colors) -> Element<'_, Message> {
         let draft = &self.draft;
         let format_error = (!is_valid_time_format(&self.timestamp_format) || self.timestamp_format.trim().is_empty())
-            .then_some("Format invalide (ex. %H:%M:%S)");
+            .then_some(tr("Invalid format (e.g. %H:%M:%S)"));
         let preview = chrono::Local::now().format(&draft.timestamp_format).to_string();
 
         form::page(
-            "Discussion",
+            tr("Chat"),
             [
                 form::group(
-                    "Messages",
+                    tr("Messages"),
                     [
-                        toggle("Horodatage", None, draft.show_timestamps, Msg::ShowTimestamps, c),
+                        toggle(tr("Timestamps"), None, draft.show_timestamps, Msg::ShowTimestamps, c),
                         form::setting(
-                            "Format de l'horodatage",
+                            tr("Timestamp format"),
                             form::input("%H:%M", &self.timestamp_format, |v| Message::Settings(Msg::TimestampFormat(v)), c),
                         )
-                        .description(format!("Syntaxe strftime · aperçu : {preview}"))
+                        .description(tr!("strftime syntax · preview: {preview}", preview = preview))
                         .error(format_error)
                         .view(c),
                         toggle(
-                            "Arrivées et départs",
-                            Some("Ainsi que les changements de pseudonyme"),
+                            tr("Joins and parts"),
+                            Some(tr("And nickname changes")),
                             draft.show_joins_parts,
                             Msg::ShowJoinsParts,
                             c,
                         ),
-                        toggle("Liste des utilisateurs", None, draft.show_nicklist, Msg::ShowNicklist, c),
+                        toggle(tr("User list"), None, draft.show_nicklist, Msg::ShowNicklist, c),
                         form::setting(
-                            "Mots surveillés",
+                            tr("Highlight words"),
                             form::input("rust, release", &self.highlight_words, |v| Message::Settings(Msg::HighlightWords(v)), c),
                         )
-                        .description("Mis en évidence comme votre pseudonyme")
+                        .description(tr("Highlighted like your nickname"))
                         .view(c),
                     ],
                     c,
                 ),
                 form::group(
-                    "Historique",
+                    tr("History"),
                     [
                         form::setting(
-                            "Lignes conservées par onglet",
+                            tr("Lines kept per tab"),
                             form::select(SCROLLBACK_CHOICES, Some(draft.scrollback), |n| Message::Settings(Msg::Scrollback(n)), c),
                         )
                         .view(c),
                         form::setting(
-                            "Historique chargé à l'arrivée",
+                            tr("History loaded on join"),
                             form::select(HISTORY_CHOICES, Some(draft.history_lines), |n| Message::Settings(Msg::HistoryLines(n)), c),
                         )
-                        .description("Sur les serveurs IRCv3 (chathistory) · 0 : aucun")
+                        .description(tr("On IRCv3 servers (chathistory) · 0: none"))
                         .view(c),
-                        toggle("Journaux sur le disque", Some("Un fichier texte par conversation"), draft.logging, Msg::Logging, c),
+                        toggle(tr("Logs on disk"), Some(tr("One text file per conversation")), draft.logging, Msg::Logging, c),
                         form::setting(
-                            "Dossier des journaux",
-                            button(text("Ouvrir").size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::OpenLogs),
+                            tr("Logs folder"),
+                            button(text(tr("Open")).size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::OpenLogs),
                         )
                         .description(home_relative(logs_dir()))
                         .view(c),
@@ -430,17 +443,17 @@ impl SettingsForm {
                     c,
                 ),
                 form::group(
-                    "Filtres et complétion",
+                    tr("Filters and completion"),
                     [
                         form::setting(
-                            "Utilisateurs ignorés",
-                            form::input("spammeur, *!*@*.exemple.net", &self.ignored, |v| Message::Settings(Msg::Ignored(v)), c),
+                            tr("Ignored users"),
+                            form::input(tr("spammer, *!*@*.example.net"), &self.ignored, |v| Message::Settings(Msg::Ignored(v)), c),
                         )
-                        .description("Pseudonymes ou masques pseudo!ident@hôte · /ignore, /unignore")
+                        .description(tr("Nicknames or nick!ident@host masks · /ignore, /unignore"))
                         .view(c),
                         toggle(
-                            "Complétion par les bots",
-                            Some("Tab sur une commande « ! » : la saisie est envoyée au bot (brouillon IRCv3)"),
+                            tr("Completion by bots"),
+                            Some(tr("Tab on a “!” command sends the input to the bot (IRCv3 draft)")),
                             draft.bot_completion,
                             Msg::BotCompletion,
                             c,
@@ -455,39 +468,39 @@ impl SettingsForm {
 
     fn notifications(&self, c: Colors) -> Element<'_, Message> {
         let draft = &self.draft;
-        let attention = if MAC { "Rebond de l'icône dans le Dock" } else { "Clignotement dans la barre des tâches" };
+        let attention = if MAC { tr("Bounce the Dock icon") } else { tr("Flash the taskbar button") };
         form::page(
-            "Notifications",
+            tr("Notifications"),
             [
                 form::group(
-                    "Notifications du système",
+                    tr("System notifications"),
                     [
-                        toggle("Mentions", Some("Votre pseudonyme ou un mot surveillé"), draft.notify_mentions, Msg::NotifyMentions, c),
-                        toggle("Messages privés", None, draft.notify_queries, Msg::NotifyQueries, c),
+                        toggle(tr("Mentions"), Some(tr("Your nickname or a highlight word")), draft.notify_mentions, Msg::NotifyMentions, c),
+                        toggle(tr("Private messages"), None, draft.notify_queries, Msg::NotifyQueries, c),
                         toggle(
-                            "Fenêtre au premier plan",
-                            Some("Notifier même quand ircnext est actif"),
+                            tr("Window in the foreground"),
+                            Some(tr("Notify even when ircnext is active")),
                             draft.notify_when_focused,
                             Msg::NotifyWhenFocused,
                             c,
                         ),
-                        toggle("Aperçu du message", Some("Sinon, seul l'expéditeur est indiqué"), draft.notify_preview, Msg::NotifyPreview, c),
-                        toggle("Son", None, draft.notify_sound, Msg::NotifySound, c),
+                        toggle(tr("Message preview"), Some(tr("Otherwise only the sender is shown")), draft.notify_preview, Msg::NotifyPreview, c),
+                        toggle(tr("Sound"), None, draft.notify_sound, Msg::NotifySound, c),
                     ],
                     c,
                 ),
                 form::group(
-                    "Fenêtre",
+                    tr("Window"),
                     [
-                        toggle(attention, Some("Quand la fenêtre est en arrière-plan"), draft.request_attention, Msg::RequestAttention, c),
+                        toggle(attention, Some(tr("When the window is in the background")), draft.request_attention, Msg::RequestAttention, c),
                         toggle(
-                            "Compteur dans le titre",
-                            Some("Conversations avec une mention ou un message privé non lu"),
+                            tr("Counter in the title"),
+                            Some(tr("Conversations with an unread mention or private message")),
                             draft.title_unread_count,
                             Msg::TitleUnreadCount,
                             c,
                         ),
-                        toggle("Indicateur de saisie des autres", Some("« alice est en train d'écrire… »"), draft.show_typing, Msg::ShowTyping, c),
+                        toggle(tr("Others' typing indicator"), Some(tr("“alice is typing…”")), draft.show_typing, Msg::ShowTyping, c),
                     ],
                     c,
                 ),
@@ -499,15 +512,15 @@ impl SettingsForm {
     fn privacy(&self, c: Colors) -> Element<'_, Message> {
         let draft = &self.draft;
         form::page(
-            "Confidentialité",
+            tr("Privacy"),
             [
                 form::group(
-                    "Ce que voient les autres",
+                    tr("What others see"),
                     [
-                        toggle("Signaler quand j'écris", Some("Indicateur de saisie (IRCv3)"), draft.send_typing, Msg::SendTyping, c),
+                        toggle(tr("Show when I'm typing"), Some(tr("Typing indicator (IRCv3)")), draft.send_typing, Msg::SendTyping, c),
                         toggle(
-                            "Synchroniser les messages lus",
-                            Some("Entre vos appareils, via le serveur (draft/read-marker)"),
+                            tr("Sync read messages"),
+                            Some(tr("Across your devices, through the server (draft/read-marker)")),
                             draft.send_read_markers,
                             Msg::SendReadMarkers,
                             c,
@@ -516,10 +529,10 @@ impl SettingsForm {
                     c,
                 ),
                 form::group(
-                    "Mots de passe",
+                    tr("Passwords"),
                     [toggle(
-                        KEYCHAIN_LABEL,
-                        Some("Sinon, ils sont écrits dans le fichier de configuration, lisible par vous seul"),
+                        keychain_label(),
+                        Some(tr("Otherwise they are written to the configuration file, readable by you only")),
                         draft.use_keychain,
                         Msg::UseKeychain,
                         c,
@@ -527,19 +540,19 @@ impl SettingsForm {
                     c,
                 ),
                 form::group(
-                    "Requêtes CTCP",
+                    tr("CTCP requests"),
                     [
-                        toggle("Réponses automatiques", Some("VERSION, PING et TIME"), draft.ctcp_replies, Msg::CtcpReplies, c),
+                        toggle(tr("Automatic replies"), Some(tr("VERSION, PING and TIME")), draft.ctcp_replies, Msg::CtcpReplies, c),
                         form::setting(
-                            "Réponse à VERSION",
+                            tr("Reply to VERSION"),
                             form::input("ircnext", &draft.ctcp_version, |v| Message::Settings(Msg::CtcpVersion(v)), c),
                         )
-                        .description("Vide : ircnext et sa version")
+                        .description(tr("Empty: ircnext and its version"))
                         .view(c),
                     ],
                     c,
                 ),
-                form::note("TIME répond en UTC pour ne pas révéler votre fuseau horaire. Les réponses sont limitées à 3 toutes les 10 secondes.", c),
+                form::note(tr("TIME answers in UTC so as not to reveal your time zone. Replies are limited to 3 every 10 seconds."), c),
             ],
             c,
         )
@@ -548,30 +561,30 @@ impl SettingsForm {
     fn identity(&self, c: Colors) -> Element<'_, Message> {
         let draft = &self.draft;
         form::page(
-            "Identité",
+            tr("Identity"),
             [
                 form::group(
-                    "Nouveaux réseaux",
+                    tr("New networks"),
                     [
-                        form::setting("Pseudonyme", form::input("pseudo", &draft.nick, |v| Message::Settings(Msg::Nick(v)), c))
+                        form::setting(tr("Nickname"), form::input(tr("nickname"), &draft.nick, |v| Message::Settings(Msg::Nick(v)), c))
                             .view(c),
-                        form::setting("Nom réel", form::input("Nom réel", &draft.realname, |v| Message::Settings(Msg::Realname(v)), c))
-                            .description("Affiché dans /whois")
+                        form::setting(tr("Real name"), form::input(tr("Real name"), &draft.realname, |v| Message::Settings(Msg::Realname(v)), c))
+                            .description(tr("Shown in /whois"))
                             .view(c),
                     ],
                     c,
                 ),
                 form::group(
-                    "Messages de départ",
+                    tr("Leave messages"),
                     [
                         form::setting(
-                            "En quittant un réseau",
-                            form::input("À bientôt", &draft.quit_message, |v| Message::Settings(Msg::QuitMessage(v)), c),
+                            tr("When leaving a network"),
+                            form::input(tr("See you soon"), &draft.quit_message, |v| Message::Settings(Msg::QuitMessage(v)), c),
                         )
                         .view(c),
                         form::setting(
-                            "En quittant un salon",
-                            form::input("(aucun)", &draft.part_message, |v| Message::Settings(Msg::PartMessage(v)), c),
+                            tr("When leaving a channel"),
+                            form::input(tr("(none)"), &draft.part_message, |v| Message::Settings(Msg::PartMessage(v)), c),
                         )
                         .view(c),
                     ],
@@ -586,8 +599,9 @@ impl SettingsForm {
         let overrides = &self.draft.keybindings;
         let modifier = if MAC { "⌘" } else { "Ctrl" };
         let mut groups: Vec<Element<'_, Message>> = vec![form::note(
-            format!(
-                "Cliquez sur ＋ puis appuyez sur la combinaison voulue. Dans le fichier de configuration, « Mod » désigne {modifier} : vos réglages restent valables sur macOS comme sur Windows."
+            tr!(
+                "Click ＋ then press the key combination you want. In the configuration file, “Mod” stands for {modifier}, so your settings work on both macOS and Windows.",
+                modifier = modifier
             ),
             c,
         )];
@@ -602,26 +616,26 @@ impl SettingsForm {
             groups.push(form::group(group.label(), rows, c));
         }
         groups.push(form::group(
-            "Touches fixes",
-            FIXED_KEYS
-                .iter()
-                .map(|&(keys, role)| form::setting(role, text(keys).size(13).font(BOLD).color(c.text)).view(c)),
+            tr("Fixed keys"),
+            keymap::fixed_keys()
+                .into_iter()
+                .map(|(keys, role)| form::setting(role, text(keys).size(13).font(BOLD).color(c.text)).view(c)),
             c,
         ));
         groups.push(form::group(
-            "Réinitialisation",
+            tr("Reset"),
             [form::setting(
-                "Raccourcis par défaut",
-                button(text("Tout rétablir").size(13))
+                tr("Default shortcuts"),
+                button(text(tr("Restore all")).size(13))
                     .padding([6, 14])
                     .style(theme::danger(c))
                     .on_press(Message::Settings(Msg::ResetAllBindings)),
             )
-            .description("Annule toutes vos personnalisations")
+            .description(tr("Undoes all your customizations"))
             .view(c)],
             c,
         ));
-        form::page("Raccourcis", groups, c)
+        form::page(tr("Shortcuts"), groups, c)
     }
 
     fn binding_chips(&self, action: Action, overrides: &keymap::Overrides, c: Colors) -> Element<'_, Message> {
@@ -636,7 +650,7 @@ impl SettingsForm {
         }
         if self.capturing == Some(action) {
             chips = chips.push(
-                button(text("Appuyez sur une combinaison… (Échap)").size(12).color(c.accent))
+                button(text(tr("Press a key combination… (Esc)")).size(12).color(c.accent))
                     .padding([4, 8])
                     .style(theme::ghost(c))
                     .on_press(Message::Settings(Msg::CancelCapture)),
@@ -650,7 +664,7 @@ impl SettingsForm {
                     .on_press(Message::Settings(Msg::CaptureBinding(action))),
             );
         }
-        // Place réservée même sans personnalisation : le bord droit reste aligné.
+        // Space kept even without customization, so the right edge stays aligned.
         let reset: Element<'_, Message> = if overrides.contains_key(&action) {
             button(text("↺").size(12).center())
                 .width(TRAILING_BUTTON)
@@ -665,16 +679,18 @@ impl SettingsForm {
     }
 }
 
-/// Vignettes des thèmes, quatre par ligne, avec un aperçu de leurs couleurs.
-/// Nom du trousseau propre à chaque système.
-const KEYCHAIN_LABEL: &str = if cfg!(target_os = "macos") {
-    "Ranger dans le Trousseau d'accès"
-} else if cfg!(target_os = "windows") {
-    "Ranger dans le Gestionnaire d'identifiants"
-} else {
-    "Ranger dans le trousseau du système"
-};
+/// Name of each system's keychain.
+fn keychain_label() -> &'static str {
+    if cfg!(target_os = "macos") {
+        tr("Store in the macOS Keychain")
+    } else if cfg!(target_os = "windows") {
+        tr("Store in the Windows Credential Manager")
+    } else {
+        tr("Store in the system keyring")
+    }
+}
 
+/// Theme cards, four per row, with a preview of their colors.
 fn theme_grid(draft: &Settings, system_dark: bool, c: Colors) -> Element<'static, Message> {
     let card = |mode: ThemeMode| {
         let p = Colors::new(mode, system_dark, draft.accent);
@@ -705,7 +721,7 @@ fn theme_grid(draft: &Settings, system_dark: bool, c: Colors) -> Element<'static
         .into()
 }
 
-/// Ligne avec interrupteur.
+/// Row with a switch.
 fn toggle<'a>(
     label: &'a str,
     description: Option<&'a str>,
@@ -721,16 +737,16 @@ fn toggle<'a>(
     .view(c)
 }
 
-/// Raccourcis effectifs d'une action, sous leur forme enregistrée.
+/// Effective shortcuts of an action, in their saved form.
 fn effective(overrides: &keymap::Overrides, action: Action) -> Vec<String> {
     keymap::bindings(overrides, action, MAC).iter().map(Combo::to_config).collect()
 }
 
-/// Associe `combo` à `action`, en le retirant des autres actions qui
-/// l'utilisaient. Renvoie un message à afficher, le cas échéant.
+/// Binds `combo` to `action`, removing it from the other actions that used
+/// it. Returns a message to display, if any.
 fn assign(overrides: &mut keymap::Overrides, action: Action, combo: &Combo) -> Option<String> {
     if keymap::is_reserved(combo) {
-        return Some(format!("{} est réservé (voir « Touches fixes »).", combo.display(MAC)));
+        return Some(tr!("{combo} is reserved (see “Fixed keys”).", combo = combo.display(MAC)));
     }
     let taken_by = keymap::conflicts(overrides, combo, action, MAC);
     for &other in &taken_by {
@@ -748,10 +764,10 @@ fn assign(overrides: &mut keymap::Overrides, action: Action, combo: &Combo) -> O
     }
     overrides.insert(action, list);
     let names: Vec<&str> = taken_by.iter().map(|other| other.label()).collect();
-    (!names.is_empty()).then(|| format!("{} a été retiré de : {}.", combo.display(MAC), names.join(", ")))
+    (!names.is_empty()).then(|| tr!("{combo} was removed from: {actions}.", combo = combo.display(MAC), actions = names.join(", ")))
 }
 
-/// Éléments d'une liste saisie séparés par des virgules.
+/// Items of a comma-separated list.
 fn split_list(value: &str) -> Vec<String> {
     value
         .split(',')
@@ -765,10 +781,10 @@ fn logs_dir() -> Option<std::path::PathBuf> {
     Some(crate::config::AppConfig::path().ok()?.parent()?.join("logs"))
 }
 
-/// Chemin affiché avec `~` pour le dossier personnel.
+/// Path shown with `~` for the home folder.
 fn home_relative(path: Option<std::path::PathBuf>) -> String {
     let Some(path) = path else {
-        return "introuvable".to_owned();
+        return tr("not found").to_owned();
     };
     match directories::BaseDirs::new().and_then(|dirs| path.strip_prefix(dirs.home_dir()).ok().map(|p| p.display().to_string())) {
         Some(relative) => format!("~/{relative}"),
@@ -803,7 +819,7 @@ mod tests {
         let overrides = &form.draft.keybindings;
         assert_eq!(keymap::action_for(overrides, &close, MAC), Some(Action::Search));
         assert!(!keymap::bindings(overrides, Action::CloseBuffer, MAC).contains(&close));
-        assert!(form.shortcut_notice.as_deref().unwrap().contains("Fermer l'onglet"));
+        assert!(form.shortcut_notice.as_deref().unwrap().contains("Close tab"));
 
         form.update(Msg::ResetAllBindings);
         assert!(form.draft.keybindings.is_empty());

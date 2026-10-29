@@ -1,8 +1,8 @@
-//! Boucle de connexion : enregistrement, keepalive, reconnexion automatique.
+//! Connection loop: registration, keepalive, automatic reconnection.
 //!
-//! [`connect`] renvoie un flux d'[`Event`] ; la connexion vit tant que ce flux
-//! est consommé. Les commandes sont envoyées via le [`Handle`] reçu dans
-//! [`Event::Connected`].
+//! [`connect`] returns a stream of [`Event`]s; the connection lives as long
+//! as this stream is consumed. Commands are sent through the [`Handle`]
+//! received in [`Event::Connected`].
 
 use std::collections::VecDeque;
 use std::io;
@@ -21,32 +21,32 @@ use crate::connection::{self, LineReader, write_message};
 use crate::registration::{Progress, Registered, Registration};
 use crate::throttle::Throttle;
 
-/// Silence toléré avant d'envoyer un `PING` (puis avant d'abandonner).
+/// Silence allowed before sending a `PING` (then before giving up).
 const PING_INTERVAL: Duration = Duration::from_secs(90);
-/// Temps laissé au serveur pour fermer la connexion après un `QUIT`.
+/// Time given to the server to close the connection after a `QUIT`.
 const QUIT_GRACE: Duration = Duration::from_secs(3);
 const EVENT_BUFFER: usize = 256;
 const BACKOFF_STEPS: [u64; 6] = [2, 4, 8, 16, 32, 60];
-/// Envoi : rafale autorisée, puis un message par intervalle.
+/// Sending: allowed burst, then one message per interval.
 const SEND_BURST: u32 = 5;
 const SEND_INTERVAL: Duration = Duration::from_secs(2);
-/// Messages en attente d'envoi au-delà desquels les nouveaux sont refusés.
+/// Messages waiting to be sent beyond which new ones are refused.
 const MAX_QUEUED: usize = 1000;
-/// Longueur maximale des paramètres d'un `JOIN` groupé.
+/// Maximum length of the parameters of a grouped `JOIN`.
 const JOIN_BATCH_BYTES: usize = 400;
 
-/// Événement produit par une connexion.
+/// Event produced by a connection.
 #[derive(Debug, Clone)]
 pub enum Event {
-    /// Tentative de connexion (1 pour la première).
+    /// Connection attempt (1 for the first one).
     Connecting { attempt: usize },
-    /// Transport établi ; le handle permet d'envoyer des messages.
+    /// Transport established; the handle lets you send messages.
     Connected(Handle),
     Registered(Registered),
-    /// Le serveur impose TLS (STS) : la configuration doit être mise à jour.
+    /// The server requires TLS (STS): the configuration must be updated.
     UpgradedToTls { port: u16 },
     Message(Message),
-    /// Connexion perdue. `retry_in` vaut `None` si aucune reconnexion n'est prévue.
+    /// Connection lost. `retry_in` is `None` if no reconnection is planned.
     Disconnected {
         error: Option<String>,
         retry_in: Option<Duration>,
@@ -59,12 +59,12 @@ enum Action {
     Quit(Option<String>),
 }
 
-/// Erreur renvoyée lorsque la connexion n'est plus active.
+/// Error returned when the connection is no longer active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
-#[error("la connexion est fermée")]
+#[error("the connection is closed")]
 pub struct Closed;
 
-/// Poignée d'envoi vers une connexion active.
+/// Sending handle to an active connection.
 #[derive(Debug, Clone)]
 pub struct Handle(tokio_mpsc::UnboundedSender<Action>);
 
@@ -73,24 +73,24 @@ impl Handle {
         self.0.send(Action::Send(message)).map_err(|_| Closed)
     }
 
-    /// Quitte le serveur ; le flux d'événements se termine ensuite.
+    /// Quits the server; the event stream ends afterwards.
     pub fn quit(&self, reason: Option<String>) -> Result<(), Closed> {
         self.0.send(Action::Quit(reason)).map_err(|_| Closed)
     }
 }
 
-/// Démarre une connexion et renvoie son flux d'événements.
+/// Starts a connection and returns its event stream.
 pub fn connect(config: Config) -> impl futures::Stream<Item = Event> + Send + 'static {
     let (sender, receiver) = mpsc::channel(EVENT_BUFFER);
     let runner = stream::once(run(config, sender)).filter_map(|()| future::ready(None));
     stream::select(receiver, runner)
 }
 
-/// Fin d'une session.
+/// End of a session.
 enum End {
-    /// Quitté à la demande de l'utilisateur.
+    /// Quit at the user's request.
     Quit,
-    /// Plus personne n'écoute les événements.
+    /// Nobody listens to the events anymore.
     Abandoned,
     UpgradeToTls(u16),
     Closed(Option<String>),
@@ -170,23 +170,23 @@ async fn session(
 
     let mut last_activity = Instant::now();
     let mut awaiting_pong = false;
-    // Messages de l'utilisateur, envoyés au rythme autorisé par `throttle`.
-    // Les réponses protocolaires (PONG, enregistrement) passent en priorité.
+    // User messages, sent at the pace allowed by `throttle`. Protocol
+    // replies (PONG, registration) go first.
     let mut queue: VecDeque<Message> = VecDeque::new();
     let mut throttle = Throttle::new(SEND_BURST, SEND_INTERVAL, Instant::now());
-    // `QUIT` demandé : envoyé une fois la file vidée, pour ne perdre aucun message.
+    // `QUIT` requested: sent once the queue is empty, so that no message is lost.
     let mut quit: Option<Option<String>> = None;
 
     loop {
         while !queue.is_empty() && throttle.try_acquire(Instant::now()) {
-            let message = queue.pop_front().expect("file non vide");
+            let message = queue.pop_front().expect("non-empty queue");
             write_message(&mut writer, &message).await?;
         }
         if queue.is_empty()
             && let Some(reason) = quit.take()
         {
             write_message(&mut writer, &Message::quit(reason.as_deref())).await?;
-            // On laisse le serveur fermer proprement, sans attendre indéfiniment.
+            // Let the server close cleanly, without waiting forever.
             let drain = async { while let Ok(Some(_)) = reader.next_line().await {} };
             let _ = tokio::time::timeout(QUIT_GRACE, drain).await;
             return Ok(End::Quit);
@@ -237,7 +237,7 @@ async fn session(
             () = tokio::time::sleep_until(throttle.ready_at()), if !queue.is_empty() => {}
             () = tokio::time::sleep_until(last_activity + PING_INTERVAL) => {
                 if awaiting_pong {
-                    return Ok(End::Closed(Some("aucune réponse du serveur (ping)".to_owned())));
+                    return Ok(End::Closed(Some("no reply from the server (ping)".to_owned())));
                 }
                 write_message(&mut writer, &Message::ping("ircnext")).await?;
                 awaiting_pong = true;
@@ -247,8 +247,8 @@ async fn session(
     }
 }
 
-/// Met un message en file. Un indicateur de saisie est abandonné si la file
-/// n'est pas vide (il serait périmé une fois envoyé).
+/// Queues a message. A typing indicator is dropped if the queue is not
+/// empty (it would be outdated once sent).
 fn enqueue(queue: &mut VecDeque<Message>, message: Message) {
     let ephemeral = message.command == Command::Tagmsg && message.typing().is_some();
     if (ephemeral && !queue.is_empty()) || queue.len() >= MAX_QUEUED {
@@ -257,7 +257,7 @@ fn enqueue(queue: &mut VecDeque<Message>, message: Message) {
     queue.push_back(message);
 }
 
-/// Regroupe les salons en `JOIN #a,#b,...` de longueur raisonnable.
+/// Groups channels into `JOIN #a,#b,...` of reasonable length.
 fn join_batches(channels: &[String]) -> Vec<Message> {
     let mut batches: Vec<String> = Vec::new();
     for channel in channels.iter().map(|c| c.trim()).filter(|c| !c.is_empty() && !c.contains([' ', ','])) {
@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(backoff(50), Duration::from_secs(60));
     }
 
-    /// Faux serveur : vérifie l'enregistrement, PING/PONG, l'autojoin et QUIT.
+    /// Fake server: checks registration, PING/PONG, autojoin and QUIT.
     #[tokio::test]
     async fn registers_and_quits_against_local_server() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -334,7 +334,7 @@ mod tests {
             write.write_all(b":srv 001 tester :Welcome\r\nPING :tok\r\n").await.unwrap();
             assert_eq!(next().await, "JOIN #test");
             assert_eq!(next().await, "PONG tok");
-            // Plus de messages que la rafale autorisée : tous partent avant le QUIT.
+            // More messages than the allowed burst: all leave before the QUIT.
             for i in 0..SEND_BURST {
                 assert_eq!(next().await, format!("PRIVMSG #test {i}"));
             }
@@ -372,7 +372,7 @@ mod tests {
             }
         }
 
-        let registered = registered.expect("enregistré");
+        let registered = registered.expect("registered");
         assert_eq!(registered.nick, "tester");
         assert_eq!(registered.caps, ["server-time"]);
         server.await.unwrap();

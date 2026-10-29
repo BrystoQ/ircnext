@@ -1,4 +1,4 @@
-//! Formulaire d'ajout ou de modification d'un réseau.
+//! Form to add or edit a network.
 
 use iced::widget::{button, column, container, row, scrollable, space, text};
 use std::path::PathBuf;
@@ -12,12 +12,14 @@ use crate::server::ServerId;
 use crate::settings::Settings;
 use crate::theme::{self, Colors};
 use crate::certificate;
+use crate::i18n::tr;
+use crate::tr;
 use crate::ui::form;
 
 #[derive(Debug, Clone)]
-#[allow(clippy::struct_excessive_bools)] // reflète les cases à cocher du formulaire
+#[allow(clippy::struct_excessive_bools)] // mirrors the form's checkboxes
 pub struct ServerForm {
-    /// Réseau modifié, ou `None` pour un ajout.
+    /// Network being edited, or `None` when adding.
     pub editing: Option<ServerId>,
     preset: Option<Preset>,
     name: String,
@@ -32,7 +34,7 @@ pub struct ServerForm {
     auth: Auth,
     sasl_username: String,
     sasl_password: String,
-    /// Chemin du certificat client (fichier PEM).
+    /// Path of the client certificate (PEM file).
     client_cert: String,
     autojoin: String,
     auto_connect: bool,
@@ -42,13 +44,13 @@ pub struct ServerForm {
     error: Option<String>,
 }
 
-/// Identification au compte du réseau.
+/// Identification to the network account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Auth {
     None,
-    /// SASL `PLAIN` : compte et mot de passe.
+    /// SASL `PLAIN`: account and password.
     Password,
-    /// SASL `EXTERNAL` : certificat client.
+    /// SASL `EXTERNAL`: client certificate.
     Certificate,
 }
 
@@ -59,9 +61,9 @@ impl Auth {
 impl std::fmt::Display for Auth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Self::None => "Aucune",
-            Self::Password => "Compte et mot de passe",
-            Self::Certificate => "Certificat client",
+            Self::None => tr("None"),
+            Self::Password => tr("Account and password"),
+            Self::Certificate => tr("Client certificate"),
         })
     }
 }
@@ -82,7 +84,7 @@ pub enum Msg {
     SaslUsername(String),
     SaslPassword(String),
     ClientCert(String),
-    /// Crée un certificat auto-signé et le sélectionne.
+    /// Creates a self-signed certificate and selects it.
     CreateCertificate,
     Autojoin(String),
     AutoConnect(bool),
@@ -94,7 +96,7 @@ pub enum Msg {
 }
 
 impl ServerForm {
-    /// Nouveau réseau, prérempli avec Libera.Chat et l'identité par défaut.
+    /// New network, prefilled with Libera.Chat and the default identity.
     pub fn new(settings: &Settings) -> Self {
         let mut form = Self {
             editing: None,
@@ -195,7 +197,7 @@ impl ServerForm {
                 }
             }
             Msg::Tls(tls) => {
-                // On bascule le port usuel s'il n'a pas été personnalisé.
+                // Switch to the usual port unless it was customized.
                 match (tls, self.port.as_str()) {
                     (true, "6667") => self.port = "6697".into(),
                     (false, "6697") => self.port = "6667".into(),
@@ -225,7 +227,7 @@ impl ServerForm {
                     self.client_cert = path.display().to_string();
                     self.error = None;
                 }
-                Err(error) => self.error = Some(format!("Impossible de créer le certificat : {error}")),
+                Err(error) => self.error = Some(tr!("Cannot create the certificate: {error}", error = error)),
             },
             Msg::SaslUsername(value) => self.sasl_username = value,
             Msg::SaslPassword(value) => self.sasl_password = value,
@@ -251,25 +253,25 @@ impl ServerForm {
         self.error = Some(error);
     }
 
-    /// Valide le formulaire et construit l'entrée de configuration.
+    /// Validates the form and builds the configuration entry.
     pub fn validate(&self) -> Result<ServerEntry, String> {
         let name = self.name.trim();
         let host = self.host.trim();
         let nick = self.nick.trim();
         if name.is_empty() {
-            return Err("Le nom du réseau est obligatoire.".into());
+            return Err(tr("The network name is required.").into());
         }
         if host.is_empty() || host.contains(|c: char| c.is_whitespace() || c.is_control() || c == '/') {
-            return Err("L'adresse du serveur est invalide.".into());
+            return Err(tr("The server address is invalid.").into());
         }
         let port: u16 = self
             .port
             .parse()
             .ok()
             .filter(|&port| port > 0)
-            .ok_or("Le port doit être compris entre 1 et 65535.")?;
+            .ok_or(tr("The port must be between 1 and 65535."))?;
         if !is_valid_nick(nick) {
-            return Err("Le pseudonyme est invalide.".into());
+            return Err(tr("The nickname is invalid.").into());
         }
         let alt_nicks: Vec<String> = self
             .alt_nicks
@@ -279,7 +281,7 @@ impl ServerForm {
             .map(str::to_owned)
             .collect();
         if let Some(bad) = alt_nicks.iter().find(|alt| !is_valid_nick(alt)) {
-            return Err(format!("Pseudonyme de secours invalide : {bad}"));
+            return Err(tr!("Invalid alternative nickname: {nick}", nick = bad));
         }
         let on_connect: Vec<String> = self
             .on_connect
@@ -291,21 +293,21 @@ impl ServerForm {
         let client_cert = Some(self.client_cert.trim()).filter(|path| !path.is_empty()).map(PathBuf::from);
         if self.auth == Auth::Certificate {
             if !self.tls {
-                return Err("L'identification par certificat exige TLS.".into());
+                return Err(tr("Certificate identification requires TLS.").into());
             }
             if client_cert.is_none() {
-                return Err("Choisissez ou créez un certificat client.".into());
+                return Err(tr("Choose or create a client certificate.").into());
             }
         }
         if let Some(path) = client_cert.as_deref().filter(|_| self.tls) {
-            ircnext_client::connection::load_identity(path).map_err(|error| format!("Certificat : {error}"))?;
+            ircnext_client::connection::load_identity(path).map_err(|error| tr!("Certificate: {error}", error = error))?;
         }
         let sasl = if self.auth == Auth::Password {
             if self.sasl_username.trim().is_empty() || self.sasl_password.is_empty() {
-                return Err("Le compte et le mot de passe SASL sont obligatoires.".into());
+                return Err(tr("The SASL account and password are required.").into());
             }
             if !self.tls && !ircnext_client::config::is_loopback(host) {
-                return Err("SASL exige TLS : sans chiffrement, le mot de passe circulerait en clair.".into());
+                return Err(tr("SASL requires TLS: without encryption, the password would travel in clear text.").into());
             }
             Some(Sasl {
                 username: self.sasl_username.trim().to_owned(),
@@ -366,53 +368,53 @@ impl ServerForm {
 
         let mut server = vec![
             form::setting(
-                "Réseau prédéfini",
+                tr("Preset network"),
                 form::select(PRESETS, self.preset, |p| Message::Form(Msg::Preset(p)), c),
             )
             .view(c),
-            form::setting("Nom", input("Libera.Chat", &self.name, Msg::Name)).view(c),
-            form::setting("Adresse", input("irc.exemple.net", &self.host, Msg::Host)).view(c),
+            form::setting(tr("Name"), input("Libera.Chat", &self.name, Msg::Name)).view(c),
+            form::setting(tr("Address"), input(tr("irc.example.net"), &self.host, Msg::Host)).view(c),
             form::setting("Port", input("6697", &self.port, Msg::Port)).view(c),
-            switch("Connexion chiffrée (TLS)", Some("Recommandé, obligatoire pour SASL"), self.tls, Msg::Tls),
+            switch(tr("Encrypted connection (TLS)"), Some(tr("Recommended, required for SASL")), self.tls, Msg::Tls),
         ];
         if self.tls {
             server.push(switch(
-                "Accepter les certificats invalides",
-                Some("Déconseillé : expose aux interceptions"),
+                tr("Accept invalid certificates"),
+                Some(tr("Not recommended: exposes you to interception")),
                 self.accept_invalid_certs,
                 Msg::AcceptInvalidCerts,
             ));
         }
 
         let identity = [
-            form::setting("Pseudonyme", input("pseudo", &self.nick, Msg::Nick)).view(c),
-            form::setting("Pseudonymes de secours", input("pseudo_, pseudo2", &self.alt_nicks, Msg::AltNicks))
-                .description("Essayés dans l'ordre si le premier est pris")
+            form::setting(tr("Nickname"), input(tr("nickname"), &self.nick, Msg::Nick)).view(c),
+            form::setting(tr("Alternative nicknames"), input(tr("nick_, nick2"), &self.alt_nicks, Msg::AltNicks))
+                .description(tr("Tried in order if the first one is taken"))
                 .view(c),
-            form::setting("Nom d'utilisateur", input("pseudo", &self.username, Msg::Username)).view(c),
-            form::setting("Nom réel", input("Nom affiché dans /whois", &self.realname, Msg::Realname)).view(c),
-            form::setting("Mot de passe du serveur", input("", &self.password, Msg::Password).secure(true))
-                .description("Facultatif (PASS), pour un bouncer par exemple")
+            form::setting(tr("Username"), input(tr("nickname"), &self.username, Msg::Username)).view(c),
+            form::setting(tr("Real name"), input(tr("Name shown in /whois"), &self.realname, Msg::Realname)).view(c),
+            form::setting(tr("Server password"), input("", &self.password, Msg::Password).secure(true))
+                .description(tr("Optional (PASS), for a bouncer for example"))
                 .view(c),
         ];
 
-        let method = form::setting("Identification", form::select(Auth::ALL, Some(self.auth), |a| Message::Form(Msg::Auth(a)), c));
+        let method = form::setting(tr("Identification"), form::select(Auth::ALL, Some(self.auth), |a| Message::Form(Msg::Auth(a)), c));
         let method = match self.auth {
-            Auth::None => method.description("Aucune identification au compte du réseau"),
-            Auth::Password => method.description("SASL PLAIN, dès la connexion"),
-            Auth::Certificate => method.description("SASL EXTERNAL. Associez d'abord le certificat à votre compte : /msg NickServ CERT ADD"),
+            Auth::None => method.description(tr("No identification to the network account")),
+            Auth::Password => method.description(tr("SASL PLAIN, as soon as you connect")),
+            Auth::Certificate => method.description(tr("SASL EXTERNAL. First link the certificate to your account: /msg NickServ CERT ADD")),
         };
         let mut authentication = vec![method.view(c)];
         if self.auth == Auth::Password {
-            authentication.push(form::setting("Compte", input("compte", &self.sasl_username, Msg::SaslUsername)).view(c));
+            authentication.push(form::setting(tr("Account"), input(tr("account"), &self.sasl_username, Msg::SaslUsername)).view(c));
             authentication.push(
-                form::setting("Mot de passe", input("", &self.sasl_password, Msg::SaslPassword).secure(true)).view(c),
+                form::setting(tr("Password"), input("", &self.sasl_password, Msg::SaslPassword).secure(true)).view(c),
             );
         }
         if self.tls {
             let control = row![
-                input("~/certificat.pem", &self.client_cert, Msg::ClientCert).width(Length::Fill),
-                button(text("Créer").size(13))
+                input(tr("~/certificate.pem"), &self.client_cert, Msg::ClientCert).width(Length::Fill),
+                button(text(tr("Create")).size(13))
                     .padding([7, 10])
                     .style(theme::secondary(c))
                     .on_press(Message::Form(Msg::CreateCertificate)),
@@ -421,8 +423,8 @@ impl ServerForm {
             .align_y(Alignment::Center)
             .width(form::CONTROL_WIDTH);
             authentication.push(
-                form::setting("Certificat client", control)
-                    .description("Fichier PEM avec sa clé. Reconnu aussi par NickServ (CertFP)")
+                form::setting(tr("Client certificate"), control)
+                    .description(tr("PEM file with its key. Also recognized by NickServ (CertFP)"))
                     .view(c),
             );
         }
@@ -444,35 +446,35 @@ impl ServerForm {
             );
         }
         commands = commands.push(
-            button(text("＋ Ajouter une commande").size(13))
+            button(text(tr("＋ Add a command")).size(13))
                 .padding([6, 10])
                 .style(theme::secondary(c))
                 .on_press(Message::Form(Msg::AddCommand)),
         );
 
         let connection = [
-            form::setting("Salons à rejoindre", input("#rust, #linux", &self.autojoin, Msg::Autojoin))
-                .description("Séparés par des virgules")
+            form::setting(tr("Channels to join"), input("#rust, #linux", &self.autojoin, Msg::Autojoin))
+                .description(tr("Separated by commas"))
                 .view(c),
-            switch("Connexion au lancement", None, self.auto_connect, Msg::AutoConnect),
-            switch("Reconnexion automatique", Some("Après une coupure du réseau"), self.auto_reconnect, Msg::AutoReconnect),
+            switch(tr("Connect at startup"), None, self.auto_connect, Msg::AutoConnect),
+            switch(tr("Automatic reconnection"), Some(tr("After a network outage")), self.auto_reconnect, Msg::AutoReconnect),
             form::block(
-                "Commandes après la connexion",
-                Some("Exécutées dans l'ordre, comme si vous les tapiez"),
+                tr("Commands after connecting"),
+                Some(tr("Run in order, as if you typed them")),
                 commands,
                 c,
             ),
         ];
 
-        let title = if self.editing.is_some() { "Modifier le réseau" } else { "Ajouter un réseau" };
+        let title = if self.editing.is_some() { tr("Edit the network") } else { tr("Add a network") };
         let body = scrollable(
             container(form::page(
                 title,
                 [
-                    form::group("Serveur", server, c),
-                    form::group("Identité", identity, c),
-                    form::group("Authentification", authentication, c),
-                    form::group("Connexion", connection, c),
+                    form::group(tr("Server"), server, c),
+                    form::group(tr("Identity"), identity, c),
+                    form::group(tr("Authentication"), authentication, c),
+                    form::group(tr("Connection"), connection, c),
                 ],
                 c,
             ))
@@ -489,7 +491,7 @@ impl ServerForm {
         let mut actions = row![].spacing(8).align_y(Alignment::Center);
         if let Some(id) = self.editing {
             actions = actions.push(
-                button(text("Supprimer").size(14))
+                button(text(tr("Delete")).size(14))
                     .padding([8, 16])
                     .style(theme::danger(c))
                     .on_press(Message::RemoveServer(id)),
@@ -498,13 +500,13 @@ impl ServerForm {
         actions = actions
             .push(space().width(Length::Fill))
             .push(
-                button(text("Annuler").size(14))
+                button(text(tr("Cancel")).size(14))
                     .padding([8, 16])
                     .style(theme::secondary(c))
                     .on_press(Message::CloseModal),
             )
             .push(
-                button(text(if self.editing.is_some() { "Enregistrer" } else { "Ajouter et se connecter" }).size(14))
+                button(text(if self.editing.is_some() { tr("Save") } else { tr("Add and connect") }).size(14))
                     .padding([8, 16])
                     .style(theme::primary(c))
                     .on_press(Message::SaveServerForm),
@@ -519,7 +521,7 @@ impl ServerForm {
     }
 }
 
-/// Pseudonyme acceptable par les serveurs IRC.
+/// Nickname acceptable to IRC servers.
 fn is_valid_nick(nick: &str) -> bool {
     !nick.is_empty()
         && !nick.contains(|c: char| c.is_whitespace() || c.is_control() || ",*?!@".contains(c))
@@ -551,12 +553,12 @@ mod tests {
     fn refuses_sasl_without_tls_except_locally() {
         let mut form = ServerForm::new(&Settings::default());
         form.update(Msg::Auth(Auth::Password));
-        form.update(Msg::SaslUsername("moi".into()));
+        form.update(Msg::SaslUsername("me".into()));
         form.update(Msg::SaslPassword("secret".into()));
         form.update(Msg::Tls(false));
         assert!(form.validate().unwrap_err().contains("TLS"));
         form.update(Msg::Host("127.0.0.1".into()));
-        assert!(form.validate().is_ok(), "bouncer local");
+        assert!(form.validate().is_ok(), "local bouncer");
     }
 
     #[test]
@@ -578,20 +580,20 @@ mod tests {
 
         let mut form = ServerForm::new(&Settings::default());
         form.update(Msg::Auth(Auth::Password));
-        assert!(form.validate().is_err(), "mot de passe SASL manquant");
+        assert!(form.validate().is_err(), "SASL password missing");
     }
 
     #[test]
     fn certificate_authentication_needs_a_valid_file_and_tls() {
         let mut form = ServerForm::new(&Settings::default());
         form.update(Msg::Auth(Auth::Certificate));
-        assert!(form.validate().unwrap_err().contains("certificat"));
-        form.update(Msg::ClientCert("/nulle/part.pem".into()));
-        assert!(form.validate().unwrap_err().starts_with("Certificat :"));
+        assert!(form.validate().unwrap_err().contains("certificate"));
+        form.update(Msg::ClientCert("/nowhere/at-all.pem".into()));
+        assert!(form.validate().unwrap_err().starts_with("Certificate:"));
 
         let path = std::env::temp_dir().join(format!("ircnext-form-{}.pem", std::process::id()));
         let key = rcgen::KeyPair::generate().unwrap();
-        let cert = rcgen::CertificateParams::new(["moi".to_owned()]).unwrap().self_signed(&key).unwrap();
+        let cert = rcgen::CertificateParams::new(["me".to_owned()]).unwrap().self_signed(&key).unwrap();
         std::fs::write(&path, format!("{}{}", cert.pem(), key.serialize_pem())).unwrap();
         form.update(Msg::ClientCert(path.display().to_string()));
         let entry = form.validate().unwrap();

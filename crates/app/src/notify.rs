@@ -1,7 +1,7 @@
-//! Notifications du système (Centre de notifications sur macOS, centre de
-//! notifications de Windows, D-Bus sous Linux).
+//! System notifications (Notification Center on macOS, Windows
+//! notifications, D-Bus on Linux).
 
-/// Son par défaut de chaque système.
+/// Default sound of each system.
 const SOUND: &str = if cfg!(target_os = "macos") {
     "Ping"
 } else if cfg!(target_os = "windows") {
@@ -10,17 +10,17 @@ const SOUND: &str = if cfg!(target_os = "macos") {
     "message-new-instant"
 };
 
-/// Affiche une notification sans bloquer l'interface.
+/// Shows a notification without blocking the interface.
 pub fn show(title: &str, body: &str, sound: bool) {
     let (title, body) = (title.to_owned(), body.to_owned());
-    // L'envoi peut bloquer (D-Bus, macOS) : il se fait hors du fil de l'interface.
+    // Sending can block (D-Bus, macOS): it happens off the interface thread.
     std::thread::spawn(move || {
         let mut notification = notify_rust::Notification::new();
         notification.appname("ircnext").summary(&title).body(&body);
         if sound {
             notification.sound_name(SOUND);
         }
-        // Une notification refusée par le système n'a pas à interrompre l'application.
+        // A notification refused by the system must not interrupt the application.
         let _ = notification.show();
     });
 }

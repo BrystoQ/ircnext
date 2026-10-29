@@ -1,4 +1,4 @@
-//! Onglets (serveur, salon, conversation privée) et leurs lignes.
+//! Tabs (server, channel, private conversation) and their lines.
 
 use std::collections::{HashSet, VecDeque};
 use std::time::{Duration, Instant};
@@ -9,13 +9,13 @@ use ircnext_client::proto::ircv3::Typing;
 
 use crate::suggest;
 
-/// Durée d'affichage d'un indicateur « en train d'écrire » sans rafraîchissement.
+/// How long a “typing” indicator stays shown without a refresh.
 const TYPING_TIMEOUT: Duration = Duration::from_secs(6);
-/// Nombre d'interlocuteurs récents mémorisés pour la complétion.
+/// Number of recent speakers remembered for the completion.
 const RECENT_SPEAKERS: usize = 50;
-/// Nombre maximal d'indicateurs de saisie suivis par onglet.
+/// Maximum number of typing indicators tracked per tab.
 const MAX_TYPING: usize = 32;
-/// Nombre de commandes de bots retenues par onglet.
+/// Number of bot commands remembered per tab.
 const BOT_COMMANDS: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +25,7 @@ pub enum Kind {
     Query,
 }
 
-/// Contenu d'une ligne.
+/// Content of a line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LineKind {
     Message { nick: String, prefix: Option<char>, text: String },
@@ -38,14 +38,14 @@ pub enum LineKind {
     Nick { old: String, new: String },
     Topic { nick: Option<String>, topic: Option<String> },
     Mode { nick: String, modes: String },
-    /// Message supprimé (`draft/message-redaction`).
+    /// Deleted message (`draft/message-redaction`).
     Redacted { nick: String },
     Info(String),
     Error(String),
 }
 
 impl LineKind {
-    /// Arrivées, départs et changements de pseudo, masquables dans les paramètres.
+    /// Joins, parts and nick changes, which can be hidden in the settings.
     pub fn is_presence(&self) -> bool {
         matches!(
             self,
@@ -53,7 +53,7 @@ impl LineKind {
         )
     }
 
-    /// Ligne écrite par un utilisateur (comptée comme non lue).
+    /// Line written by a user (counted as unread).
     pub fn is_chat(&self) -> bool {
         matches!(self, Self::Message { .. } | Self::Action { .. } | Self::Notice { .. })
     }
@@ -65,17 +65,17 @@ pub struct Line {
     pub time: DateTime<Local>,
     pub kind: LineKind,
     pub msgid: Option<String>,
-    /// Envoyée par nous.
+    /// Sent by us.
     pub own: bool,
-    /// Mentionne notre pseudonyme ou un mot surveillé.
+    /// Mentions our nickname or a highlight word.
     pub highlight: bool,
-    /// Expéditeur marqué comme bot.
+    /// Sender flagged as a bot.
     pub bot: bool,
 }
 
 impl Line {
-    /// Indique si la ligne contient `needle` (déjà en minuscules), pseudonymes
-    /// compris, sans tenir compte de la mise en forme.
+    /// Whether the line contains `needle` (already lowercase), nicknames
+    /// included, ignoring formatting.
     pub fn matches(&self, needle: &str) -> bool {
         let fields: Vec<&str> = match &self.kind {
             LineKind::Message { nick, text, .. } | LineKind::Action { nick, text } | LineKind::Notice { nick, text } => {
@@ -109,21 +109,21 @@ impl Line {
     }
 }
 
-/// Onglet.
+/// Tab.
 #[derive(Debug, Clone)]
 pub struct Buffer {
     pub kind: Kind,
-    /// Nom affiché (`#rust`, `alice`, nom du réseau).
+    /// Displayed name (`#rust`, `alice`, network name).
     pub name: String,
     lines: VecDeque<Line>,
     msgids: HashSet<String>,
     pub unread: usize,
     pub highlighted: bool,
-    /// Salon actuellement rejoint (toujours vrai pour les autres onglets).
+    /// Channel currently joined (always true for other tabs).
     pub joined: bool,
     typing: Vec<(String, Instant)>,
     speakers: VecDeque<String>,
-    /// Commandes de bots (`!meteo`) vues dans l'onglet, les plus récentes d'abord.
+    /// Bot commands (`!weather`) seen in the tab, most recent first.
     bot_commands: VecDeque<String>,
 }
 
@@ -151,8 +151,8 @@ impl Buffer {
         self.lines.back().map(|line| line.time)
     }
 
-    /// Ajoute une ligne à sa place chronologique (l'historique peut arriver
-    /// après des lignes plus récentes). Renvoie `false` pour un doublon (`msgid`).
+    /// Adds a line at its chronological place (history can arrive after more
+    /// recent lines). Returns `false` for a duplicate (`msgid`).
     pub fn push(&mut self, line: Line, limit: usize) -> bool {
         if let Some(id) = &line.msgid
             && !self.msgids.insert(id.clone())
@@ -171,7 +171,7 @@ impl Buffer {
         true
     }
 
-    /// Remplace le contenu d'un message supprimé.
+    /// Replaces the content of a deleted message.
     pub fn redact(&mut self, msgid: &str) -> bool {
         let Some(line) = self.lines.iter_mut().find(|l| l.msgid.as_deref() == Some(msgid)) else {
             return false;
@@ -196,14 +196,14 @@ impl Buffer {
         self.highlighted = false;
     }
 
-    /// Marque comme lu si `until` couvre la dernière ligne (`draft/read-marker`).
+    /// Marks as read if `until` covers the last line (`draft/read-marker`).
     pub fn mark_read_until(&mut self, until: DateTime<Local>) {
         if self.last_time().is_none_or(|last| last <= until) {
             self.mark_read();
         }
     }
 
-    /// Mémorise un interlocuteur pour la complétion (le plus récent en tête).
+    /// Remembers a speaker for the completion (most recent first).
     pub fn note_speaker(&mut self, nick: &str) {
         self.speakers.retain(|speaker| speaker != nick);
         self.speakers.push_front(nick.to_owned());
@@ -215,8 +215,8 @@ impl Buffer {
         self.speakers.iter().map(String::as_str)
     }
 
-    /// Retient les commandes de bots d'un message : celle qui ouvre un
-    /// message ordinaire, ou toutes celles que cite un bot (aide, liste...).
+    /// Remembers the bot commands of a message: the one opening an ordinary
+    /// message, or all those a bot quotes (help, list...).
     pub fn learn_bot_commands(&mut self, text: &str, from_bot: bool) {
         let plain = format::strip(text);
         let mut words = plain.split_whitespace();
@@ -252,7 +252,7 @@ impl Buffer {
         }
     }
 
-    /// Pseudonymes en train d'écrire, après expiration des indicateurs anciens.
+    /// Nicknames currently typing, after old indicators expire.
     pub fn typing(&self, now: Instant) -> impl Iterator<Item = &str> {
         self.typing
             .iter()
@@ -260,7 +260,7 @@ impl Buffer {
             .map(|(nick, _)| nick.as_str())
     }
 
-    /// Retire les indicateurs expirés ; renvoie `true` s'il en reste.
+    /// Removes expired indicators; returns `true` if some remain.
     pub fn expire_typing(&mut self, now: Instant) -> bool {
         self.typing
             .retain(|(_, since)| now.duration_since(*since) < TYPING_TIMEOUT);
@@ -311,7 +311,7 @@ mod tests {
         buffer.push(info(2, "y"), 2);
         buffer.push(info(3, "z"), 2);
         assert_eq!(texts(&buffer), ["y", "z"]);
-        // L'identifiant évincé peut revenir (historique rechargé).
+        // The evicted id may come back (history reloaded).
         let mut again = info(4, "x");
         again.msgid = Some("id1".into());
         assert!(buffer.push(again, 2));
@@ -338,20 +338,20 @@ mod tests {
     fn searches_line_content_without_formatting() {
         let line = Line::new(
             Local::now(),
-            LineKind::Message { nick: "Alice".into(), prefix: None, text: "\x02Rust\x02 c'est bien".into() },
+            LineKind::Message { nick: "Alice".into(), prefix: None, text: "\x02Rust\x02 is nice".into() },
         );
         assert!(line.matches("alice"));
-        assert!(line.matches("rust c'est"));
+        assert!(line.matches("rust is"));
         assert!(!line.matches("go"));
     }
 
     #[test]
     fn learns_bot_commands() {
         let mut buffer = Buffer::new(Kind::Channel, "#c");
-        buffer.learn_bot_commands("!meteo Paris", false);
-        buffer.learn_bot_commands("dis bonjour !pas_une_commande", false);
-        buffer.learn_bot_commands("Commandes : \x02!help\x02, !quote, !meteo.", true);
-        assert_eq!(buffer.bot_commands().collect::<Vec<_>>(), ["!help", "!quote", "!meteo"]);
+        buffer.learn_bot_commands("!weather Paris", false);
+        buffer.learn_bot_commands("say hello !not_a_command", false);
+        buffer.learn_bot_commands("Commands: \x02!help\x02, !quote, !weather.", true);
+        assert_eq!(buffer.bot_commands().collect::<Vec<_>>(), ["!help", "!quote", "!weather"]);
     }
 
     #[test]

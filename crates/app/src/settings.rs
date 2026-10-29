@@ -1,30 +1,31 @@
-//! Préférences utilisateur, enregistrées dans `config.toml`.
+//! User preferences, saved in `config.toml`.
 
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::{Language, tr};
 use crate::keymap::Overrides;
 
-/// Thème de l'interface.
+/// Interface theme.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ThemeMode {
-    /// Suit le thème du système (Graphite ou Clair).
+    /// Follows the system theme (Graphite or Light).
     #[default]
     System,
-    /// Gris neutre.
+    /// Neutral gray.
     Dark,
-    /// Bleu nuit profond.
+    /// Deep navy blue.
     Midnight,
-    /// Noir pur, idéal sur écran OLED.
+    /// Pure black, ideal on OLED screens.
     Oled,
-    /// Bleu-gris froid.
+    /// Cool blue-gray.
     Nord,
-    /// Brun chaud.
+    /// Warm brown.
     Mocha,
     Light,
-    /// Papier crème, peu fatigant.
+    /// Cream paper, easy on the eyes.
     Sepia,
 }
 
@@ -44,23 +45,23 @@ impl ThemeMode {
 impl fmt::Display for ThemeMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::System => "Automatique",
+            Self::System => tr("Automatic"),
             Self::Dark => "Graphite",
-            Self::Midnight => "Minuit",
-            Self::Oled => "Noir absolu",
-            Self::Nord => "Nordique",
-            Self::Mocha => "Moka",
-            Self::Light => "Clair",
-            Self::Sepia => "Sépia",
+            Self::Midnight => tr("Midnight"),
+            Self::Oled => tr("Pure black"),
+            Self::Nord => tr("Nordic"),
+            Self::Mocha => tr("Mocha"),
+            Self::Light => tr("Light"),
+            Self::Sepia => tr("Sepia"),
         })
     }
 }
 
-/// Alignement des pseudonymes dans leur colonne.
+/// Alignment of nicknames in their column.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NickAlignment {
-    /// À droite, contre le message (HexChat).
+    /// Right, next to the message (HexChat).
     #[default]
     Right,
     Left,
@@ -73,13 +74,13 @@ impl NickAlignment {
 impl fmt::Display for NickAlignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::Right => "À droite",
-            Self::Left => "À gauche",
+            Self::Right => tr("Right"),
+            Self::Left => tr("Left"),
         })
     }
 }
 
-/// Couleur RVB sérialisée en `#rrggbb`.
+/// RGB color serialized as `#rrggbb`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct HexColor(pub [u8; 3]);
@@ -100,7 +101,7 @@ impl TryFrom<String> for HexColor {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(&value).ok_or_else(|| format!("couleur invalide : {value:?}"))
+        Self::parse(&value).ok_or_else(|| format!("invalid color: {value:?}"))
     }
 }
 
@@ -117,102 +118,105 @@ impl fmt::Display for HexColor {
     }
 }
 
-/// Couleurs d'accent proposées dans les paramètres.
+/// Accent colors offered in the settings.
 pub const ACCENT_PRESETS: [(&str, HexColor); 6] = [
-    ("Bleu", HexColor([0x5b, 0x8c, 0xff])),
-    ("Violet", HexColor([0x9b, 0x6b, 0xff])),
-    ("Vert", HexColor([0x3c, 0xc4, 0x8a])),
+    ("Blue", HexColor([0x5b, 0x8c, 0xff])),
+    ("Purple", HexColor([0x9b, 0x6b, 0xff])),
+    ("Green", HexColor([0x3c, 0xc4, 0x8a])),
     ("Orange", HexColor([0xf5, 0x93, 0x3d])),
-    ("Rose", HexColor([0xf0, 0x5f, 0xa8])),
+    ("Pink", HexColor([0xf0, 0x5f, 0xa8])),
     ("Turquoise", HexColor([0x2b, 0xb8, 0xc4])),
 ];
 
-/// Ensemble des préférences.
+/// All preferences.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
-    // Apparence
+    // Appearance
+    /// Interface language.
+    pub language: Language,
     pub theme: ThemeMode,
     pub accent: HexColor,
     pub font_size: u16,
-    /// Police à chasse fixe pour les messages.
+    /// Monospace font for messages.
     pub monospace: bool,
-    /// Espacement réduit entre les lignes.
+    /// Reduced spacing between lines.
     pub compact: bool,
     pub show_sidebar: bool,
-    /// Largeur de la colonne des pseudonymes, en pixels.
+    /// Width of the nickname column, in pixels.
     pub nick_column_width: u16,
     pub nick_alignment: NickAlignment,
-    /// Préfixe de statut devant les pseudonymes (`@`, `+`).
+    /// Status prefix before nicknames (`@`, `+`).
     pub show_nick_prefix: bool,
-    /// Couleurs mIRC dans les messages (sinon texte uni).
+    /// mIRC colors in messages (otherwise plain text).
     pub show_colors: bool,
     pub show_bot_badge: bool,
 
-    // Discussion
+    // Chat
     pub show_timestamps: bool,
-    /// Format `strftime` des horodatages.
+    /// `strftime` format of timestamps.
     pub timestamp_format: String,
     pub show_joins_parts: bool,
     pub nick_colors: bool,
     pub show_nicklist: bool,
-    /// Lignes conservées par onglet.
+    /// Lines kept per tab.
     pub scrollback: usize,
-    /// Mots déclenchant une mise en évidence, en plus du pseudonyme.
+    /// Words triggering a highlight, besides the nickname.
     pub highlight_words: Vec<String>,
-    /// Utilisateurs ignorés : pseudonymes ou masques `pseudo!ident@hôte`
-    /// (jokers `*` et `?`).
+    /// Ignored users: nicknames or `nick!ident@host` masks (`*` and `?`
+    /// wildcards).
     pub ignored: Vec<String>,
-    /// Lignes d'historique demandées en rejoignant un salon (0 : aucune).
+    /// History lines requested when joining a channel (0: none).
     pub history_lines: u16,
-    /// Journaux des conversations enregistrés sur le disque.
+    /// Conversation logs saved to disk.
     pub logging: bool,
 
     // Notifications
     pub notify_mentions: bool,
     pub notify_queries: bool,
-    /// Notifier même quand la fenêtre est au premier plan.
+    /// Notify even when the window is in the foreground.
     pub notify_when_focused: bool,
-    /// Contenu du message dans la notification (sinon seulement l'expéditeur).
+    /// Message content in the notification (otherwise only the sender).
     pub notify_preview: bool,
     pub notify_sound: bool,
-    /// Rebond de l'icône du Dock / clignotement de la barre des tâches.
+    /// Dock icon bounce / taskbar flash.
     pub request_attention: bool,
-    /// Nombre d'onglets avec une mention ou un message privé non lu, dans le titre.
+    /// Number of tabs with an unread mention or private message, in the title.
     pub title_unread_count: bool,
 
-    // Confidentialité
-    /// Réponses automatiques aux requêtes CTCP (VERSION, PING, TIME).
+    // Privacy
+    /// Automatic replies to CTCP requests (VERSION, PING, TIME).
     pub ctcp_replies: bool,
-    /// Réponse à CTCP VERSION (vide : nom et version d'ircnext).
+    /// Reply to CTCP VERSION (empty: ircnext name and version).
     pub ctcp_version: String,
-    /// Signale au serveur les messages lus (`draft/read-marker`).
+    /// Tells the server which messages were read (`draft/read-marker`).
     pub send_read_markers: bool,
-    /// Sur Tab, demander aux bots compatibles de compléter une commande
-    /// (brouillon IRCv3 `autocomplete`).
+    /// On Tab, ask compatible bots to complete a command (IRCv3
+    /// `autocomplete` draft).
     pub bot_completion: bool,
-    /// Mots de passe rangés dans le trousseau du système plutôt que dans le fichier.
+    /// Passwords stored in the system keychain rather than in the file.
     pub use_keychain: bool,
 
-    // Indicateur de saisie (IRCv3 `+typing`)
+    // Typing indicator (IRCv3 `+typing`)
     pub send_typing: bool,
     pub show_typing: bool,
 
-    // Identité par défaut des nouveaux réseaux
+    // Default identity of new networks
     pub nick: String,
     pub realname: String,
     pub quit_message: String,
-    /// Raison donnée en quittant un salon (vide : aucune).
+    /// Reason given when leaving a channel (empty: none).
     pub part_message: String,
 
-    /// Raccourcis personnalisés ; les actions absentes gardent leurs défauts.
+    /// Custom shortcuts; missing actions keep their defaults.
     pub keybindings: Overrides,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            language: Language::default(),
             theme: ThemeMode::default(),
             accent: ACCENT_PRESETS[0].1,
             font_size: 14,
@@ -263,7 +267,7 @@ impl Settings {
     pub const NICK_COLUMN_WIDTHS: std::ops::RangeInclusive<u16> = 60..=260;
     pub const HISTORY_LINES: std::ops::RangeInclusive<u16> = 0..=1000;
 
-    /// Corrige les valeurs hors limites (fichier édité à la main).
+    /// Fixes out-of-range values (hand-edited file).
     pub fn sanitize(&mut self) {
         self.font_size = self
             .font_size
@@ -283,7 +287,7 @@ impl Settings {
     }
 }
 
-/// Vérifie qu'un format `strftime` est utilisable (chrono panique sinon à l'affichage).
+/// Checks that a `strftime` format is usable (chrono panics on display otherwise).
 pub fn is_valid_time_format(format: &str) -> bool {
     use chrono::format::{Item, StrftimeItems};
     StrftimeItems::new(format).all(|item| !matches!(item, Item::Error))

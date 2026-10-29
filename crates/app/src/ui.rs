@@ -1,4 +1,4 @@
-//! Vues de l'interface et éléments partagés.
+//! Interface views and shared elements.
 
 pub mod chat;
 pub mod form;
