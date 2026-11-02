@@ -362,7 +362,8 @@
 
 # Connection
 "Not connected." = "Non connecté."
-"Connecting to {host}:{port}{tls}…" = "Connexion à {host}:{port}{tls}…"
+"Connecting to {host}:{port}{tls}{proxy}…" = "Connexion à {host}:{port}{tls}{proxy}…"
+" through {host}:{port}" = " via {host}:{port}"
 "SASL not used: the connection is not encrypted. Enable TLS to identify without exposing your password." = "SASL non utilisé : la connexion n'est pas chiffrée. Activez TLS pour vous identifier sans exposer votre mot de passe."
 "none" = "aucune"
 "Connected as {nick}. IRCv3 capabilities: {caps}." = "Connecté en tant que {nick}. Capacités IRCv3 : {caps}."
@@ -500,3 +501,16 @@
 "Connection" = "Connexion"
 "Add and connect" = "Ajouter et se connecter"
 "Delete" = "Supprimer"
+
+# Proxy
+"The proxy address is invalid." = "L'adresse du proxy est invalide."
+"The proxy port must be between 1 and 65535." = "Le port du proxy doit être compris entre 1 et 65535."
+"Proxy" = "Proxy"
+"Connect through a SOCKS5 proxy" = "Passer par un proxy SOCKS5"
+"Tor, SSH tunnel… The proxy resolves the server name" = "Tor, tunnel SSH… Le proxy résout le nom du serveur"
+"Proxy address" = "Adresse du proxy"
+"Tor: 127.0.0.1, port 9050" = "Tor : 127.0.0.1, port 9050"
+"Proxy port" = "Port du proxy"
+"Proxy username" = "Identifiant du proxy"
+"optional" = "facultatif"
+"Proxy password" = "Mot de passe du proxy"

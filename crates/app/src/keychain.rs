@@ -65,6 +65,10 @@ fn sasl_account(name: &str) -> String {
     format!("{name} — SASL")
 }
 
+fn proxy_account(name: &str) -> String {
+    format!("{name} — proxy password")
+}
+
 /// Stores the passwords of `config` in the keychain and empties them, to
 /// get the version to write to disk. The accounts of removed or renamed
 /// networks are erased from the keychain.
@@ -79,6 +83,7 @@ pub fn stash(config: &mut AppConfig, store: &dyn Store, cache: &mut Cache) -> Op
         let secrets = [
             (server_account(&server.name), connection.password.as_mut()),
             (sasl_account(&server.name), connection.sasl.as_mut().map(|sasl| &mut sasl.password)),
+            (proxy_account(&server.name), connection.proxy.as_mut().and_then(|proxy| proxy.password.as_mut())),
         ];
         for (account, secret) in secrets {
             let Some(secret) = secret.filter(|secret| !secret.expose().is_empty()) else {
@@ -134,6 +139,11 @@ pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>
         let secrets = [
             (server_account(&server.name), connection.password.as_mut(), false),
             (sasl_account(&server.name), connection.sasl.as_mut().map(|sasl| &mut sasl.password), true),
+            (
+                proxy_account(&server.name),
+                connection.proxy.as_mut().and_then(|proxy| proxy.password.as_mut()),
+                false,
+            ),
         ];
         for (account, secret, required) in secrets {
             let Some(secret) = secret.filter(|secret| secret.expose().is_empty()) else {
@@ -151,6 +161,11 @@ pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>
         // A server password that cannot be found is not sent empty.
         if connection.password.as_ref().is_some_and(|password| password.expose().is_empty()) {
             connection.password = None;
+        }
+        if let Some(proxy) = &mut connection.proxy
+            && proxy.password.as_ref().is_some_and(|password| password.expose().is_empty())
+        {
+            proxy.password = None;
         }
     }
     missing.dedup();
@@ -206,6 +221,12 @@ mod tests {
                     username: "me".into(),
                     password: Secret::new(sasl_password),
                 }),
+                proxy: Some(ircnext_client::Proxy {
+                    host: "127.0.0.1".into(),
+                    port: 9050,
+                    username: Some("tor".into()),
+                    password: Some(Secret::new(format!("{sasl_password}-proxy"))),
+                }),
                 ..Connection::default()
             },
         });
@@ -222,7 +243,7 @@ mod tests {
         assert_eq!(stash(&mut on_disk, &store, &mut cache), None);
         let toml = toml::to_string(&on_disk).unwrap();
         assert!(!toml.contains("pass\"") && !toml.contains("\"sasl\""), "no password in the file:\n{toml}");
-        assert_eq!(store.entries.borrow().len(), 2);
+        assert_eq!(store.entries.borrow().len(), 3);
 
         let mut loaded: AppConfig = toml::from_str(&toml).unwrap();
         let (restored_cache, missing) = restore(&mut loaded, &store);
@@ -237,9 +258,9 @@ mod tests {
         let mut cache = Cache::new();
         stash(&mut config("Libera", "pass", "sasl"), &store, &mut cache);
         stash(&mut config("Libera", "pass", "sasl"), &store, &mut cache);
-        assert_eq!(store.writes.get(), 2);
-        stash(&mut config("Libera", "pass", "nouveau"), &store, &mut cache);
         assert_eq!(store.writes.get(), 3);
+        stash(&mut config("Libera", "pass", "nouveau"), &store, &mut cache);
+        assert_eq!(store.writes.get(), 5);
     }
 
     #[test]
