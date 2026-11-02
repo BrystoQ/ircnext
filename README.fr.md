@@ -53,6 +53,7 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 
 **Discussion**
 - Plusieurs réseaux en parallèle, reconnexion automatique
+- Proxy SOCKS5 par réseau (Tor, tunnel SSH), nom résolu par le proxy
 - TLS par défaut, SASL PLAIN et EXTERNAL (certificat client, CertFP), STS
 - Codes de mise en forme mIRC (gras, couleurs…)
 - Liens cliquables, mentions mises en évidence
@@ -280,7 +281,7 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Mots de passe dans le trousseau du système
 - [x] Authentification par certificat (SASL EXTERNAL)
 - [x] Interface en anglais, traduction française
-- [ ] Proxy SOCKS5
+- [x] Proxy SOCKS5
 - [ ] Transferts DCC
 - [ ] `draft/multiline`
 

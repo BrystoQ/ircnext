@@ -29,6 +29,8 @@ pub struct Config {
     /// SASL `EXTERNAL` identification with the client certificate, instead
     /// of the password.
     pub sasl_external: bool,
+    /// SOCKS5 proxy the connection goes through.
+    pub proxy: Option<Proxy>,
     /// Channels joined automatically after registration.
     pub autojoin: Vec<String>,
     /// Automatic reconnection after an outage.
@@ -76,10 +78,23 @@ impl Default for Config {
             sasl: None,
             client_cert: None,
             sasl_external: false,
+            proxy: None,
             autojoin: Vec::new(),
             auto_reconnect: true,
         }
     }
+}
+
+/// SOCKS5 proxy (Tor, SSH tunnel...).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Proxy {
+    pub host: String,
+    pub port: u16,
+    /// Username/password authentication, if the proxy requires it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password: Option<Secret>,
 }
 
 /// SASL `PLAIN` credentials.

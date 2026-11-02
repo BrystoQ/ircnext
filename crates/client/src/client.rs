@@ -147,14 +147,7 @@ async fn session(
     events: &mut mpsc::Sender<Event>,
     registered: &mut bool,
 ) -> io::Result<End> {
-    let stream = connection::open(
-        &config.host,
-        config.port,
-        config.tls,
-        config.accept_invalid_certs,
-        config.client_cert.as_deref().filter(|_| config.tls),
-    )
-    .await?;
+    let stream = connection::open(config).await?;
     let (reader, mut writer) = tokio::io::split(stream);
     let mut reader = LineReader::new(reader);
 

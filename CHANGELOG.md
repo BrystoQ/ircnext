@@ -8,6 +8,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 - Client certificate identification: SASL `EXTERNAL` and CertFP. The network form can create a self-signed certificate, stored in `certs/` next to the configuration.
 - English interface with a French translation; new *Appearance → Language* setting (system language by default).
+- SOCKS5 proxy per network, with optional username/password; the server name is resolved by the proxy (no DNS leak with Tor). The proxy password goes to the system keychain.
 
 ### Security
 

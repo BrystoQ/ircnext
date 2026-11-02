@@ -9,10 +9,11 @@ pub mod config;
 pub mod connection;
 pub mod network;
 pub mod registration;
+pub mod socks;
 mod throttle;
 
 pub use client::{Closed, Event, Handle, connect};
-pub use config::{Config, Sasl, Secret};
+pub use config::{Config, Proxy, Sasl, Secret};
 pub use network::{Batch, Channel, Member, Network, whox_request};
 pub use registration::Registered;
 

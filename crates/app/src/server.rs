@@ -331,10 +331,15 @@ impl Server {
                 self.status = Status::Connecting(attempt);
                 let connection = &self.entry.connection;
                 let text = tr!(
-                    "Connecting to {host}:{port}{tls}…",
+                    "Connecting to {host}:{port}{tls}{proxy}…",
                     host = connection.host,
                     port = connection.port,
-                    tls = if connection.tls { " (TLS)" } else { "" }
+                    tls = if connection.tls { " (TLS)" } else { "" },
+                    proxy = connection
+                        .proxy
+                        .as_ref()
+                        .map(|proxy| tr!(" through {host}:{port}", host = proxy.host, port = proxy.port))
+                        .unwrap_or_default()
                 );
                 self.info(LineKind::Info(text), ctx);
             }

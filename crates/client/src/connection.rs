@@ -21,6 +21,9 @@ use tokio_rustls::rustls::{
 
 use ircnext_proto::Message;
 
+use crate::config::{Config, Secret};
+use crate::socks;
+
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Maximum length allowed for a received line (tags included).
@@ -30,27 +33,34 @@ const MAX_LINE_BYTES: usize = 8191 + 512;
 pub trait Stream: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Stream for T {}
 
-/// Opens a connection to `host:port`, encrypted if `tls` is true,
-/// presenting the client certificate `client_cert` if given.
-pub async fn open(
-    host: &str,
-    port: u16,
-    tls: bool,
-    accept_invalid_certs: bool,
-    client_cert: Option<&Path>,
-) -> io::Result<Box<dyn Stream>> {
-    let tcp = tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect((host, port)))
+/// Opens the connection described by `config`: through its SOCKS5 proxy if
+/// any, encrypted if `tls` is set, presenting its client certificate if any.
+pub async fn open(config: &Config) -> io::Result<Box<dyn Stream>> {
+    let host = config.host.as_str();
+    let connecting = async {
+        let Some(proxy) = &config.proxy else {
+            return TcpStream::connect((host, config.port)).await;
+        };
+        let mut tcp = TcpStream::connect((proxy.host.as_str(), proxy.port)).await?;
+        let credentials = proxy.username.as_deref().map(|username| {
+            (username, proxy.password.as_ref().map_or("", Secret::expose))
+        });
+        socks::connect(&mut tcp, host, config.port, credentials).await?;
+        Ok(tcp)
+    };
+    let tcp = tokio::time::timeout(CONNECT_TIMEOUT, connecting)
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "connection timed out"))??;
     tcp.set_nodelay(true)?;
 
-    if !tls {
+    if !config.tls {
         return Ok(Box::new(tcp));
     }
 
     let server_name = ServerName::try_from(host.to_owned())
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    let config = match client_cert {
+    let accept_invalid_certs = config.accept_invalid_certs;
+    let tls_config = match &config.client_cert {
         Some(path) => {
             let (chain, key) = load_identity(path)?;
             let config = builder(accept_invalid_certs)
@@ -60,7 +70,7 @@ pub async fn open(
         }
         None => tls_config(accept_invalid_certs),
     };
-    let connector = TlsConnector::from(config);
+    let connector = TlsConnector::from(tls_config);
     let stream = tokio::time::timeout(CONNECT_TIMEOUT, connector.connect(server_name, tcp))
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "TLS handshake timed out"))??;
@@ -253,7 +263,12 @@ mod tests {
             .self_signed(&key)
             .unwrap();
         let path = identity_file("ergo", &format!("{}{}", cert.pem(), key.serialize_pem()));
-        let stream = open("testnet.ergo.chat", 6697, true, false, Some(&path)).await.unwrap();
+        let config = Config {
+            host: "testnet.ergo.chat".into(),
+            client_cert: Some(path),
+            ..Config::default()
+        };
+        let stream = open(&config).await.unwrap();
         let (reader, mut writer) = tokio::io::split(stream);
         let mut lines = BufReader::new(reader).lines();
         let nick = format!("test{}", std::process::id() % 100_000);
@@ -290,6 +305,68 @@ mod tests {
         // Certificate unknown to the server: 904 expected, but the exchange happened.
         let outcome = outcome.expect("SASL reply from the server");
         assert!(outcome.contains(" 904 ") || outcome.contains(" 903 "), "{outcome}");
+    }
+
+    /// TLS to a real server through a SOCKS5 proxy listening on
+    /// 127.0.0.1:10800; run by hand with
+    /// `cargo test -p ircnext-client -- --ignored tls_through_local_proxy`.
+    #[tokio::test]
+    #[ignore = "needs a SOCKS5 proxy on 127.0.0.1:10800"]
+    async fn tls_through_local_proxy() {
+        let config = Config {
+            host: "testnet.ergo.chat".into(),
+            proxy: Some(crate::config::Proxy { host: "127.0.0.1".into(), port: 10800, username: None, password: None }),
+            ..Config::default()
+        };
+        let stream = open(&config).await.unwrap();
+        let (reader, mut writer) = tokio::io::split(stream);
+        writer.write_all(b"CAP LS 302\r\n").await.unwrap();
+        let mut reader = LineReader::new(reader);
+        let line = reader.next_line().await.unwrap().unwrap();
+        assert!(line.contains("CAP * LS"), "{line}");
+    }
+
+    /// Real TCP connection through a local fake proxy that checks the
+    /// request, then plays the IRC server.
+    #[tokio::test]
+    async fn opens_through_a_socks5_proxy() {
+        use tokio::io::AsyncReadExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_port = listener.local_addr().unwrap().port();
+        let proxy = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut greeting = [0; 4];
+            socket.read_exact(&mut greeting).await.unwrap();
+            assert_eq!(greeting, [5, 2, 0, 2], "no auth and username/password offered");
+            socket.write_all(&[5, 2]).await.unwrap();
+            let mut auth = [0; 10];
+            socket.read_exact(&mut auth).await.unwrap();
+            assert_eq!(&auth, b"\x01\x02me\x05tor42");
+            socket.write_all(&[1, 0]).await.unwrap();
+            let mut request = vec![0; 7 + "irc.example.onion".len()];
+            socket.read_exact(&mut request).await.unwrap();
+            assert_eq!(&request[5..request.len() - 2], b"irc.example.onion", "name resolved by the proxy");
+            socket.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await.unwrap();
+            socket.write_all(b":irc.example.onion NOTICE * :hello\r\n").await.unwrap();
+        });
+
+        let config = Config {
+            host: "irc.example.onion".into(),
+            port: 6667,
+            tls: false,
+            proxy: Some(crate::config::Proxy {
+                host: "127.0.0.1".into(),
+                port: proxy_port,
+                username: Some("me".into()),
+                password: Some(Secret::new("tor42")),
+            }),
+            ..Config::default()
+        };
+        let stream = open(&config).await.unwrap();
+        let mut reader = LineReader::new(stream);
+        assert_eq!(reader.next_line().await.unwrap().as_deref(), Some(":irc.example.onion NOTICE * :hello"));
+        proxy.await.unwrap();
     }
 
     #[test]

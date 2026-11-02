@@ -53,6 +53,7 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 
 **Chat**
 - Several networks at once, automatic reconnection
+- SOCKS5 proxy per network (Tor, SSH tunnel), name resolved by the proxy
 - TLS by default, SASL PLAIN and EXTERNAL (client certificate, CertFP), STS
 - mIRC formatting codes (bold, colors…)
 - Clickable links, highlighted mentions
@@ -280,7 +281,7 @@ The screenshots in this README are rendered headlessly by the `snapshots` test, 
 - [x] Passwords in the system keychain
 - [x] Certificate authentication (SASL EXTERNAL)
 - [x] English interface, French translation
-- [ ] SOCKS5 proxy
+- [x] SOCKS5 proxy
 - [ ] DCC transfers
 - [ ] `draft/multiline`
 

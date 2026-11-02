@@ -4,7 +4,7 @@ use iced::widget::{button, column, container, row, scrollable, space, text};
 use std::path::PathBuf;
 
 use iced::{Alignment, Element, Length};
-use ircnext_client::{Config, Sasl, Secret};
+use ircnext_client::{Config, Proxy, Sasl, Secret};
 
 use crate::app::Message;
 use crate::config::{PRESETS, Preset, ServerEntry};
@@ -36,6 +36,11 @@ pub struct ServerForm {
     sasl_password: String,
     /// Path of the client certificate (PEM file).
     client_cert: String,
+    proxy: bool,
+    proxy_host: String,
+    proxy_port: String,
+    proxy_username: String,
+    proxy_password: String,
     autojoin: String,
     auto_connect: bool,
     auto_reconnect: bool,
@@ -89,6 +94,11 @@ pub enum Msg {
     Autojoin(String),
     AutoConnect(bool),
     AutoReconnect(bool),
+    Proxy(bool),
+    ProxyHost(String),
+    ProxyPort(String),
+    ProxyUsername(String),
+    ProxyPassword(String),
     AltNicks(String),
     AddCommand,
     Command(usize, String),
@@ -114,6 +124,11 @@ impl ServerForm {
             sasl_username: String::new(),
             sasl_password: String::new(),
             client_cert: String::new(),
+            proxy: false,
+            proxy_host: "127.0.0.1".to_owned(),
+            proxy_port: "9050".to_owned(),
+            proxy_username: String::new(),
+            proxy_password: String::new(),
             autojoin: String::new(),
             auto_connect: true,
             auto_reconnect: true,
@@ -164,6 +179,16 @@ impl ServerForm {
                 .client_cert
                 .as_ref()
                 .map(|path| path.display().to_string())
+                .unwrap_or_default(),
+            proxy: connection.proxy.is_some(),
+            proxy_host: connection.proxy.as_ref().map_or_else(|| "127.0.0.1".to_owned(), |p| p.host.clone()),
+            proxy_port: connection.proxy.as_ref().map_or(9050, |p| p.port).to_string(),
+            proxy_username: connection.proxy.as_ref().and_then(|p| p.username.clone()).unwrap_or_default(),
+            proxy_password: connection
+                .proxy
+                .as_ref()
+                .and_then(|p| p.password.as_ref())
+                .map(|p| p.expose().to_owned())
                 .unwrap_or_default(),
             autojoin: connection.autojoin.join(", "),
             auto_connect: entry.auto_connect,
@@ -234,6 +259,11 @@ impl ServerForm {
             Msg::Autojoin(value) => self.autojoin = value,
             Msg::AutoConnect(value) => self.auto_connect = value,
             Msg::AutoReconnect(value) => self.auto_reconnect = value,
+            Msg::Proxy(value) => self.proxy = value,
+            Msg::ProxyHost(value) => self.proxy_host = value,
+            Msg::ProxyPort(value) => self.proxy_port = value,
+            Msg::ProxyUsername(value) => self.proxy_username = value,
+            Msg::ProxyPassword(value) => self.proxy_password = value,
             Msg::AltNicks(value) => self.alt_nicks = value,
             Msg::AddCommand => self.on_connect.push(String::new()),
             Msg::Command(index, value) => {
@@ -302,6 +332,32 @@ impl ServerForm {
         if let Some(path) = client_cert.as_deref().filter(|_| self.tls) {
             ircnext_client::connection::load_identity(path).map_err(|error| tr!("Certificate: {error}", error = error))?;
         }
+        let proxy = if self.proxy {
+            let host = self.proxy_host.trim();
+            if host.is_empty() || host.contains(char::is_whitespace) {
+                return Err(tr("The proxy address is invalid.").into());
+            }
+            let port: u16 = self
+                .proxy_port
+                .trim()
+                .parse()
+                .ok()
+                .filter(|&port| port > 0)
+                .ok_or(tr("The proxy port must be between 1 and 65535."))?;
+            let username = Some(self.proxy_username.trim().to_owned()).filter(|name| !name.is_empty());
+            Some(Proxy {
+                host: host.to_owned(),
+                port,
+                password: username
+                    .as_ref()
+                    .and(Some(self.proxy_password.clone()))
+                    .filter(|password| !password.is_empty())
+                    .map(Secret::new),
+                username,
+            })
+        } else {
+            None
+        };
         let sasl = if self.auth == Auth::Password {
             if self.sasl_username.trim().is_empty() || self.sasl_password.is_empty() {
                 return Err(tr("The SASL account and password are required.").into());
@@ -347,6 +403,7 @@ impl ServerForm {
                 sasl,
                 client_cert,
                 sasl_external: self.auth == Auth::Certificate,
+                proxy,
                 autojoin,
                 auto_reconnect: self.auto_reconnect,
             },
@@ -466,6 +523,29 @@ impl ServerForm {
             ),
         ];
 
+        let mut proxy = vec![switch(
+            tr("Connect through a SOCKS5 proxy"),
+            Some(tr("Tor, SSH tunnel… The proxy resolves the server name")),
+            self.proxy,
+            Msg::Proxy,
+        )];
+        if self.proxy {
+            proxy.push(
+                form::setting(tr("Proxy address"), input("127.0.0.1", &self.proxy_host, Msg::ProxyHost))
+                    .description(tr("Tor: 127.0.0.1, port 9050"))
+                    .view(c),
+            );
+            proxy.push(form::setting(tr("Proxy port"), input("9050", &self.proxy_port, Msg::ProxyPort)).view(c));
+            proxy.push(
+                form::setting(tr("Proxy username"), input(tr("optional"), &self.proxy_username, Msg::ProxyUsername))
+                    .view(c),
+            );
+            proxy.push(
+                form::setting(tr("Proxy password"), input("", &self.proxy_password, Msg::ProxyPassword).secure(true))
+                    .view(c),
+            );
+        }
+
         let title = if self.editing.is_some() { tr("Edit the network") } else { tr("Add a network") };
         let body = scrollable(
             container(form::page(
@@ -475,6 +555,7 @@ impl ServerForm {
                     form::group(tr("Identity"), identity, c),
                     form::group(tr("Authentication"), authentication, c),
                     form::group(tr("Connection"), connection, c),
+                    form::group(tr("Proxy"), proxy, c),
                 ],
                 c,
             ))
@@ -603,6 +684,24 @@ mod tests {
 
         form.update(Msg::Tls(false));
         assert!(form.validate().unwrap_err().contains("TLS"));
+    }
+
+    #[test]
+    fn proxy_settings_are_validated_and_kept() {
+        let mut form = ServerForm::new(&Settings::default());
+        form.update(Msg::Proxy(true));
+        form.update(Msg::ProxyPort("0".into()));
+        assert!(form.validate().unwrap_err().contains("proxy port"));
+        form.update(Msg::ProxyPort("9050".into()));
+        form.update(Msg::ProxyPassword("ignored without a username".into()));
+        let entry = form.validate().unwrap();
+        let proxy = entry.connection.proxy.clone().unwrap();
+        assert_eq!((proxy.host.as_str(), proxy.port, proxy.password), ("127.0.0.1", 9050, None));
+
+        form.update(Msg::ProxyUsername("tor".into()));
+        let entry = form.validate().unwrap();
+        assert_eq!(entry.connection.proxy.as_ref().unwrap().username.as_deref(), Some("tor"));
+        assert_eq!(ServerForm::edit(ServerId(2), &entry).validate().unwrap(), entry);
     }
 
     #[test]
