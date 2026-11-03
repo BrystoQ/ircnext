@@ -261,3 +261,155 @@ mod tests {
         assert_eq!(CompletionEdit { erase: 9, append: "x".into() }.apply("été"), "x");
     }
 }
+
+/// Limits of the `draft/multiline` capability: a message of several lines
+/// sent as one batch.
+///
+/// Reference: <https://ircv3.net/specs/extensions/multiline>
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Multiline {
+    /// Maximum total size of the message text, in bytes.
+    pub max_bytes: usize,
+    /// Maximum number of lines in a batch, if limited.
+    pub max_lines: Option<usize>,
+}
+
+impl Multiline {
+    pub const CAP: &str = "draft/multiline";
+    /// Tag of a line glued to the previous one, without a line break.
+    pub const CONCAT: &str = "draft/multiline-concat";
+
+    /// Parses the capability value, `max-bytes=4096,max-lines=24`.
+    pub fn parse(value: &str) -> Option<Self> {
+        let mut max_bytes = None;
+        let mut max_lines = None;
+        for item in value.split(',') {
+            match item.split_once('=') {
+                Some(("max-bytes", value)) => max_bytes = value.parse().ok(),
+                Some(("max-lines", value)) => max_lines = value.parse().ok(),
+                _ => {}
+            }
+        }
+        Some(Self { max_bytes: max_bytes.filter(|&bytes| bytes > 0)?, max_lines })
+    }
+
+    /// Messages sending `text` to `target` as a `reference` batch, each line
+    /// cut into pieces of at most `max_line_bytes` bytes. `None` if the text
+    /// has a single line or does not fit the limits: it is then sent as
+    /// separate messages.
+    pub fn batch(&self, reference: &str, target: &str, text: &str, max_line_bytes: usize) -> Option<Vec<Message>> {
+        let lines: Vec<&str> = text.trim_matches('\n').split('\n').map(|line| line.trim_end_matches('\r')).collect();
+        let size = lines.iter().map(|line| line.len() + 1).sum::<usize>() - 1;
+        if lines.len() < 2 || size > self.max_bytes {
+            return None;
+        }
+        let mut messages = vec![Message::new(
+            Command::Batch,
+            [format!("+{reference}"), Self::CAP.to_owned(), target.to_owned()],
+        )];
+        for line in lines {
+            for (index, piece) in pieces(line, max_line_bytes).into_iter().enumerate() {
+                let mut message = Message::privmsg(target, piece);
+                message.tags.insert("batch", reference);
+                if index > 0 {
+                    message.tags.insert(Self::CONCAT, "");
+                }
+                messages.push(message);
+            }
+        }
+        if self.max_lines.is_some_and(|max| messages.len() - 1 > max) {
+            return None;
+        }
+        messages.push(Message::new(Command::Batch, [format!("-{reference}")]));
+        Some(messages)
+    }
+
+    /// Text of a received batch: lines joined with line breaks, except those
+    /// tagged `draft/multiline-concat`, glued to the previous one.
+    pub fn join<'a>(lines: impl IntoIterator<Item = &'a Message>) -> String {
+        let mut text = String::new();
+        for (index, line) in lines.into_iter().enumerate() {
+            if index > 0 && line.tags.get(Self::CONCAT).is_none() {
+                text.push('\n');
+            }
+            text.push_str(line.param(1).unwrap_or_default());
+        }
+        text
+    }
+}
+
+/// Cuts a line into pieces of at most `max_bytes` bytes on character
+/// boundaries, preferably after a space; gluing the pieces back gives the
+/// line exactly.
+fn pieces(line: &str, max_bytes: usize) -> Vec<&str> {
+    let mut pieces = Vec::new();
+    let mut rest = line;
+    while rest.len() > max_bytes {
+        let mut cut = max_bytes;
+        while !rest.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        if let Some(space) = rest[..cut].rfind(' ').filter(|&i| i > cut / 2) {
+            cut = space + 1;
+        }
+        pieces.push(&rest[..cut]);
+        rest = &rest[cut..];
+    }
+    pieces.push(rest);
+    pieces
+}
+
+#[cfg(test)]
+mod multiline_tests {
+    use super::*;
+
+    const LIMITS: Multiline = Multiline { max_bytes: 4096, max_lines: Some(24) };
+
+    fn wire(messages: &[Message]) -> Vec<String> {
+        messages.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn parses_the_capability_value() {
+        assert_eq!(Multiline::parse("max-bytes=4096,max-lines=24"), Some(LIMITS));
+        assert_eq!(Multiline::parse("max-bytes=40000"), Some(Multiline { max_bytes: 40000, max_lines: None }));
+        assert_eq!(Multiline::parse("max-lines=24"), None);
+        assert_eq!(Multiline::parse(""), None);
+    }
+
+    #[test]
+    fn sends_lines_as_one_batch() {
+        let messages = LIMITS.batch("m1", "#rust", "first\nsecond\r\n\nfourth", 400).unwrap();
+        assert_eq!(
+            wire(&messages),
+            [
+                "BATCH +m1 draft/multiline #rust",
+                "@batch=m1 PRIVMSG #rust first",
+                "@batch=m1 PRIVMSG #rust second",
+                "@batch=m1 PRIVMSG #rust :",
+                "@batch=m1 PRIVMSG #rust fourth",
+                "BATCH -m1",
+            ]
+        );
+        assert_eq!(Multiline::join(&messages[1..5]), "first\nsecond\n\nfourth");
+    }
+
+    #[test]
+    fn long_lines_are_glued_back_exactly() {
+        let line = "word ".repeat(30);
+        let text = format!("{line}\nend");
+        let messages = LIMITS.batch("m2", "bob", &text, 40).unwrap();
+        assert!(messages.iter().any(|m| m.tags.get(Multiline::CONCAT).is_some()));
+        assert!(messages[1..messages.len() - 1].iter().all(|m| m.param(1).unwrap().len() <= 40));
+        assert_eq!(Multiline::join(&messages[1..messages.len() - 1]), text);
+    }
+
+    #[test]
+    fn falls_back_outside_the_limits() {
+        assert_eq!(LIMITS.batch("m3", "#c", "one line", 400), None);
+        let small = Multiline { max_bytes: 10, max_lines: None };
+        assert_eq!(small.batch("m4", "#c", "hello\nworld!", 400), None);
+        let few = Multiline { max_bytes: 4096, max_lines: Some(2) };
+        assert_eq!(few.batch("m5", "#c", "a\nb\nc", 400), None);
+    }
+}

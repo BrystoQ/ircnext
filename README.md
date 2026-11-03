@@ -216,7 +216,7 @@ ircnext automatically negotiates the [IRCv3](https://ircv3.net) extensions offer
 | Area | Extensions |
 |---|---|
 | Connection | `cap-notify`, `sasl` (PLAIN, EXTERNAL), `sts` |
-| Messages | `message-tags`, `server-time`, `echo-message`, `batch`, `labeled-response`, `msgid` (deduplication), `standard-replies`, `UTF8ONLY` |
+| Messages | `message-tags`, `server-time`, `echo-message`, `batch`, `labeled-response`, `msgid` (deduplication), `standard-replies`, `draft/multiline`, `UTF8ONLY` |
 | History | `draft/chathistory`, `draft/event-playback`, `draft/read-marker`, `draft/message-redaction` |
 | Users | `account-notify`, `account-tag`, `away-notify`, `extended-join`, `chghost`, `setname`, `multi-prefix`, `userhost-in-names`, `invite-notify` |
 | Presence | `MONITOR`, `extended-monitor`, `WHOX`, `BOT` |
@@ -283,7 +283,7 @@ The screenshots in this README are rendered headlessly by the `snapshots` test, 
 - [x] English interface, French translation
 - [x] SOCKS5 proxy
 - [ ] DCC transfers
-- [ ] `draft/multiline`
+- [x] `draft/multiline`
 
 ## Contributing
 

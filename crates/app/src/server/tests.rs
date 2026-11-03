@@ -19,7 +19,7 @@ fn server() -> Server {
     let settings = Settings::default();
     let ctx = Context { settings: &settings, active: None };
     server.on_event(
-        Event::Registered(Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false }),
+        Event::Registered(Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false, multiline: None }),
         &ctx,
     );
     for line in [
@@ -323,4 +323,23 @@ fn part_uses_the_configured_message() {
     let settings = Settings { part_message: "see you".into(), ..Settings::default() };
     let ctx = Context { settings: &settings, active: None };
     assert_eq!(super::outgoing::default_part_message_for_tests(&ctx).as_deref(), Some("see you"));
+}
+
+#[test]
+fn multiline_batches_show_as_one_message() {
+    let mut server = server();
+    let before = lines(&server, "#rust").len();
+    receive(&mut server, "@msgid=ml1 :bob!b@h BATCH +ml draft/multiline #rust");
+    receive(&mut server, "@batch=ml :bob!b@h PRIVMSG #rust :fn main() {");
+    receive(&mut server, "@batch=ml :bob!b@h PRIVMSG #rust :    println!(\"hi\");");
+    receive(&mut server, "@batch=ml :bob!b@h PRIVMSG #rust :}");
+    assert_eq!(lines(&server, "#rust").len(), before, "nothing shown before the batch closes");
+    receive(&mut server, ":bob!b@h BATCH -ml");
+    let line = last(&server, "#rust");
+    assert!(
+        matches!(&line.kind, LineKind::Message { nick, text, .. } if nick == "bob" && text == "fn main() {\n    println!(\"hi\");\n}"),
+        "{:?}",
+        line.kind
+    );
+    assert_eq!(line.msgid.as_deref(), Some("ml1"));
 }

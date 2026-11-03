@@ -12,7 +12,7 @@ use ircnext_proto::numeric::{
     ERR_ERRONEUSNICKNAME, ERR_NICKCOLLISION, ERR_NICKNAMEINUSE, ERR_SASLABORTED, ERR_SASLALREADY,
     ERR_SASLFAIL, ERR_SASLTOOLONG, ERR_UNAVAILRESOURCE, RPL_SASLSUCCESS, RPL_WELCOME,
 };
-use ircnext_proto::ircv3::StsPolicy;
+use ircnext_proto::ircv3::{Multiline, StsPolicy};
 use ircnext_proto::{Command, Message};
 
 use crate::config::{Config, Sasl};
@@ -29,6 +29,7 @@ const WANTED_CAPS: &[&str] = &[
     "draft/chathistory",
     "draft/event-playback",
     "draft/message-redaction",
+    "draft/multiline",
     "draft/read-marker",
     "echo-message",
     "extended-join",
@@ -64,6 +65,8 @@ pub struct Registered {
     pub sts: Option<StsPolicy>,
     /// SASL configured but not used: the connection is not encrypted.
     pub sasl_refused: bool,
+    /// Limits of `draft/multiline`, if the capability was accepted.
+    pub multiline: Option<Multiline>,
 }
 
 /// Progress after handling a message.
@@ -170,6 +173,12 @@ impl Registration {
             Command::Cap => return self.on_cap(message),
             Command::Authenticate if message.param(0) == Some("+") => self.sasl_payload(),
             Command::Numeric(RPL_WELCOME) => {
+                let multiline = self
+                    .acked
+                    .iter()
+                    .any(|cap| cap == Multiline::CAP)
+                    .then(|| self.cap_value(Multiline::CAP).and_then(Multiline::parse))
+                    .flatten();
                 return Progress::Done(Registered {
                     nick: message.param(0).unwrap_or(&self.nick).to_owned(),
                     caps: std::mem::take(&mut self.acked),
@@ -178,6 +187,7 @@ impl Registration {
                         ..policy
                     }),
                     sasl_refused: self.sasl_refused,
+                    multiline,
                 });
             }
             Command::Numeric(
@@ -240,6 +250,11 @@ impl Registration {
             "NAK" if self.state == State::Requesting => Progress::Continue(self.end()),
             _ => Progress::Continue(Vec::new()),
         }
+    }
+
+    /// Value advertised for a capability in `CAP LS`.
+    fn cap_value(&self, name: &str) -> Option<&str> {
+        self.available.iter().find(|(cap, _)| cap == name).and_then(|(_, value)| value.as_deref())
     }
 
     fn sts_policy(&self) -> Option<StsPolicy> {

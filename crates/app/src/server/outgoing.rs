@@ -1,5 +1,6 @@
 //! Sending text and running typed commands.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use chrono::Local;
@@ -17,10 +18,30 @@ use crate::tr;
 /// 512-byte limit once the server adds the source.
 const MAX_TEXT_BYTES: usize = 400;
 
+/// Number of the next `draft/multiline` batch reference.
+static NEXT_BATCH: AtomicU64 = AtomicU64::new(1);
+
 impl Server {
     /// Sends text in a tab (each pasted line becomes a message).
     pub fn send_text(&mut self, id: BufferId, text: &str, ctx: &Context<'_>) -> Result<(), String> {
         let target = self.text_target(id)?;
+        // Several lines: one `draft/multiline` batch when the server allows it.
+        let reference = format!("ircnext{}", NEXT_BATCH.fetch_add(1, Ordering::Relaxed));
+        let batch = self
+            .network
+            .multiline()
+            .and_then(|limits| limits.batch(&reference, &target, text, MAX_TEXT_BYTES));
+        if let Some(messages) = batch {
+            for message in messages {
+                self.send(message)?;
+            }
+            self.echo(id, LineKind::Message {
+                nick: self.network.nick().to_owned(),
+                prefix: self.own_prefix(&target),
+                text: text.trim_matches('\n').replace("\r\n", "\n"),
+            }, ctx);
+            return Ok(());
+        }
         for line in text.lines().filter(|line| !line.is_empty()) {
             for chunk in split_message(line, MAX_TEXT_BYTES) {
                 self.send(Message::privmsg(&target, chunk))?;
