@@ -1,0 +1,16 @@
+This file makes ircnext portable.
+
+While it sits next to the ircnext executable, the configuration, logs,
+scripts and certificates are kept in the "data" folder beside it, and
+passwords stay in that folder instead of the system keychain. Delete this
+file to use the usual folders of the system instead.
+
+---
+
+Ce fichier rend ircnext portable.
+
+Tant qu'il se trouve à côté de l'exécutable d'ircnext, la configuration,
+les journaux, les scripts et les certificats sont rangés dans le dossier
+« data » voisin, et les mots de passe restent dans ce dossier plutôt que
+dans le trousseau du système. Supprimez ce fichier pour utiliser les
+dossiers habituels du système.

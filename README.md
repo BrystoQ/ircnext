@@ -127,11 +127,13 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 
 Each version publishes ready-to-use executables on the [releases page](https://github.com/BrystoQ/ircnext/releases/latest):
 
-| System | File |
-|---|---|
-| macOS 11+ (Apple Silicon and Intel) | `ircnext-X.Y.Z-macos.zip` |
-| Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64.zip` |
-| Linux (x64) | `ircnext-X.Y.Z-linux-x64.tar.gz` |
+| System | Installer | Portable |
+|---|---|---|
+| macOS 11+ (Apple Silicon and Intel) | `ircnext-X.Y.Z-macos.dmg` | `ircnext-X.Y.Z-macos.zip` |
+| Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64-setup.exe` | `ircnext-X.Y.Z-windows-x64-portable.zip` |
+| Linux (x64) | `ircnext_X.Y.Z_amd64.deb` | `ircnext-X.Y.Z-linux-x64-portable.tar.gz` |
+
+The **installer** adds ircnext to the Start menu / Applications / your desktop's menu, and can be uninstalled like any program (the Windows one asks whether to install for you only or for everyone). The **portable** Windows and Linux archives contain a `portable.txt` file: while it sits next to the executable, the configuration, logs and scripts stay in a `data` folder beside it, so the folder can be moved or carried on a USB stick. Delete `portable.txt` to use the system folders instead.
 
 Checksums are in `SHA256SUMS.txt`. What changed in each version is described in the [patch notes](CHANGELOG.md).
 

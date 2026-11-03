@@ -6,6 +6,10 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ## [Unreleased]
 
+### Added
+
+- Installable and portable packages: a `setup.exe` installer for Windows, a `.dmg` for macOS and a `.deb` for Debian and Ubuntu, next to portable archives. A `portable.txt` file next to the executable keeps the configuration, logs and scripts in a `data` folder beside it.
+
 ## [0.3.0] - 2026-11-04
 
 ### Added

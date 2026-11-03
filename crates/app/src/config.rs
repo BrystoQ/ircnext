@@ -79,12 +79,15 @@ impl From<io::Error> for Error {
 }
 
 impl AppConfig {
-    /// Location of the file: `$IRCNEXT_CONFIG` if set, otherwise the
-    /// system's configuration folder
+    /// Location of the file: `$IRCNEXT_CONFIG` if set, the `data` folder
+    /// of a portable copy, otherwise the system's configuration folder
     /// (`~/Library/Application Support/ircnext/` on macOS).
     pub fn path() -> Result<PathBuf, Error> {
         if let Some(path) = std::env::var_os("IRCNEXT_CONFIG") {
             return Ok(PathBuf::from(path));
+        }
+        if let Some(dir) = portable_dir() {
+            return Ok(dir.join("config.toml"));
         }
         directories::ProjectDirs::from("", "", "ircnext")
             .map(|dirs| dirs.config_dir().join("config.toml"))
@@ -175,6 +178,15 @@ impl AppConfig {
     }
 }
 
+/// Portable mode: a `portable.txt` file next to the executable keeps all
+/// the data (configuration, logs, scripts, certificates) in a `data`
+/// folder beside it, so that the copy can be moved or carried on a stick.
+pub fn portable_dir() -> Option<PathBuf> {
+    let executable = std::env::current_exe().ok()?;
+    let dir = executable.parent()?;
+    dir.join("portable.txt").is_file().then(|| dir.join("data"))
+}
+
 /// Creates the configuration folder, accessible to the user only.
 fn create_private_dir(dir: &Path) -> io::Result<()> {
     if dir.as_os_str().is_empty() || dir.is_dir() {
@@ -258,6 +270,17 @@ mod tests {
         // An abandoned temporary file does not block saving.
         std::fs::write(path.with_extension("toml.tmp"), "reste").unwrap();
         config.save_to(&path).unwrap();
+    }
+
+    #[test]
+    fn portable_marker_keeps_data_beside_the_executable() {
+        let dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
+        let marker = dir.join("portable.txt");
+        assert_eq!(portable_dir(), None);
+        std::fs::write(&marker, "portable").unwrap();
+        let found = portable_dir();
+        std::fs::remove_file(&marker).unwrap();
+        assert_eq!(found, Some(dir.join("data")));
     }
 
     #[test]

@@ -619,3 +619,4 @@
 "Reload" = "Recharger"
 "After editing a file · /reload does the same" = "Après avoir modifié un fichier · /reload fait de même"
 "Scripts use the mIRC language (mSL): aliases, events, timers, hash tables. They only read and write files of their folder." = "Les scripts utilisent le langage de mIRC (mSL) : alias, événements, minuteries, tables de hachage. Ils ne lisent et n'écrivent que des fichiers de leur dossier."
+"Portable copy: passwords stay in its data folder, readable by you only" = "Copie portable : les mots de passe restent dans son dossier data, lisible par vous seul"
