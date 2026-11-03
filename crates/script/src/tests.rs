@@ -183,3 +183,110 @@ fn the_documented_example_runs() {
     interpreter.call("t", "", &mut host).unwrap();
     assert_eq!(host.echoes.last().map(String::as_str), Some("IRC"));
 }
+
+fn event(name: &str, channel: Option<&str>, text: &str, values: &[(&str, &str)]) -> crate::Event {
+    crate::Event {
+        name: name.into(),
+        channel: channel.map(str::to_owned),
+        text: text.into(),
+        values: values.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect(),
+        ..crate::Event::default()
+    }
+}
+
+#[test]
+fn text_events_match_text_and_target() {
+    let mut interpreter = Interpreter::default();
+    interpreter
+        .load(
+            "bot.mrc",
+            "on *:TEXT:!hello*:#:{ msg $chan Hello $nick $+ ! You said: $2- }\n\
+             on *:TEXT:!dice &:#rust:msg $chan $nick rolls $2\n\
+             on *:TEXT:*:?:echo private from $nick: $1-\n\
+             on *:TEXT:*secret*:*:greet $nick\n\
+             alias greet notice $1 hush, $nick",
+        )
+        .unwrap();
+    let mut host = Recorder::default();
+    let values = [("nick", "alice"), ("chan", "#rust")];
+    interpreter.fire(&event("TEXT", Some("#rust"), "!hello there world", &values), &mut host);
+    interpreter.fire(&event("TEXT", Some("#rust"), "!dice 6", &values), &mut host);
+    interpreter.fire(&event("TEXT", Some("#other"), "!dice 6", &values), &mut host);
+    interpreter.fire(&event("TEXT", Some("#rust"), "!dice 6 extra", &values), &mut host);
+    interpreter.fire(&event("TEXT", None, "hi you", &[("nick", "bob")]), &mut host);
+    interpreter.fire(&event("TEXT", None, "a SECRET thing", &[("nick", "eve")]), &mut host);
+    assert_eq!(
+        host.commands,
+        ["msg #rust Hello alice! You said: there world", "msg #rust alice rolls 6", "notice eve hush, eve"]
+    );
+    assert_eq!(host.echoes, ["private from bob: hi you", "private from eve: a SECRET thing"]);
+}
+
+#[test]
+fn levels_and_prefixes() {
+    let mut interpreter = Interpreter::default();
+    interpreter
+        .load(
+            "joins.mrc",
+            "on *:JOIN:#:notice $nick welcome to $chan\n\
+             on me:*:JOIN:#:echo I joined $chan\n\
+             on @*:JOIN:#rust:mode $chan +v $nick\n\
+             on *:KICK:#:echo $knick kicked by $nick for $1-\n\
+             on *:CONNECT:echo connected to $network",
+        )
+        .unwrap();
+    let mut host = Recorder::default();
+    let mut join = event("JOIN", Some("#rust"), "", &[("nick", "carol"), ("chan", "#rust")]);
+    interpreter.fire(&join, &mut host);
+    join.operator = true;
+    interpreter.fire(&join, &mut host);
+    assert_eq!(host.commands, ["notice carol welcome to #rust", "notice carol welcome to #rust", "mode #rust +v carol"]);
+    let own = crate::Event { own: true, ..event("JOIN", Some("#c"), "", &[("nick", "me"), ("chan", "#c")]) };
+    interpreter.fire(&own, &mut host);
+    assert_eq!(host.echoes, ["I joined #c"], "own joins only reach me: handlers");
+    interpreter.fire(&event("KICK", Some("#c"), "spam", &[("nick", "op"), ("knick", "troll"), ("chan", "#c")]), &mut host);
+    let connect = crate::Event { own: true, ..event("CONNECT", None, "", &[("network", "Libera")]) };
+    interpreter.fire(&connect, &mut host);
+    assert_eq!(host.echoes[1..], ["troll kicked by op for spam", "connected to Libera"]);
+}
+
+#[test]
+fn input_can_be_stopped() {
+    let mut interpreter = Interpreter::default();
+    interpreter
+        .load("input.mrc", "on *:INPUT:#:{ if ($1 == brb) { msg $chan be right back | halt } }\non *:INPUT:*:{ noop $nosuch( }")
+        .unwrap();
+    let mut host = Recorder::default();
+    let mut input = crate::Event { own: true, ..event("INPUT", Some("#c"), "brb", &[("chan", "#c")]) };
+    let (halted, errors) = interpreter.fire(&input, &mut host);
+    assert!(halted);
+    assert_eq!(host.commands, ["msg #c be right back"]);
+    assert_eq!(errors.len(), 1, "the broken handler reports its error without stopping the other");
+    input.text = "hello".into();
+    assert!(!interpreter.fire(&input, &mut host).0);
+}
+
+#[test]
+fn word_wildcards() {
+    use crate::builtins::wildcard_match;
+    assert!(wildcard_match("!seen &", "!seen bob", true));
+    assert!(!wildcard_match("!seen &", "!seen", true));
+    assert!(!wildcard_match("!seen &", "!seen bob alice", true));
+    assert!(wildcard_match("& is *", "rust is great fun", true));
+    assert!(wildcard_match("*bot*", "a robot here", true));
+}
+
+#[test]
+fn the_documented_events_run() {
+    let mut interpreter = Interpreter::default();
+    interpreter.load("example.mrc", include_str!("../../../docs/scripts/example.mrc")).unwrap();
+    let mut host = Recorder::default();
+    interpreter.fire(&event("TEXT", Some("#rust"), "!seen bob", &[("nick", "alice"), ("chan", "#rust")]), &mut host);
+    interpreter.fire(&event("JOIN", Some("#rust"), "", &[("nick", "carol"), ("chan", "#rust")]), &mut host);
+    let input = crate::Event { own: true, ..event("INPUT", Some("#rust"), "brb", &[("chan", "#rust")]) };
+    assert!(interpreter.fire(&input, &mut host).0);
+    assert_eq!(
+        host.commands,
+        ["msg #rust alice: I do not keep logs of bob yet.", "notice carol Welcome to #rust, carol!", "msg #rust be right back"]
+    );
+}

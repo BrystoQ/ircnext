@@ -73,6 +73,9 @@ pub struct Interpreter {
     depth: usize,
     steps: u64,
     random: u64,
+    /// Identifiers of the event being handled (`$nick`, `$chan`…), also
+    /// seen by the aliases it calls.
+    pub(crate) event: BTreeMap<String, String>,
 }
 
 impl Interpreter {
@@ -138,9 +141,10 @@ impl Interpreter {
     }
 
     /// Runs a body in a given frame (events use it with their own frame).
-    pub fn run_body(&mut self, body: &[Stmt], frame: &mut Frame, host: &mut dyn Host) -> Result<(), Error> {
+    /// Returns whether it ended with `halt`.
+    pub fn run_body(&mut self, body: &[Stmt], frame: &mut Frame, host: &mut dyn Host) -> Result<bool, Error> {
         self.steps = 0;
-        self.run(body, frame, host).map(|_| ())
+        self.run(body, frame, host).map(|flow| matches!(flow, Flow::Halt))
     }
 
     fn run(&mut self, body: &[Stmt], frame: &mut Frame, host: &mut dyn Host) -> Result<Flow, Error> {
@@ -426,6 +430,9 @@ impl Interpreter {
         }
         if let Some(value) = builtins::call(&lower, args, has_parens) {
             return Ok(value);
+        }
+        if let Some(value) = self.event.get(&lower) {
+            return Ok(value.clone());
         }
         if self.find_alias(&lower, frame.script).is_some() {
             return Ok(self.call_alias(&lower, args.to_vec(), frame.script, host)?.0.unwrap_or_default());

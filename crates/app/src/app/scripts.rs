@@ -5,11 +5,11 @@ use std::path::PathBuf;
 
 use chrono::Local;
 use iced::Task;
-use ircnext_script::{Host, Interpreter};
+use ircnext_script::{Event, Host, Interpreter};
 
 use super::{App, Message};
 use crate::buffer::{Kind, Line, LineKind};
-use crate::server::{BufferId, Context, ServerId};
+use crate::server::{BufferId, Context, ScriptEvent, ServerId};
 use crate::tr;
 
 impl App {
@@ -79,6 +79,51 @@ impl App {
             self.script_line(server, buffer, LineKind::Error(tr!("Script: {error}", error = error)));
         }
         Task::batch(tasks)
+    }
+
+    /// Runs the scripts' handlers of the events collected by a network.
+    pub(super) fn fire_script_events(&mut self, server: ServerId, events: Vec<ScriptEvent>) -> Task<Message> {
+        if self.scripts.scripts.is_empty() {
+            return Task::none();
+        }
+        let tasks: Vec<Task<Message>> =
+            events.into_iter().map(|ScriptEvent { buffer, event }| self.fire_script_event(server, buffer, &event).1).collect();
+        Task::batch(tasks)
+    }
+
+    /// Runs the handlers of one event in `buffer`. Returns whether one of
+    /// them used `halt`.
+    pub(super) fn fire_script_event(&mut self, server: ServerId, buffer: BufferId, event: &Event) -> (bool, Task<Message>) {
+        if self.scripts.scripts.is_empty() {
+            return (false, Task::none());
+        }
+        let mut scripts = std::mem::take(&mut self.scripts);
+        let mut host = ScriptHost { app: self, server, buffer, tasks: Vec::new() };
+        let (halted, errors) = scripts.fire(event, &mut host);
+        let tasks = std::mem::take(&mut host.tasks);
+        self.scripts = scripts;
+        for error in errors {
+            self.script_line(server, buffer, LineKind::Error(tr!("Script: {error}", error = error)));
+        }
+        (halted, Task::batch(tasks))
+    }
+
+    /// `on INPUT`: what the user typed in a tab, before it is sent.
+    /// Returns whether a handler stopped it.
+    pub(super) fn input_event(&mut self, server: ServerId, buffer: BufferId, text: &str) -> (bool, Task<Message>) {
+        let Some((kind, name)) = self.server(server).and_then(|s| s.buffer(buffer)).map(|b| (b.kind, b.name.clone())) else {
+            return (false, Task::none());
+        };
+        let channel = (kind == Kind::Channel).then_some(name.clone());
+        let event = Event {
+            name: "INPUT".into(),
+            channel,
+            text: text.to_owned(),
+            own: true,
+            values: [("target".to_owned(), name)].into(),
+            ..Event::default()
+        };
+        self.fire_script_event(server, buffer, &event)
     }
 
     fn script_line(&mut self, server: ServerId, buffer: BufferId, kind: LineKind) {

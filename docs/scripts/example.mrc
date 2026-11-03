@@ -35,3 +35,23 @@ alias initials {
   }
   return %out
 }
+
+; Events: a tiny channel bot.
+on *:TEXT:!seen &:#:{
+  msg $chan $nick $+ : I do not keep logs of $2 yet.
+}
+
+on *:JOIN:#:{
+  notice $nick Welcome to $chan $+ , $nick $+ !
+}
+
+; Mine: `on me:` handlers run for my own actions.
+on me:*:JOIN:#:echo -a Joined $chan on $network
+
+; Typed text: `halt` keeps it from being sent.
+on *:INPUT:#:{
+  if ($1 == brb) {
+    msg $chan be right back
+    halt
+  }
+}

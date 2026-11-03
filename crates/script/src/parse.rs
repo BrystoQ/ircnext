@@ -196,8 +196,9 @@ impl Parser {
         } else {
             // Single-line handler (`on *:TEXT:hi:#:msg $chan hello`): the
             // number of header fields depends on the event.
-            let event = line.split(':').nth(1).unwrap_or_default().to_ascii_uppercase();
-            let fields = header_fields(&event);
+            let own = line.get(..3).is_some_and(|prefix| prefix.eq_ignore_ascii_case("me:"));
+            let event = line.split(':').nth(1 + usize::from(own)).unwrap_or_default().to_ascii_uppercase();
+            let fields = header_fields(&event) + usize::from(own);
             let parts: Vec<&str> = line.splitn(fields + 1, ':').collect();
             if parts.len() <= fields {
                 return Err(self.error("incomplete on header"));
