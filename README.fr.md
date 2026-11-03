@@ -32,6 +32,7 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 - [Raccourcis clavier](#raccourcis-clavier)
 - [Commandes](#commandes)
 - [IRCv3](#ircv3)
+- [Scripts](#scripts)
 - [Configuration](#configuration)
 - [Sécurité](#sécurité)
 - [Architecture](#architecture)
@@ -232,6 +233,28 @@ ircnext négocie automatiquement les extensions [IRCv3](https://ircv3.net) propo
 | Salons | `draft/channel-rename` |
 | Tags clients | `+typing`, brouillon [`+draft/autocomplete`](https://github.com/ircv3/ircv3-specifications/pull/415) (complétion proposée par les bots) |
 
+## Scripts
+
+ircnext exécute les scripts mIRC (mSL). Placez des fichiers `.mrc` dans le dossier `scripts` à côté du fichier de configuration, puis tapez `/reload` ; ils sont aussi chargés au démarrage. Un exemple commenté se trouve dans [`docs/scripts/example.mrc`](docs/scripts/example.mrc).
+
+```mrc
+alias hello {
+  if ($1 == $null) { echo -a Usage: /hello <nick> | halt }
+  msg $chan Hello $1 $+ , welcome to $chan $+ !
+}
+```
+
+Déjà pris en charge :
+
+- `alias` (et `alias -l`), appelés comme commandes (`/hello bob`) ou comme identifiants (`$initials(…)`), avec `return` ;
+- `if` / `elseif` / `else`, `while`, `break`, `continue`, `halt` ; séparateur `|` et blocs `{ }` ; commentaires `;` et `/* */` ;
+- variables : `var` (locales), `set` / `unset` / `inc` / `dec` (globales) ; `$1`, `$2-`, `$0` ; `$+` ;
+- conditions : `==`, `===`, `!=`, `<`, `>`, `<=`, `>=`, `//`, `\\`, `&`, `isin`, `iswm`, `isnum`, `isletter`, `isalpha`, `isalnum`, `islower`, `isupper`, `ison`, `isop`, `isvoice`, `isreg`, `ischan`, avec `!`, `&&`, `||` ;
+- identifiants : `$me`, `$chan`, `$active`, `$network`, `$server`, `$time`, `$date`, `$ctime`, `$len`, `$upper`, `$lower`, `$left`, `$right`, `$mid`, `$replace`, `$remove`, `$pos`, `$count`, `$str`, `$strip`, `$chr`, `$asc`, `$gettok`, `$numtok`, `$addtok`, `$deltok`, `$istok`, `$findtok`, `$puttok`, `$instok`, `$calc`, `$round`, `$int`, `$abs`, `$rand`, `$iif`, `$ord`… ;
+- toutes les commandes d'ircnext (`msg`, `notice`, `join`, `mode`, `echo`…).
+
+Les événements (`on TEXT`, `on JOIN`…), les minuteries, les tables de hachage et un gestionnaire de scripts arrivent ensuite. Un script qui boucle sans fin est arrêté automatiquement.
+
 ## Configuration
 
 Tout se règle depuis l'interface. Les réglages sont enregistrés dans un fichier TOML :
@@ -262,7 +285,7 @@ Pour signaler une vulnérabilité, voir [SECURITY.md](SECURITY.md).
 
 ## Architecture
 
-Un espace de travail Cargo en trois crates, du protocole à l'interface :
+Un espace de travail Cargo en quatre crates, du protocole à l'interface :
 
 ```
 crates/
@@ -270,6 +293,8 @@ crates/
 │                             mise en forme mIRC, ISUPPORT, casemapping
 ├── client/   ircnext-client  Connexion TCP/TLS (rustls), enregistrement CAP/SASL/STS,
 │                             état du réseau, reconnexion, limitation du débit
+├── script/   ircnext-script  Interpréteur de scripts mIRC (mSL), sans I/O : analyse,
+│                             évaluation, conditions, identifiants intégrés
 └── app/      ircnext         Interface iced (architecture Elm) : onglets, réglages,
                               raccourcis, notifications, journaux, traductions
 ```
@@ -295,7 +320,8 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Proxy SOCKS5
 - [x] Transferts DCC
 - [x] Chiffrement FiSH 10 natif (Blowfish, échange de clés DH1080)
-- [ ] Scripts compatibles mIRC (mSL)
+- [x] Scripts compatibles mIRC (mSL) : alias et langage
+- [ ] Événements de scripts, minuteries, tables de hachage, gestionnaire de scripts
 - [x] `draft/multiline`
 
 ## Contribuer

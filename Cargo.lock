@@ -1822,6 +1822,7 @@ dependencies = [
  "iced",
  "iced_test",
  "ircnext-client",
+ "ircnext-script",
  "keyring",
  "notify-rust",
  "open",
@@ -1853,6 +1854,13 @@ dependencies = [
 
 [[package]]
 name = "ircnext-proto"
+version = "0.2.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "ircnext-script"
 version = "0.2.0"
 dependencies = [
  "thiserror 2.0.21",

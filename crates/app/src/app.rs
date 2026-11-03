@@ -33,6 +33,7 @@ use crate::ui::{chat, nicklist, sidebar};
 use crate::tr;
 
 mod keys;
+mod scripts;
 mod transfers;
 
 /// Id of the input field (to focus it).
@@ -150,6 +151,8 @@ pub struct App {
     system_notifications: bool,
     /// Passwords already stored in the system keychain.
     keychain: keychain::Cache,
+    /// mIRC scripts (`scripts/*.mrc`).
+    scripts: ircnext_script::Interpreter,
     /// DCC file transfers of the session.
     transfers: Vec<crate::transfer::Transfer>,
     next_transfer: u64,
@@ -168,6 +171,10 @@ impl App {
         });
         let mut app = Self::new(config, AppConfig::path().ok(), banner);
         app.keychain = keychain;
+        let (_, script_errors) = app.load_scripts();
+        if !script_errors.is_empty() && app.banner.is_none() {
+            app.banner = Some(tr!("Script errors: {errors}", errors = script_errors.join(" · ")));
+        }
         app.system_notifications = true;
         app.sync_prefs();
         let tasks = Task::batch([
@@ -198,6 +205,7 @@ impl App {
             window: WindowState { id: None, focused: true, dark: true },
             system_notifications: false,
             keychain: keychain::Cache::new(),
+            scripts: ircnext_script::Interpreter::default(),
             transfers: Vec::new(),
             next_transfer: 0,
             banner,
@@ -598,7 +606,20 @@ impl App {
 
     /// Runs a typed line (text or command) in a tab.
     fn run_line(&mut self, id: ServerId, buffer: BufferId, text: &str) -> Task<Message> {
+        // A script alias takes precedence over the client's commands.
+        if let Some(command) = text.strip_prefix('/').filter(|command| !command.starts_with('/')) {
+            let (name, args) = command.split_once(' ').unwrap_or((command, ""));
+            if self.scripts.has_alias(name) {
+                return self.run_alias(id, buffer, name, args);
+            }
+        }
+        self.run_builtin(id, buffer, text)
+    }
+
+    /// Runs a typed line with the client's own commands only.
+    fn run_builtin(&mut self, id: ServerId, buffer: BufferId, text: &str) -> Task<Message> {
         match input::parse(text) {
+            Ok(Input::Command(Command::Reload)) => return self.reload_scripts(id, buffer),
             Ok(Input::Command(Command::Ignore(mask))) => return self.ignore(id, buffer, mask),
             Ok(Input::Command(Command::Unignore(mask))) => return self.unignore(id, buffer, &mask),
             Ok(Input::Command(Command::Transfers)) => {
@@ -1313,6 +1334,51 @@ mod tests {
         assert_eq!(app.transfers[0].resuming, None);
         assert_eq!(app.transfers[0].done, 400);
         assert!(app.transfers[0].handle.is_some(), "download started");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn script_aliases_run_client_commands() {
+        let mut app = demo();
+        app.scripts
+            .load(
+                "test.mrc",
+                "alias quiet { ignore $1 | echo $1 is ignored in $chan on $network as $me }\n\
+                 alias broken { echo $calc(1 + | noop $nosuch( }",
+            )
+            .unwrap();
+        app.input = "/quiet troll".into();
+        let _ = app.update(Message::Submit);
+        assert_eq!(app.config.settings.ignored, ["troll"], "client command run by the script");
+        let (server, buffer) = app.active.unwrap();
+        let last = |app: &App| app.server(server).unwrap().buffer(buffer).unwrap().lines().last().unwrap().kind.clone();
+        assert_eq!(last(&app), LineKind::Info("troll is ignored in #rust on Libera.Chat as me".into()));
+
+        app.input = "/broken".into();
+        let _ = app.update(Message::Submit);
+        assert!(matches!(last(&app), LineKind::Error(text) if text.starts_with("Script:")), "errors are shown");
+
+        // Built-in commands still work when no alias has their name.
+        app.input = "/unignore troll".into();
+        let _ = app.update(Message::Submit);
+        assert_eq!(app.config.settings.ignored, Vec::<String>::new());
+    }
+
+    #[test]
+    fn loads_scripts_from_the_scripts_folder() {
+        let dir = std::env::temp_dir().join(format!("ircnext-scripts-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("scripts")).unwrap();
+        std::fs::write(dir.join("scripts/good.mrc"), "alias hi echo hi").unwrap();
+        std::fs::write(dir.join("scripts/bad.mrc"), "alias broken {").unwrap();
+        std::fs::write(dir.join("scripts/notes.txt"), "not a script").unwrap();
+        let mut app = App::new(AppConfig::default(), Some(dir.join("config.toml")), None);
+        app.scripts.globals.insert("%kept".into(), "1".into());
+        let (loaded, errors) = app.load_scripts();
+        assert_eq!(loaded, ["good.mrc"]);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].starts_with("bad.mrc"), "{errors:?}");
+        assert!(app.scripts.has_alias("hi"));
+        assert_eq!(app.scripts.globals.get("%kept").map(String::as_str), Some("1"), "globals kept on reload");
         std::fs::remove_dir_all(dir).unwrap();
     }
 
