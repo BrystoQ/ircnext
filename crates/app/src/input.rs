@@ -56,6 +56,8 @@ pub enum Command {
     KeyExchange(Option<String>),
     /// `/reload`: loads the scripts again.
     Reload,
+    /// `/echo <text>`: a line in the current tab, for the user only.
+    Echo(String),
 }
 
 /// Parsing error, shown in the current tab.
@@ -124,6 +126,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["delkey"], usage: tr("/delkey [#channel|nick]"), help: tr("Stop encrypting a conversation") },
         Spec { names: &["keyx"], usage: tr("/keyx [nick]"), help: tr("Exchange a FiSH key with someone (DH1080)") },
         Spec { names: &["reload"], usage: "/reload", help: tr("Reload the scripts (scripts folder)") },
+        Spec { names: &["echo"], usage: tr("/echo <text>"), help: tr("Show a line in the current tab, for you only") },
         Spec { names: &["help"], usage: "/help", help: tr("Show this help") },
     ]
 }
@@ -231,6 +234,14 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "delkey" => Command::DelKey(owned(args.map(first_word))),
         "keyx" => Command::KeyExchange(owned(args.map(first_word))),
         "reload" => Command::Reload,
+        "echo" => {
+            // Switches such as `-a` are accepted and ignored.
+            let mut text = required(args)?;
+            while text.starts_with('-') {
+                text = text.split_once(' ').map(|(_, rest)| rest.trim_start().to_owned()).unwrap_or_default();
+            }
+            Command::Echo(text)
+        }
         "dcc" => match args.map(split) {
             None | Some(("list" | "LIST", None)) => Command::Transfers,
             Some((sub, Some(rest))) if sub.eq_ignore_ascii_case("send") => {

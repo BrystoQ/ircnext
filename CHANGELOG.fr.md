@@ -8,6 +8,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ### Ajouté
 
+- Minuteries de scripts (`/timer`, `/timers`), tables de hachage (`hadd`, `$hget`…), fichiers ini (`$readini`, `/writeini`) et texte (`$read`, `/write`), limités au dossier `scripts` ; variables globales conservées d'une session à l'autre ; commande `/echo`.
 - Événements de scripts : `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `CONNECT`, `DISCONNECT`, `START` et `INPUT` (qui peut retenir un texte tapé), avec les textes filtrés, cibles et préfixes `me:`/`!`/`@` de mIRC.
 - Scripts mIRC (mSL), première partie : les fichiers `.mrc` du dossier `scripts` sont chargés au démarrage et avec `/reload` ; les alias se tapent comme des commandes ou servent d'identifiants, avec variables, `if`/`elseif`/`else`, `while`, conditions mIRC et une cinquantaine d'identifiants. Un script qui boucle sans fin est arrêté.
 - Chiffrement FiSH, compatible FiSH 10 : `/setkey [cible] <clé>` (préfixe `cbc:` pour CBC), `/delkey`, et `/keyx <pseudo>` pour un échange de clés DH1080. Messages, actions, notices et sujets sont chiffrés et déchiffrés ; les messages chiffrés portent un badge *FiSH* et l'en-tête indique quand une conversation est chiffrée. Les clés sont rangées dans le trousseau du système.

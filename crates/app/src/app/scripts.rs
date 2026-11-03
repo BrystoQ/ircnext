@@ -1,7 +1,8 @@
 //! mIRC scripts: loading the `.mrc` files, running aliases, and what the
 //! interpreter needs from the client.
 
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use chrono::Local;
 use iced::Task;
@@ -10,6 +11,7 @@ use ircnext_script::{Event, Host, Interpreter};
 use super::{App, Message};
 use crate::buffer::{Kind, Line, LineKind};
 use crate::server::{BufferId, Context, ScriptEvent, ServerId};
+use crate::i18n::tr;
 use crate::tr;
 
 impl App {
@@ -26,7 +28,9 @@ impl App {
         };
         let globals = std::mem::take(&mut self.scripts.globals);
         self.scripts = Interpreter::default();
-        self.scripts.globals = globals;
+        // Global variables live in `vars.ini`, written as soon as they change.
+        self.scripts.globals = std::fs::read_to_string(dir.join("vars.ini"))
+            .map_or(globals, |text| ircnext_script::storage::parse_variables(&text));
         let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
             .map(|entries| {
                 entries
@@ -67,6 +71,113 @@ impl App {
         Task::none()
     }
 
+    /// Saves the global variables if a script changed them.
+    fn save_script_variables(&mut self) {
+        if !self.scripts.take_globals_changed() {
+            return;
+        }
+        let Some(dir) = self.scripts_dir() else {
+            return;
+        };
+        let text = ircnext_script::storage::format_variables(&self.scripts.globals);
+        if let Err(error) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(dir.join("vars.ini"), text)) {
+            self.banner = Some(tr!("Cannot save the script variables: {error}", error = error));
+        }
+    }
+
+    /// `/timer[name] [-m] <repetitions> <interval> <command>`, `/timer<name> off`,
+    /// `/timers [off]`. Returns `None` if `line` is not a timer command.
+    pub(super) fn timer_command(&mut self, server: ServerId, buffer: BufferId, line: &str) -> Option<Task<Message>> {
+        let command = line.strip_prefix('/')?;
+        let (word, args) = command.split_once(' ').unwrap_or((command, ""));
+        let lower = word.to_ascii_lowercase();
+        let name = lower.strip_prefix("timer")?;
+        let args = args.trim();
+        if name == "s" {
+            if args.eq_ignore_ascii_case("off") {
+                self.timers.clear();
+            } else if self.timers.is_empty() {
+                self.script_line(server, buffer, LineKind::Info(tr("No active timer.").to_owned()));
+            } else {
+                let lines: Vec<String> = self
+                    .timers
+                    .iter()
+                    .map(|timer| {
+                        let repetitions = timer.remaining.map_or_else(|| "∞".to_owned(), |n| n.to_string());
+                        tr!(
+                            "Timer {name}: {repetitions} × every {interval} — {command}",
+                            name = timer.name,
+                            repetitions = repetitions,
+                            interval = format!("{:.1} s", timer.interval.as_secs_f64()),
+                            command = timer.command
+                        )
+                    })
+                    .collect();
+                for line in lines {
+                    self.script_line(server, buffer, LineKind::Info(line));
+                }
+            }
+            return Some(Task::none());
+        }
+        if args.eq_ignore_ascii_case("off") {
+            self.timers.retain(|timer| !timer.name.eq_ignore_ascii_case(name));
+            return Some(Task::none());
+        }
+        let (milliseconds, args) = match args.strip_prefix("-m ") {
+            Some(rest) => (true, rest.trim_start()),
+            None => (false, args.strip_prefix("-o ").unwrap_or(args)),
+        };
+        let mut words = args.splitn(3, ' ');
+        let parsed = (words.next().and_then(|n| n.parse::<u32>().ok()), words.next().and_then(|n| n.parse::<f64>().ok()), words.next());
+        let (Some(repetitions), Some(interval), Some(action)) = parsed else {
+            let usage = tr("Usage: /timer[name] [-m] <repetitions> <interval> <command>").to_owned();
+            self.script_line(server, buffer, LineKind::Error(usage));
+            return Some(Task::none());
+        };
+        let interval = if milliseconds { interval / 1000.0 } else { interval };
+        let interval = Duration::from_secs_f64(interval.clamp(0.1, 86_400.0 * 7.0));
+        let name = if name.is_empty() {
+            self.next_timer += 1;
+            self.next_timer.to_string()
+        } else {
+            name.to_owned()
+        };
+        self.timers.retain(|timer| !timer.name.eq_ignore_ascii_case(&name));
+        self.timers.push(ScriptTimer {
+            name,
+            server,
+            buffer,
+            remaining: (repetitions > 0).then_some(repetitions),
+            interval,
+            next: Instant::now() + interval,
+            command: action.to_owned(),
+        });
+        Some(Task::none())
+    }
+
+    /// Runs the timers that are due.
+    pub(super) fn run_timers(&mut self, now: Instant) -> Task<Message> {
+        let due: Vec<(ServerId, BufferId, String)> = self
+            .timers
+            .iter_mut()
+            .filter(|timer| timer.next <= now)
+            .map(|timer| {
+                timer.next = now + timer.interval;
+                timer.remaining = timer.remaining.map(|n| n.saturating_sub(1));
+                (timer.server, timer.buffer, timer.command.clone())
+            })
+            .collect();
+        self.timers.retain(|timer| timer.remaining != Some(0));
+        let tasks: Vec<Task<Message>> = due
+            .into_iter()
+            .map(|(server, buffer, command)| {
+                let line = if command.starts_with('/') { command } else { format!("/{command}") };
+                self.run_line(server, buffer, &line)
+            })
+            .collect();
+        Task::batch(tasks)
+    }
+
     /// Runs a script alias typed by the user (`/hello world`).
     pub(super) fn run_alias(&mut self, server: ServerId, buffer: BufferId, name: &str, args: &str) -> Task<Message> {
         let mut scripts = std::mem::take(&mut self.scripts);
@@ -75,6 +186,7 @@ impl App {
         let tasks = std::mem::take(&mut host.tasks);
         // Globals set by the script are kept; aliases are restored.
         self.scripts = scripts;
+        self.save_script_variables();
         if let Err(error) = result {
             self.script_line(server, buffer, LineKind::Error(tr!("Script: {error}", error = error)));
         }
@@ -102,6 +214,7 @@ impl App {
         let (halted, errors) = scripts.fire(event, &mut host);
         let tasks = std::mem::take(&mut host.tasks);
         self.scripts = scripts;
+        self.save_script_variables();
         for error in errors {
             self.script_line(server, buffer, LineKind::Error(tr!("Script: {error}", error = error)));
         }
@@ -133,6 +246,26 @@ impl App {
             server.push(buffer, Line::new(Local::now(), kind), &Context { settings, active });
         }
     }
+}
+
+/// A `/timer`: a command run every `interval`, in the tab it was set from.
+#[derive(Debug, Clone)]
+pub(super) struct ScriptTimer {
+    name: String,
+    server: ServerId,
+    buffer: BufferId,
+    /// Runs left, `None` for endless.
+    remaining: Option<u32>,
+    interval: Duration,
+    next: Instant,
+    command: String,
+}
+
+/// A path inside the scripts folder: relative, without `..`.
+fn script_file(dir: &Path, path: &str) -> Option<PathBuf> {
+    let path = Path::new(path.trim());
+    let safe = !path.as_os_str().is_empty() && path.components().all(|component| matches!(component, Component::Normal(_)));
+    safe.then(|| dir.join(path))
 }
 
 /// The client as seen by a running script: the network and tab it runs in.
@@ -188,6 +321,20 @@ impl Host for ScriptHost<'_> {
             _ => return None,
         };
         Some(value)
+    }
+
+    fn read_file(&mut self, path: &str) -> Option<String> {
+        let path = script_file(&self.app.scripts_dir()?, path)?;
+        std::fs::read_to_string(path).ok()
+    }
+
+    fn write_file(&mut self, path: &str, content: &str) -> Result<(), String> {
+        let dir = self.app.scripts_dir().ok_or_else(|| tr("no scripts folder").to_owned())?;
+        let target = script_file(&dir, path).ok_or_else(|| tr!("{path}: only files of the scripts folder can be written", path = path))?;
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        std::fs::write(target, content).map_err(|error| error.to_string())
     }
 
     fn condition(&mut self, operator: &str, left: &str, right: &str) -> Option<bool> {

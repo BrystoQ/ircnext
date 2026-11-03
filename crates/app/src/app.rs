@@ -87,6 +87,8 @@ pub enum Message {
     Transfer(crate::transfer::TransferId, crate::transfer::Event),
     /// A file was dropped on the window.
     FileDropped(PathBuf),
+    /// Script timers to check.
+    TimerTick(Instant),
 }
 
 /// Keys with a fixed role (not configurable).
@@ -153,6 +155,9 @@ pub struct App {
     keychain: keychain::Cache,
     /// mIRC scripts (`scripts/*.mrc`).
     scripts: ircnext_script::Interpreter,
+    /// Script timers (`/timer`).
+    timers: Vec<scripts::ScriptTimer>,
+    next_timer: u32,
     /// DCC file transfers of the session.
     transfers: Vec<crate::transfer::Transfer>,
     next_transfer: u64,
@@ -211,6 +216,8 @@ impl App {
             system_notifications: false,
             keychain: keychain::Cache::new(),
             scripts: ircnext_script::Interpreter::default(),
+            timers: Vec::new(),
+            next_timer: 0,
             transfers: Vec::new(),
             next_transfer: 0,
             banner,
@@ -436,6 +443,7 @@ impl App {
             }
             Message::DismissBanner => self.banner = None,
             Message::OpenTransfers => self.modal = Some(Modal::Transfers),
+            Message::TimerTick(now) => return self.run_timers(now),
             Message::ToggleDoNotDisturb => {
                 self.config.settings.do_not_disturb = !self.config.settings.do_not_disturb;
                 self.save();
@@ -634,6 +642,9 @@ impl App {
 
     /// Runs a typed line with the client's own commands only.
     fn run_builtin(&mut self, id: ServerId, buffer: BufferId, text: &str) -> Task<Message> {
+        if let Some(task) = self.timer_command(id, buffer, text) {
+            return task;
+        }
         match input::parse(text) {
             Ok(Input::Command(Command::Reload)) => return self.reload_scripts(id, buffer),
             Ok(Input::Command(Command::Ignore(mask))) => return self.ignore(id, buffer, mask),
@@ -1040,10 +1051,17 @@ impl App {
             Subscription::none()
         };
 
+        let timers = if self.timers.is_empty() {
+            Subscription::none()
+        } else {
+            time::every(Duration::from_millis(100)).map(Message::TimerTick)
+        };
+
         Subscription::batch(connections.chain([
             event::listen_with(runtime_event),
             system::theme_changes().map(Message::SystemTheme),
             tick,
+            timers,
         ]))
     }
 
@@ -1407,6 +1425,61 @@ mod tests {
         app.input = "public".into();
         let _ = app.update(Message::Submit);
         assert!(matches!(last(&app), LineKind::Error(_)), "sent (the demo is not connected)");
+    }
+
+    #[test]
+    fn timers_repeat_then_stop() {
+        let mut app = demo();
+        let (server, buffer) = app.active.unwrap();
+        let lines = |app: &App| -> Vec<LineKind> { app.server(server).unwrap().buffer(buffer).unwrap().lines().map(|line| line.kind.clone()).collect() };
+        app.input = "/timertick 2 1 echo -a tock".into();
+        let _ = app.update(Message::Submit);
+        assert_eq!(app.timers.len(), 1);
+        let start = Instant::now();
+        let _ = app.update(Message::TimerTick(start));
+        assert!(!lines(&app).contains(&LineKind::Info("tock".into())), "not due yet");
+        let _ = app.update(Message::TimerTick(start + Duration::from_millis(1100)));
+        let _ = app.update(Message::TimerTick(start + Duration::from_millis(2200)));
+        assert_eq!(lines(&app).iter().filter(|kind| **kind == LineKind::Info("tock".into())).count(), 2);
+        assert!(app.timers.is_empty(), "two repetitions, then gone");
+
+        app.input = "/timer 0 60 echo forever".into();
+        let _ = app.update(Message::Submit);
+        app.input = "/timers off".into();
+        let _ = app.update(Message::Submit);
+        assert!(app.timers.is_empty());
+    }
+
+    #[test]
+    fn script_files_and_variables_stay_in_the_scripts_folder() {
+        let dir = std::env::temp_dir().join(format!("ircnext-script-files-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("scripts")).unwrap();
+        std::fs::write(
+            dir.join("scripts/files.mrc"),
+            "alias keep { write data/notes.txt $1- | set %count $calc(%count + 1) }\nalias escape write ../outside.txt nope",
+        )
+        .unwrap();
+        let mut app = App::new(AppConfig::default(), Some(dir.join("config.toml")), None);
+        app.load_scripts();
+        let id = app.add_server(ServerEntry {
+            name: "Test".into(),
+            auto_connect: false,
+            on_connect: Vec::new(),
+            fish_keys: std::collections::BTreeMap::new(),
+            connection: Config::default(),
+        });
+        let tab = app.server(id).unwrap().server_buffer();
+        let _ = app.run_alias(id, tab, "keep", "hello world");
+        assert_eq!(std::fs::read_to_string(dir.join("scripts/data/notes.txt")).unwrap(), "hello world\n");
+        let _ = app.run_alias(id, tab, "escape", "");
+        assert!(!dir.join("outside.txt").exists(), "nothing written outside the scripts folder");
+
+        // Variables are saved, and found again by a new session.
+        let mut next = App::new(AppConfig::default(), Some(dir.join("config.toml")), None);
+        next.load_scripts();
+        assert_eq!(next.scripts.globals.get("%count").map(String::as_str), Some("1"));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

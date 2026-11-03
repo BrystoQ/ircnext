@@ -259,7 +259,12 @@ on *:TEXT:!seen &:#:msg $chan $nick $+ : I have not seen $2 yet.
 on *:JOIN:#:notice $nick Welcome to $chan $+ !
 ```
 
-Timers, hash tables, ini files and a script manager are coming next. A script that loops forever is stopped automatically.
+- timers: `/timer[name] [-m] <repetitions> <interval> <command>` (`0` repetitions: endless), `/timers`, `/timer<name> off`, `/timers off`;
+- hash tables: `hmake`, `hadd`, `hinc`, `hdec`, `hdel [-w]`, `hfree`, `hsave`, `hload`, `$hget(table, item)`, `$hget(table, N).item` / `.data`;
+- files: `$readini`, `/writeini`, `/remini`, `$read(file, [N])`, `$lines`, `$isfile`, `/write [-c]`. Scripts only read and write files of the `scripts` folder;
+- global variables kept between sessions (`scripts/vars.ini`).
+
+A script manager is coming next. A script that loops forever is stopped automatically.
 
 ## Configuration
 
@@ -328,7 +333,8 @@ The screenshots in this README are rendered headlessly by the `snapshots` test, 
 - [x] Native FiSH 10 encryption (Blowfish, DH1080 key exchange)
 - [x] mIRC-compatible scripting (mSL): aliases and the language
 - [x] Script events (`on TEXT`, `on JOIN`…)
-- [ ] Script timers, hash tables, ini files, script manager
+- [x] Script timers, hash tables, ini and text files
+- [ ] Script manager
 - [x] `draft/multiline`
 
 ## Contributing
