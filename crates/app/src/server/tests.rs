@@ -381,8 +381,9 @@ fn fish_decrypts_conversations_with_a_key() {
     receive(&mut server, &format!(":alice!a@h PRIVMSG #rust :\x01ACTION {}\x01", key.encrypt("whispers")));
     assert!(matches!(&last(&server, "#rust").kind, LineKind::Action { text, .. } if text == "whispers"));
 
-    // Encrypted with another key: shown as received.
-    let other = Key::parse("cbc:another key").unwrap().encrypt("nope");
+    // Encrypted with another key: shown as received. Long enough that the
+    // wrong key cannot give text by chance (random IV).
+    let other = Key::parse("cbc:another key").unwrap().encrypt("not for you, not for anyone holding the wrong key");
     receive(&mut server, &format!(":alice!a@h PRIVMSG #rust :{other}"));
     let line = last(&server, "#rust");
     assert!(!line.encrypted);
