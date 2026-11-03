@@ -69,7 +69,7 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 - Suggestions as you type: commands, channels, nicknames, NickServ/ChanServ commands and `!…` bot commands
 - HexChat-style Tab completion (`nick: `)
 - Quick tab switcher (`⌘T` / `Ctrl+T`)
-- 37 rebindable shortcuts, adapted to macOS and Windows
+- 38 rebindable shortcuts, adapted to macOS and Windows
 - System notifications, Dock bounce, counter in the title
 - Commands run after connecting, alternative nicknames
 
@@ -190,6 +190,7 @@ All shortcuts can be changed in **Settings → Shortcuts**. `Mod` means `⌘` on
 | Bold, italic, underline, strikethrough | `⌘B` `⌘I` `⌘U` `⌘⇧X` | `Ctrl+B` `Ctrl+I` `Ctrl+U` `Ctrl+Shift+X` |
 | Color, reverse, reset formatting | `⌘K` `⌘R` `⌘O` | `Ctrl+K` `Ctrl+R` `Ctrl+O` |
 | Add a network / settings / quit | `⌘N` / `⌘,` / `⌘Q` | `Ctrl+N` / `Ctrl+,` `Ctrl+P` / `Ctrl+Q` |
+| Do not disturb | `⌘⇧D` | `Ctrl+Shift+D` |
 
 Fixed keys: `Tab` completes, `↑` / `↓` browse the input history or the suggestions, `Enter` sends, `Esc` closes.
 

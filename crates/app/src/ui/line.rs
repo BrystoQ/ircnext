@@ -16,7 +16,7 @@ use crate::settings::{NickAlignment, Settings};
 use crate::theme::{self, Colors};
 use crate::ui::BOLD;
 
-pub fn view<'a>(line: &'a Line, server: ServerId, settings: &Settings, c: Colors) -> Element<'a, Message> {
+pub fn view<'a>(line: &'a Line, server: ServerId, settings: &Settings, shaded: bool, c: Colors) -> Element<'a, Message> {
     let size = f32::from(settings.font_size);
     let base_font = if settings.monospace { Font::MONOSPACE } else { Font::DEFAULT };
     let nick_color = |nick: &str| {
@@ -129,6 +129,8 @@ pub fn view<'a>(line: &'a Line, server: ServerId, settings: &Settings, c: Colors
     let row = container(content).padding([vertical, 16]).width(Length::Fill);
     if line.highlight {
         row.style(theme::highlighted_line(c)).into()
+    } else if shaded {
+        row.style(theme::panel(c.hover.scale_alpha(0.35))).into()
     } else {
         row.into()
     }

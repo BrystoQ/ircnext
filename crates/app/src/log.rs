@@ -28,8 +28,12 @@ pub fn append(dir: &Path, network: &str, buffer: &str, line: &Line) -> io::Resul
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
     let mut file = options.open(path)?;
-    let entry = format!("[{}] {}\n", line.time.format("%Y-%m-%d %H:%M:%S"), describe(line));
-    file.write_all(entry.as_bytes())
+    file.write_all(format!("{}\n", entry(line)).as_bytes())
+}
+
+/// A line as written in logs: timestamp, then readable text.
+pub fn entry(line: &Line) -> String {
+    format!("[{}] {}", line.time.format("%Y-%m-%d %H:%M:%S"), describe(line))
 }
 
 /// Location of a tab's log.

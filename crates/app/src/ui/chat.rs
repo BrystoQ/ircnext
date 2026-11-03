@@ -59,8 +59,9 @@ pub fn view<'a>(props: &Props<'a>) -> Element<'a, Message> {
         let hint = if needle.is_some() { tr("No message matches.") } else { empty_hint(buffer) };
         center(text(hint).size(14).color(c.muted)).into()
     } else {
-        let column = lines.into_iter().fold(column![].padding([12, 0]), |column, entry| {
-            column.push(line::view(entry, server.id, settings, c))
+        let column = lines.into_iter().enumerate().fold(column![].padding([12, 0]), |column, (index, entry)| {
+            let shaded = settings.line_shading && index % 2 == 1;
+            column.push(line::view(entry, server.id, settings, shaded, c))
         });
         scrollable(column)
             .id(MESSAGES_ID)
@@ -150,6 +151,7 @@ fn header<'a>(props: &Props<'a>) -> Element<'a, Message> {
         None => label.to_owned(),
     };
     let mut actions = row![].spacing(4).align_y(Alignment::Center);
+    actions = actions.push(header_button("⧉", tr("Copy the tab").to_owned(), Message::CopyBuffer, c));
     actions = actions.push(header_button("⌕", hint(tr("Search"), Action::Search), Message::Action(Action::Search), c));
     if buffer.kind == Kind::Channel {
         let label = if settings.show_nicklist { tr("Hide members") } else { tr("Show members") };

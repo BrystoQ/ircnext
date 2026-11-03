@@ -78,6 +78,9 @@ pub enum Message {
     SystemTheme(iced::theme::Mode),
     Tick(Instant),
     OpenTransfers,
+    ToggleDoNotDisturb,
+    /// Copies the active tab's text to the clipboard.
+    CopyBuffer,
     Transfers(crate::ui::transfers::Msg),
     /// Event of a running file transfer.
     Transfer(crate::transfer::TransferId, crate::transfer::Event),
@@ -420,6 +423,16 @@ impl App {
             }
             Message::DismissBanner => self.banner = None,
             Message::OpenTransfers => self.modal = Some(Modal::Transfers),
+            Message::ToggleDoNotDisturb => {
+                self.config.settings.do_not_disturb = !self.config.settings.do_not_disturb;
+                self.save();
+            }
+            Message::CopyBuffer => {
+                if let Some((_, buffer)) = self.active_buffer() {
+                    let text: Vec<String> = buffer.lines().map(crate::log::entry).collect();
+                    return iced::clipboard::write(text.join("\n"));
+                }
+            }
             Message::Transfers(msg) => return self.on_transfers(&msg),
             Message::Transfer(id, event) => self.on_transfer_event(id, event),
             Message::FileDropped(path) => {
@@ -470,6 +483,9 @@ impl App {
     /// Notifications and window alerts for flagged messages.
     fn alert(&mut self, id: ServerId, alerts: Vec<Alert>) -> Task<Message> {
         let settings = &self.config.settings;
+        if settings.do_not_disturb {
+            return Task::none();
+        }
         let mut attention = false;
         for alert in alerts {
             let wanted = if alert.private { settings.notify_queries } else { settings.notify_mentions };
@@ -999,7 +1015,7 @@ impl App {
 
         let sidebar = settings
             .show_sidebar
-            .then(|| sidebar::view(&self.servers, self.active, self.pending_offers(), colors));
+            .then(|| sidebar::view(&self.servers, self.active, self.pending_offers(), settings.do_not_disturb, colors));
         let main: Element<'_, Message> = match self.active_buffer() {
             Some((server, buffer)) => {
                 let id = self.active.expect("active tab").1;
@@ -1367,6 +1383,20 @@ mod tests {
         assert_eq!(app.search.as_deref(), Some(""));
         let _ = app.update(Message::Key { combo: Combo::parse("Escape", keymap::MAC).unwrap(), captured: false });
         assert_eq!(app.search, None);
+    }
+
+    #[test]
+    fn do_not_disturb_silences_alerts() {
+        let mut app = demo();
+        press(&mut app, "Mod+Shift+D");
+        assert!(app.config.settings.do_not_disturb);
+        app.window.focused = false;
+        app.window.id = Some(window::Id::unique());
+        let alert = Alert { buffer: app.servers[0].server_buffer(), title: "zoe".into(), body: "hi".into(), private: true };
+        let id = app.servers[0].id;
+        assert!(app.alert(id, vec![alert.clone()]).units() == 0, "no window alert");
+        press(&mut app, "Mod+Shift+D");
+        assert!(app.alert(id, vec![alert]).units() > 0, "window alert again");
     }
 
     #[test]

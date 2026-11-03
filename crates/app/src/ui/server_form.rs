@@ -41,6 +41,8 @@ pub struct ServerForm {
     proxy_port: String,
     proxy_username: String,
     proxy_password: String,
+    /// Passwords shown in clear (eye button).
+    show_passwords: bool,
     autojoin: String,
     auto_connect: bool,
     auto_reconnect: bool,
@@ -99,6 +101,7 @@ pub enum Msg {
     ProxyPort(String),
     ProxyUsername(String),
     ProxyPassword(String),
+    ShowPasswords(bool),
     AltNicks(String),
     AddCommand,
     Command(usize, String),
@@ -129,6 +132,7 @@ impl ServerForm {
             proxy_port: "9050".to_owned(),
             proxy_username: String::new(),
             proxy_password: String::new(),
+            show_passwords: false,
             autojoin: String::new(),
             auto_connect: true,
             auto_reconnect: true,
@@ -190,6 +194,7 @@ impl ServerForm {
                 .and_then(|p| p.password.as_ref())
                 .map(|p| p.expose().to_owned())
                 .unwrap_or_default(),
+            show_passwords: false,
             autojoin: connection.autojoin.join(", "),
             auto_connect: entry.auto_connect,
             auto_reconnect: connection.auto_reconnect,
@@ -264,6 +269,7 @@ impl ServerForm {
             Msg::ProxyPort(value) => self.proxy_port = value,
             Msg::ProxyUsername(value) => self.proxy_username = value,
             Msg::ProxyPassword(value) => self.proxy_password = value,
+            Msg::ShowPasswords(value) => self.show_passwords = value,
             Msg::AltNicks(value) => self.alt_nicks = value,
             Msg::AddCommand => self.on_connect.push(String::new()),
             Msg::Command(index, value) => {
@@ -414,6 +420,25 @@ impl ServerForm {
         let input = |placeholder: &str, value: &str, on_input: fn(String) -> Msg| {
             form::input(placeholder, value, move |v| Message::Form(on_input(v)), c).on_submit(Message::SaveServerForm)
         };
+        // Password field with an eye button showing or hiding all passwords.
+        let secret = |value: &str, on_input: fn(String) -> Msg| -> Element<'_, Message> {
+            let (eye, hint) = if self.show_passwords { ("◉", tr("Hide passwords")) } else { ("◎", tr("Show passwords")) };
+            row![
+                input("", value, on_input).secure(!self.show_passwords).width(Length::Fill),
+                iced::widget::tooltip(
+                    button(text(eye).size(14))
+                        .padding([5, 8])
+                        .style(theme::ghost(c))
+                        .on_press(Message::Form(Msg::ShowPasswords(!self.show_passwords))),
+                    container(text(hint).size(12)).padding(6).style(theme::card(c)),
+                    iced::widget::tooltip::Position::Bottom,
+                ),
+            ]
+            .spacing(4)
+            .align_y(Alignment::Center)
+            .width(form::CONTROL_WIDTH)
+            .into()
+        };
         let switch = |label: &'static str, description: Option<&'static str>, value: bool, on_toggle: fn(bool) -> Msg| {
             let setting = form::setting(label, form::switch(value, move |v| Message::Form(on_toggle(v))));
             match description {
@@ -450,7 +475,7 @@ impl ServerForm {
                 .view(c),
             form::setting(tr("Username"), input(tr("nickname"), &self.username, Msg::Username)).view(c),
             form::setting(tr("Real name"), input(tr("Name shown in /whois"), &self.realname, Msg::Realname)).view(c),
-            form::setting(tr("Server password"), input("", &self.password, Msg::Password).secure(true))
+            form::setting(tr("Server password"), secret(&self.password, Msg::Password))
                 .description(tr("Optional (PASS), for a bouncer for example"))
                 .view(c),
         ];
@@ -465,7 +490,7 @@ impl ServerForm {
         if self.auth == Auth::Password {
             authentication.push(form::setting(tr("Account"), input(tr("account"), &self.sasl_username, Msg::SaslUsername)).view(c));
             authentication.push(
-                form::setting(tr("Password"), input("", &self.sasl_password, Msg::SaslPassword).secure(true)).view(c),
+                form::setting(tr("Password"), secret(&self.sasl_password, Msg::SaslPassword)).view(c),
             );
         }
         if self.tls {
@@ -541,7 +566,7 @@ impl ServerForm {
                     .view(c),
             );
             proxy.push(
-                form::setting(tr("Proxy password"), input("", &self.proxy_password, Msg::ProxyPassword).secure(true))
+                form::setting(tr("Proxy password"), secret(&self.proxy_password, Msg::ProxyPassword))
                     .view(c),
             );
         }

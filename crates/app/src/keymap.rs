@@ -120,6 +120,7 @@ actions! {
 
     AddNetwork => Application, tr("Add a network"), mac: ["Mod+N"], other: ["Mod+N"];
     OpenSettings => Application, tr("Settings"), mac: ["Mod+Comma"], other: ["Mod+Comma", "Mod+P"];
+    DoNotDisturb => Application, tr("Do not disturb"), mac: ["Mod+Shift+D"], other: ["Mod+Shift+D"];
     Quit => Application, tr("Quit"), mac: ["Mod+Q"], other: ["Mod+Q"];
 }
 
