@@ -26,16 +26,32 @@ pub enum Section {
     Privacy,
     Identity,
     Shortcuts,
+    Scripts,
+}
+
+/// A script file, as shown by the script manager.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptStatus {
+    pub name: String,
+    pub state: ScriptState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScriptState {
+    Loaded { aliases: usize, events: usize },
+    Disabled,
+    Error(String),
 }
 
 impl Section {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Appearance,
         Self::Chat,
         Self::Notifications,
         Self::Privacy,
         Self::Identity,
         Self::Shortcuts,
+        Self::Scripts,
     ];
 
     fn label(self) -> &'static str {
@@ -46,6 +62,7 @@ impl Section {
             Self::Privacy => tr("Privacy"),
             Self::Identity => tr("Identity"),
             Self::Shortcuts => tr("Shortcuts"),
+            Self::Scripts => tr("Scripts"),
         }
     }
 }
@@ -246,7 +263,13 @@ impl SettingsForm {
         settings
     }
 
-    pub fn view(&self, c: Colors, system_dark: bool) -> Element<'_, Message> {
+    pub fn view<'a>(
+        &'a self,
+        c: Colors,
+        system_dark: bool,
+        scripts: &'a [ScriptStatus],
+        scripts_dir: Option<std::path::PathBuf>,
+    ) -> Element<'a, Message> {
         let navigation = Section::ALL.iter().fold(column![].spacing(2), |nav, &section| {
             nav.push(
                 button(text(section.label()).size(14))
@@ -264,6 +287,7 @@ impl SettingsForm {
             Section::Privacy => self.privacy(c),
             Section::Identity => self.identity(c),
             Section::Shortcuts => self.shortcuts(c),
+            Section::Scripts => scripts_page(scripts, scripts_dir, c),
         };
 
         let actions = row![
@@ -729,6 +753,65 @@ impl SettingsForm {
         };
         chips.push(reset).into()
     }
+}
+
+/// Script manager: the script files, their state, and their folder.
+fn scripts_page(scripts: &[ScriptStatus], dir: Option<std::path::PathBuf>, c: Colors) -> Element<'_, Message> {
+    let folder = home_relative(dir);
+    let rows: Vec<Element<'_, Message>> = scripts
+        .iter()
+        .map(|script| {
+            let (description, error) = match &script.state {
+                ScriptState::Loaded { aliases, events } => {
+                    (tr!("{aliases} aliases · {events} events", aliases = aliases, events = events), None)
+                }
+                ScriptState::Disabled => (tr("Disabled").to_owned(), None),
+                ScriptState::Error(error) => (String::new(), Some(error.clone())),
+            };
+            let enabled = script.state != ScriptState::Disabled;
+            let name = script.name.clone();
+            let control = row![
+                button(text(tr("Edit")).size(13))
+                    .padding([6, 12])
+                    .style(theme::secondary(c))
+                    .on_press(Message::OpenScripts(Some(script.name.clone()))),
+                form::switch(enabled, move |on| Message::ToggleScript(name.clone(), on)),
+            ]
+            .spacing(10)
+            .align_y(Alignment::Center);
+            let setting = form::setting(script.name.as_str(), control).error(error);
+            if description.is_empty() { setting } else { setting.description(description) }.view(c)
+        })
+        .collect();
+    let mut groups: Vec<Element<'_, Message>> = Vec::new();
+    if rows.is_empty() {
+        groups.push(form::note(tr!("No script yet. Put .mrc files in {folder}, then reload.", folder = folder), c));
+    } else {
+        groups.push(form::group(tr("Script files"), rows, c));
+    }
+    groups.push(form::group(
+        tr("Folder"),
+        [
+            form::setting(
+                tr("Scripts folder"),
+                button(text(tr("Open")).size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::OpenScripts(None)),
+            )
+            .description(folder)
+            .view(c),
+            form::setting(
+                tr("Reload the scripts"),
+                button(text(tr("Reload")).size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::ReloadScripts),
+            )
+            .description(tr("After editing a file · /reload does the same"))
+            .view(c),
+        ],
+        c,
+    ));
+    groups.push(form::note(
+        tr("Scripts use the mIRC language (mSL): aliases, events, timers, hash tables. They only read and write files of their folder."),
+        c,
+    ));
+    form::page(tr("Scripts"), groups, c)
 }
 
 /// Name of each system's keychain.

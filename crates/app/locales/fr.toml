@@ -605,3 +605,17 @@
 "{path}: only files of the scripts folder can be written" = "{path} : seuls les fichiers du dossier des scripts peuvent être écrits"
 "/echo <text>" = "/echo <texte>"
 "Show a line in the current tab, for you only" = "Afficher une ligne dans l'onglet courant, pour vous seul"
+
+# Script manager
+"Scripts" = "Scripts"
+"{aliases} aliases · {events} events" = "{aliases} alias · {events} événements"
+"Disabled" = "Désactivé"
+"Edit" = "Modifier"
+"No script yet. Put .mrc files in {folder}, then reload." = "Aucun script pour l'instant. Placez des fichiers .mrc dans {folder}, puis rechargez."
+"Script files" = "Fichiers de scripts"
+"Folder" = "Dossier"
+"Scripts folder" = "Dossier des scripts"
+"Reload the scripts" = "Recharger les scripts"
+"Reload" = "Recharger"
+"After editing a file · /reload does the same" = "Après avoir modifié un fichier · /reload fait de même"
+"Scripts use the mIRC language (mSL): aliases, events, timers, hash tables. They only read and write files of their folder." = "Les scripts utilisent le langage de mIRC (mSL) : alias, événements, minuteries, tables de hachage. Ils ne lisent et n'écrivent que des fichiers de leur dossier."

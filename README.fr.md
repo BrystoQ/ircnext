@@ -116,8 +116,8 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 | <img src="docs/screenshots/fr/midnight.png" alt="Thème Minuit"> | <img src="docs/screenshots/fr/nord.png" alt="Thème Nordique"> |
 | **Recherche dans l'onglet** | **Ajout d'un réseau** |
 | <img src="docs/screenshots/fr/search.png" alt="Recherche dans l'historique"> | <img src="docs/screenshots/fr/server-form.png" alt="Formulaire d'ajout de réseau"> |
-| **Transferts de fichiers** | |
-| <img src="docs/screenshots/fr/transfers.png" alt="Transferts DCC"> | |
+| **Transferts de fichiers** | **Gestionnaire de scripts** |
+| <img src="docs/screenshots/fr/transfers.png" alt="Transferts DCC"> | <img src="docs/screenshots/fr/scripts.png" alt="Gestionnaire de scripts"> |
 
 </details>
 
@@ -264,7 +264,7 @@ on *:JOIN:#:notice $nick Welcome to $chan $+ !
 - fichiers : `$readini`, `/writeini`, `/remini`, `$read(fichier, [N])`, `$lines`, `$isfile`, `/write [-c]`. Les scripts ne lisent et n'écrivent que des fichiers du dossier `scripts` ;
 - variables globales conservées d'une session à l'autre (`scripts/vars.ini`).
 
-Un gestionnaire de scripts arrive ensuite. Un script qui boucle sans fin est arrêté automatiquement.
+*Réglages → Scripts* liste les fichiers de scripts avec leur état (chargé, désactivé, ou l'erreur et sa ligne), active ou désactive chacun, et ouvre le dossier ou un fichier dans votre éditeur. Un script qui boucle sans fin est arrêté automatiquement.
 
 ## Configuration
 
@@ -334,7 +334,7 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Scripts compatibles mIRC (mSL) : alias et langage
 - [x] Événements de scripts (`on TEXT`, `on JOIN`…)
 - [x] Minuteries, tables de hachage, fichiers ini et texte
-- [ ] Gestionnaire de scripts
+- [x] Gestionnaire de scripts
 - [x] `draft/multiline`
 
 ## Contribuer
