@@ -1,1 +1,1 @@
-doc-valid-idents = ["IRCv3", "HexChat", "NickServ", "ChanServ", "MemoServ", "HostServ", ".."]
+doc-valid-idents = ["IRCv3", "HexChat", "NickServ", "ChanServ", "MemoServ", "HostServ", "FiSH", "FiSHLiM", "CertFP", ".."]

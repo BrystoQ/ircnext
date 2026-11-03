@@ -1,5 +1,6 @@
 //! Network in use: connection, IRC state and its tabs.
 
+mod fish;
 mod incoming;
 mod outgoing;
 
@@ -138,6 +139,8 @@ pub struct Server {
     dcc: Vec<(String, Dcc)>,
     /// Last away message shown per nickname (folded), to avoid repeating it.
     away_replies: std::collections::HashMap<String, String>,
+    /// DH1080 key exchanges we started, by nickname (lowercase).
+    key_exchanges: std::collections::HashMap<String, ircnext_client::fish::KeyExchange>,
     /// The message being handled comes from a replayed history.
     replaying: bool,
 }
@@ -162,6 +165,7 @@ impl Server {
             alerts: Vec::new(),
             dcc: Vec::new(),
             away_replies: std::collections::HashMap::new(),
+            key_exchanges: std::collections::HashMap::new(),
             replaying: false,
             entry,
         };

@@ -69,6 +69,10 @@ fn proxy_account(name: &str) -> String {
     format!("{name} — proxy password")
 }
 
+fn fish_account(name: &str, target: &str) -> String {
+    format!("{name} — FiSH key for {target}")
+}
+
 /// Stores the passwords of `config` in the keychain and empties them, to
 /// get the version to write to disk. The accounts of removed or renamed
 /// networks are erased from the keychain.
@@ -80,11 +84,12 @@ pub fn stash(config: &mut AppConfig, store: &dyn Store, cache: &mut Cache) -> Op
     let mut wanted = Cache::new();
     for server in &mut config.servers {
         let connection = &mut server.connection;
-        let secrets = [
+        let mut secrets = vec![
             (server_account(&server.name), connection.password.as_mut()),
             (sasl_account(&server.name), connection.sasl.as_mut().map(|sasl| &mut sasl.password)),
             (proxy_account(&server.name), connection.proxy.as_mut().and_then(|proxy| proxy.password.as_mut())),
         ];
+        secrets.extend(server.fish_keys.iter_mut().map(|(target, key)| (fish_account(&server.name, target), Some(key))));
         for (account, secret) in secrets {
             let Some(secret) = secret.filter(|secret| !secret.expose().is_empty()) else {
                 continue;
@@ -136,7 +141,7 @@ pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>
     let mut missing = Vec::new();
     for server in &mut config.servers {
         let connection = &mut server.connection;
-        let secrets = [
+        let mut secrets = vec![
             (server_account(&server.name), connection.password.as_mut(), false),
             (sasl_account(&server.name), connection.sasl.as_mut().map(|sasl| &mut sasl.password), true),
             (
@@ -145,6 +150,9 @@ pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>
                 false,
             ),
         ];
+        secrets.extend(
+            server.fish_keys.iter_mut().map(|(target, key)| (fish_account(&server.name, target), Some(key), false)),
+        );
         for (account, secret, required) in secrets {
             let Some(secret) = secret.filter(|secret| secret.expose().is_empty()) else {
                 continue;
@@ -167,6 +175,7 @@ pub fn restore(config: &mut AppConfig, store: &dyn Store) -> (Cache, Vec<String>
         {
             proxy.password = None;
         }
+        server.fish_keys.retain(|_, key| !key.expose().is_empty());
     }
     missing.dedup();
     (cache, missing)
@@ -214,6 +223,7 @@ mod tests {
             name: name.into(),
             auto_connect: true,
             on_connect: Vec::new(),
+            fish_keys: [("#secret".to_owned(), Secret::new(format!("cbc:{sasl_password}-fish")))].into(),
             connection: Connection {
                 host: "irc.example.net".into(),
                 password: Some(Secret::new(server_password)),
@@ -243,7 +253,7 @@ mod tests {
         assert_eq!(stash(&mut on_disk, &store, &mut cache), None);
         let toml = toml::to_string(&on_disk).unwrap();
         assert!(!toml.contains("pass\"") && !toml.contains("\"sasl\""), "no password in the file:\n{toml}");
-        assert_eq!(store.entries.borrow().len(), 3);
+        assert_eq!(store.entries.borrow().len(), 4);
 
         let mut loaded: AppConfig = toml::from_str(&toml).unwrap();
         let (restored_cache, missing) = restore(&mut loaded, &store);
@@ -258,9 +268,9 @@ mod tests {
         let mut cache = Cache::new();
         stash(&mut config("Libera", "pass", "sasl"), &store, &mut cache);
         stash(&mut config("Libera", "pass", "sasl"), &store, &mut cache);
-        assert_eq!(store.writes.get(), 3);
+        assert_eq!(store.writes.get(), 4);
         stash(&mut config("Libera", "pass", "nouveau"), &store, &mut cache);
-        assert_eq!(store.writes.get(), 5);
+        assert_eq!(store.writes.get(), 7);
     }
 
     #[test]

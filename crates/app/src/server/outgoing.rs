@@ -25,11 +25,14 @@ impl Server {
     /// Sends text in a tab (each pasted line becomes a message).
     pub fn send_text(&mut self, id: BufferId, text: &str, ctx: &Context<'_>) -> Result<(), String> {
         let target = self.text_target(id)?;
-        // Several lines: one `draft/multiline` batch when the server allows it.
+        let encrypted = self.fish_key(&target).is_some();
+        // Several lines: one `draft/multiline` batch when the server allows
+        // it (not for encrypted conversations, sent line by line).
         let reference = format!("ircnext{}", NEXT_BATCH.fetch_add(1, Ordering::Relaxed));
         let batch = self
             .network
             .multiline()
+            .filter(|_| !encrypted)
             .and_then(|limits| limits.batch(&reference, &target, text, MAX_TEXT_BYTES));
         if let Some(messages) = batch {
             for message in messages {
@@ -42,14 +45,16 @@ impl Server {
             }, ctx);
             return Ok(());
         }
+        let max = if encrypted { super::fish::MAX_PLAIN_BYTES } else { MAX_TEXT_BYTES };
         for line in text.lines().filter(|line| !line.is_empty()) {
-            for chunk in split_message(line, MAX_TEXT_BYTES) {
-                self.send(Message::privmsg(&target, chunk))?;
-                self.echo(id, LineKind::Message {
+            for chunk in split_message(line, max) {
+                self.send(Message::privmsg(&target, self.seal(&target, chunk)))?;
+                let kind = LineKind::Message {
                     nick: self.network.nick().to_owned(),
                     prefix: self.own_prefix(&target),
                     text: chunk.to_owned(),
-                }, ctx);
+                };
+                self.echo_sealed(id, kind, encrypted, ctx);
             }
         }
         Ok(())
@@ -105,10 +110,11 @@ impl Server {
                 self.send(Message::part(channel, reason.as_deref()))?;
             }
             Command::Msg { target, text } => {
-                self.send(Message::privmsg(&target, &text))?;
+                self.send(Message::privmsg(&target, self.seal(&target, &text)))?;
                 if let Some(target_id) = self.find(&target) {
                     let nick = self.network.nick().to_owned();
-                    self.echo(target_id, LineKind::Message { nick, prefix: None, text }, ctx);
+                    let encrypted = self.fish_key(&target).is_some();
+                    self.echo_sealed(target_id, LineKind::Message { nick, prefix: None, text }, encrypted, ctx);
                 } else {
                     let line = LineKind::Info(format!("→ {target}: {text}"));
                     self.echo(id, line, ctx);
@@ -128,15 +134,16 @@ impl Server {
                 }
             }
             Command::Notice { target, text } => {
-                self.send(Message::notice(&target, &text))?;
+                self.send(Message::notice(&target, self.seal(&target, &text)))?;
                 let line = LineKind::Info(format!("→ notice {target}: {text}"));
                 self.echo(id, line, ctx);
             }
             Command::Me(text) => {
                 let target = self.text_target(id)?;
-                self.send(Message::privmsg(&target, ctcp("ACTION", Some(&text))))?;
+                self.send(Message::privmsg(&target, ctcp("ACTION", Some(&self.seal(&target, &text)))))?;
                 let nick = self.network.nick().to_owned();
-                self.echo(id, LineKind::Action { nick, text }, ctx);
+                let encrypted = self.fish_key(&target).is_some();
+                self.echo_sealed(id, LineKind::Action { nick, text }, encrypted, ctx);
             }
             Command::Nick(nick) => {
                 if self.is_online() {
@@ -149,6 +156,7 @@ impl Server {
             }
             Command::Topic(topic) => {
                 let channel = require_channel()?;
+                let topic = topic.map(|topic| self.seal(&channel, &topic));
                 let mut params = vec![channel];
                 params.extend(topic);
                 self.send(Message::new(Verb::Topic, params))?;
@@ -216,6 +224,20 @@ impl Server {
             }
             // Application settings: handled before getting here.
             Command::Ignore(_) | Command::Unignore(_) | Command::DccSend { .. } | Command::Transfers => {}
+            Command::SetKey { target, key } => {
+                let target = target.map_or_else(|| self.text_target(id), Ok)?;
+                self.set_key(&target, &key, ctx)?;
+                effects.config_changed = true;
+            }
+            Command::DelKey(target) => {
+                let target = target.map_or_else(|| self.text_target(id), Ok)?;
+                self.delete_key(&target, ctx)?;
+                effects.config_changed = true;
+            }
+            Command::KeyExchange(nick) => {
+                let nick = nick.map_or_else(|| self.text_target(id), Ok)?;
+                self.start_key_exchange(&nick, ctx)?;
+            }
             Command::Close => {
                 let Some((kind, name)) = current else {
                     return Ok(effects);
@@ -269,6 +291,11 @@ impl Server {
     /// Shows a sent message locally, unless the server will echo it itself
     /// (`echo-message`).
     fn echo(&mut self, id: BufferId, kind: LineKind, ctx: &Context<'_>) {
+        self.echo_sealed(id, kind, false, ctx);
+    }
+
+    /// Like `echo`, marking the line as sent encrypted.
+    fn echo_sealed(&mut self, id: BufferId, kind: LineKind, encrypted: bool, ctx: &Context<'_>) {
         let echoed_by_server = self.network.has_cap("echo-message")
             && matches!(kind, LineKind::Message { .. } | LineKind::Action { .. });
         if echoed_by_server {
@@ -276,6 +303,7 @@ impl Server {
         }
         let mut line = Line::new(Local::now(), kind);
         line.own = true;
+        line.encrypted = encrypted;
         self.push(id, line, ctx);
     }
 }

@@ -7,6 +7,7 @@
 pub mod client;
 pub mod config;
 pub mod dcc;
+pub mod fish;
 pub mod connection;
 pub mod network;
 pub mod registration;

@@ -64,6 +64,7 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 - Recherche dans l'historique d'un onglet
 - Journaux sur disque, utilisateurs ignorés
 - Transferts de fichiers DCC : envoi et réception, reprise, mode passif, glisser-déposer
+- Chiffrement FiSH (compatible FiSH 10) : ECB et CBC, échange de clés DH1080
 
 </td><td width="50%" valign="top">
 
@@ -213,6 +214,7 @@ Touches fixes : `Tab` complète, `↑` / `↓` parcourent l'historique de saisie
 | `/ctcp`, `/quote <ligne>` | CTCP et commande brute |
 | `/connect`, `/quit [raison]`, `/close`, `/clear` | Connexion et onglets |
 | `/dcc send <pseudo> <fichier>`, `/dcc` | Envoyer un fichier, afficher les transferts |
+| `/setkey [cible] <clé>`, `/delkey`, `/keyx [pseudo]` | Chiffrement FiSH : définir ou retirer une clé, en échanger une (DH1080) |
 
 Les commandes de NickServ, ChanServ, MemoServ et HostServ sont suggérées avec leur syntaxe dès `/ns `. Les commandes de bots (`!meteo`, `!help`…) vues dans un salon sont proposées dès `!`.
 
@@ -251,6 +253,7 @@ La variable d'environnement `IRCNEXT_CONFIG` permet d'utiliser un autre fichier.
 - **Fichiers privés** : configuration et journaux en `0600`, dossiers en `0700`, écriture atomique.
 - **Mots de passe NickServ masqués** à l'affichage, dans les journaux et l'historique de saisie.
 - **Liens filtrés** : seuls `http` et `https` s'ouvrent ; les caractères de contrôle bidirectionnels sont retirés, un lien ne peut donc pas être maquillé.
+- **FiSH** : clés rangées dans le trousseau du système ; clés publiques DH1080 vérifiées (RFC 2631) contre les attaques par petit sous-groupe ; messages chiffrés signalés, et l'en-tête indique quand une conversation est chiffrée. FiSH protège le contenu vis-à-vis des serveurs, pas le fait de savoir qui parle à qui.
 - **DCC** : une proposition n'est jamais acceptée automatiquement ; le nom du fichier est débarrassé de tout chemin et la taille annoncée est respectée.
 - **Anti-flood** : envoi limité (5 messages, puis 1 toutes les 2 s), réponses CTCP limitées.
 - **Robustesse** : mémoire bornée face à un serveur hostile, aucune injection de commande possible, `unsafe` interdit dans tout le code.
@@ -291,7 +294,7 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Interface en anglais, traduction française
 - [x] Proxy SOCKS5
 - [x] Transferts DCC
-- [ ] Chiffrement FiSH 10 natif (Blowfish, échange de clés DH1080)
+- [x] Chiffrement FiSH 10 natif (Blowfish, échange de clés DH1080)
 - [ ] Scripts compatibles mIRC (mSL)
 - [x] `draft/multiline`
 
