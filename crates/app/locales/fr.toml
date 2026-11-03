@@ -561,3 +561,15 @@
 "{nick} offers to send you {file} ({size}) from {address}. Open the transfers (⇅) to accept or decline." = "{nick} vous propose {file} ({size}) depuis {address}. Ouvrez les transferts (⇅) pour accepter ou refuser."
 "{path} is not a file." = "{path} n'est pas un fichier."
 "~/Downloads" = "~/Téléchargements"
+
+# Quick options
+"Do not disturb" = "Ne pas déranger"
+"Do not disturb is on" = "Ne pas déranger est activé"
+"Copy the tab" = "Copier l'onglet"
+"Hide passwords" = "Masquer les mots de passe"
+"Show passwords" = "Afficher les mots de passe"
+"Shaded lines" = "Lignes ombrées"
+"Every other line slightly shaded" = "Une ligne sur deux légèrement ombrée"
+"Repeat away messages" = "Répéter les messages d'absence"
+"Otherwise an away message is shown once, until it changes" = "Sinon, un message d'absence n'est affiché qu'une fois, tant qu'il ne change pas"
+"No notification nor window alert · ☾ in the sidebar" = "Aucune notification ni alerte de fenêtre · ☾ dans la barre latérale"

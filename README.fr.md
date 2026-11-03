@@ -69,7 +69,7 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 - Suggestions pendant la frappe : commandes, salons, pseudos, commandes NickServ/ChanServ et commandes de bots `!…`
 - Complétion par Tab façon HexChat (`pseudo: `)
 - Recherche rapide d'onglet (`⌘T` / `Ctrl+T`)
-- 37 raccourcis reconfigurables, adaptés à macOS et Windows
+- 38 raccourcis reconfigurables, adaptés à macOS et Windows
 - Notifications du système, rebond du Dock, compteur dans le titre
 - Commandes exécutées après la connexion, pseudos de secours
 
@@ -190,6 +190,7 @@ Tous les raccourcis se modifient dans **Réglages → Raccourcis**. `Mod` désig
 | Gras, italique, souligné, barré | `⌘B` `⌘I` `⌘U` `⌘⇧X` | `Ctrl+B` `Ctrl+I` `Ctrl+U` `Ctrl+Maj+X` |
 | Couleur, inversion, sans mise en forme | `⌘K` `⌘R` `⌘O` | `Ctrl+K` `Ctrl+R` `Ctrl+O` |
 | Ajouter un réseau / réglages / quitter | `⌘N` / `⌘,` / `⌘Q` | `Ctrl+N` / `Ctrl+,` `Ctrl+P` / `Ctrl+Q` |
+| Ne pas déranger | `⌘⇧D` | `Ctrl+Maj+D` |
 
 Touches fixes : `Tab` complète, `↑` / `↓` parcourent l'historique de saisie ou les suggestions, `Entrée` envoie, `Échap` ferme.
 

@@ -171,6 +171,10 @@ pub struct Settings {
     pub history_lines: u16,
     /// Conversation logs saved to disk.
     pub logging: bool,
+    /// Alternate lines slightly shaded.
+    pub line_shading: bool,
+    /// Show an away reply (`301`) every time, not only when it changes.
+    pub repeat_away_replies: bool,
 
     // Notifications
     pub notify_mentions: bool,
@@ -184,6 +188,8 @@ pub struct Settings {
     pub request_attention: bool,
     /// Number of tabs with an unread mention or private message, in the title.
     pub title_unread_count: bool,
+    /// Do not disturb: no notification nor window alert.
+    pub do_not_disturb: bool,
 
     // Privacy
     /// Automatic replies to CTCP requests (VERSION, PING, TIME).
@@ -253,6 +259,9 @@ impl Default for Settings {
             notify_sound: true,
             request_attention: true,
             title_unread_count: true,
+            do_not_disturb: false,
+            line_shading: false,
+            repeat_away_replies: false,
             ctcp_replies: true,
             ctcp_version: String::new(),
             send_read_markers: true,

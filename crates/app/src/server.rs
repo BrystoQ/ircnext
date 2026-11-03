@@ -136,6 +136,8 @@ pub struct Server {
     alerts: Vec<Alert>,
     /// `DCC` requests received (sender, request), for the application.
     dcc: Vec<(String, Dcc)>,
+    /// Last away message shown per nickname (folded), to avoid repeating it.
+    away_replies: std::collections::HashMap<String, String>,
     /// The message being handled comes from a replayed history.
     replaying: bool,
 }
@@ -159,6 +161,7 @@ impl Server {
             prefs: Prefs::default(),
             alerts: Vec::new(),
             dcc: Vec::new(),
+            away_replies: std::collections::HashMap::new(),
             replaying: false,
             entry,
         };

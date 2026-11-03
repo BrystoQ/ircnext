@@ -142,6 +142,7 @@ impl App {
             Action::ResetFormat => self.insert_format('\x0f'),
             Action::AddNetwork => self.update(Message::OpenServerForm(None)),
             Action::OpenSettings => self.update(Message::OpenSettings),
+            Action::DoNotDisturb => self.update(Message::ToggleDoNotDisturb),
             Action::Quit => self.quit_application(),
         }
     }

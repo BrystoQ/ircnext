@@ -1,6 +1,6 @@
 //! Sidebar: networks and tabs, as a tree like in HexChat.
 
-use iced::widget::{button, column, container, row, scrollable, space, stack, text, tooltip};
+use iced::widget::{button, column, container, mouse_area, row, scrollable, space, stack, text, tooltip};
 use iced::{Alignment, Element, Length};
 
 use crate::app::Message;
@@ -13,12 +13,29 @@ use crate::ui::BOLD;
 
 const WIDTH: f32 = 236.0;
 
-pub fn view(servers: &[Server], active: Option<(ServerId, BufferId)>, pending_offers: usize, c: Colors) -> Element<'_, Message> {
+pub fn view(
+    servers: &[Server],
+    active: Option<(ServerId, BufferId)>,
+    pending_offers: usize,
+    do_not_disturb: bool,
+    c: Colors,
+) -> Element<'_, Message> {
+    let moon = if do_not_disturb {
+        tooltip(
+            button(text("☾").size(14).color(c.accent)).padding([3, 7]).style(theme::ghost(c)).on_press(Message::ToggleDoNotDisturb),
+            container(text(tr("Do not disturb is on")).size(12)).padding(6).style(theme::card(c)),
+            tooltip::Position::Bottom,
+        )
+        .into()
+    } else {
+        icon_button("☾", tr("Do not disturb"), Message::ToggleDoNotDisturb, c)
+    };
     let header = row![
         text("ircnext").size(17).font(BOLD).color(c.text),
         space().width(Length::Fill),
     ]
     .push((pending_offers > 0).then(|| unread_badge(pending_offers, true, c)))
+    .push(moon)
     .push(icon_button("⇅", tr("Transfers"), Message::OpenTransfers, c))
     .push(icon_button("+", tr("Add a network"), Message::OpenServerForm(None), c))
     .push(icon_button("⚙", tr("Settings"), Message::OpenSettings, c))
@@ -186,12 +203,13 @@ fn buffer_item<'a>(
     .spacing(6)
     .align_y(Alignment::Center);
 
-    button(content)
+    let tab = button(content)
         .width(Length::Fill)
         .padding([5, 8])
         .style(theme::list_item(c, selected))
-        .on_press(Message::Select(server.id, id))
-        .into()
+        .on_press(Message::Select(server.id, id));
+    // Middle click closes the tab, as in web browsers.
+    mouse_area(tab).on_middle_press(Message::CloseBuffer(server.id, id)).into()
 }
 
 fn unread_badge(count: usize, highlighted: bool, c: Colors) -> Element<'static, Message> {

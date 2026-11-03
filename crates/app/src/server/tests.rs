@@ -343,3 +343,19 @@ fn multiline_batches_show_as_one_message() {
     );
     assert_eq!(line.msgid.as_deref(), Some("ml1"));
 }
+
+#[test]
+fn away_replies_are_shown_once_per_message() {
+    let mut server = server();
+    let count = |server: &Server| lines(server, "Test").iter().filter(|kind| matches!(kind, LineKind::Info(text) if text.contains("lunch"))).count();
+    receive(&mut server, ":s 301 me bob :at lunch");
+    receive(&mut server, ":s 301 me bob :at lunch");
+    assert_eq!(count(&server), 1);
+    receive(&mut server, ":s 301 me bob :back at lunch soon");
+    assert_eq!(count(&server), 2, "a new message is shown");
+
+    let always = Settings { repeat_away_replies: true, ..Settings::default() };
+    receive_with(&mut server, ":s 301 me bob :at lunch", &always, None);
+    receive_with(&mut server, ":s 301 me bob :at lunch", &always, None);
+    assert_eq!(count(&server), 4);
+}

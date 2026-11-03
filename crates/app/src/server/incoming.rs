@@ -232,6 +232,16 @@ impl Server {
                 self.on_motd_end();
                 self.on_numeric(message, *ctx);
             }
+            // Away reply: shown again only when the away message changes.
+            Command::Numeric(numeric::RPL_AWAY) if !ctx.settings.repeat_away_replies => {
+                if let (Some(nick), Some(reason)) = (message.param(1), message.param(2)) {
+                    let key = self.network.fold(nick);
+                    if self.away_replies.get(&key).map(String::as_str) != Some(reason) {
+                        self.away_replies.insert(key, reason.to_owned());
+                        self.on_numeric(message, *ctx);
+                    }
+                }
+            }
             Command::Numeric(code) if !SILENT_NUMERICS.contains(code) => {
                 self.on_numeric(message, *ctx);
             }

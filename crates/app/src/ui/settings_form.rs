@@ -111,6 +111,9 @@ pub enum Msg {
     DownloadDir(String),
     DccAddress(String),
     DccPassive(bool),
+    DoNotDisturb(bool),
+    LineShading(bool),
+    RepeatAwayReplies(bool),
     PartMessage(String),
     CaptureBinding(Action),
     Captured(Combo),
@@ -168,6 +171,9 @@ impl SettingsForm {
             Msg::DownloadDir(value) => draft.download_dir = value,
             Msg::DccAddress(value) => draft.dcc_address = value,
             Msg::DccPassive(value) => draft.dcc_passive = value,
+            Msg::DoNotDisturb(value) => draft.do_not_disturb = value,
+            Msg::LineShading(value) => draft.line_shading = value,
+            Msg::RepeatAwayReplies(value) => draft.repeat_away_replies = value,
             Msg::PartMessage(value) => draft.part_message = value,
             Msg::CaptureBinding(action) => {
                 self.capturing = Some(action);
@@ -415,6 +421,14 @@ impl SettingsForm {
                             c,
                         ),
                         toggle(tr("User list"), None, draft.show_nicklist, Msg::ShowNicklist, c),
+                        toggle(tr("Shaded lines"), Some(tr("Every other line slightly shaded")), draft.line_shading, Msg::LineShading, c),
+                        toggle(
+                            tr("Repeat away messages"),
+                            Some(tr("Otherwise an away message is shown once, until it changes")),
+                            draft.repeat_away_replies,
+                            Msg::RepeatAwayReplies,
+                            c,
+                        ),
                         form::setting(
                             tr("Highlight words"),
                             form::input("rust, release", &self.highlight_words, |v| Message::Settings(Msg::HighlightWords(v)), c),
@@ -506,6 +520,13 @@ impl SettingsForm {
                 form::group(
                     tr("System notifications"),
                     [
+                        toggle(
+                            tr("Do not disturb"),
+                            Some(tr("No notification nor window alert · ☾ in the sidebar")),
+                            draft.do_not_disturb,
+                            Msg::DoNotDisturb,
+                            c,
+                        ),
                         toggle(tr("Mentions"), Some(tr("Your nickname or a highlight word")), draft.notify_mentions, Msg::NotifyMentions, c),
                         toggle(tr("Private messages"), None, draft.notify_queries, Msg::NotifyQueries, c),
                         toggle(
