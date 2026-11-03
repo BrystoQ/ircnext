@@ -6,6 +6,7 @@ use crate::{Host, Interpreter};
 struct Recorder {
     commands: Vec<String>,
     echoes: Vec<String>,
+    files: std::collections::BTreeMap<String, String>,
 }
 
 impl Host for Recorder {
@@ -27,6 +28,15 @@ impl Host for Recorder {
 
     fn condition(&mut self, operator: &str, left: &str, right: &str) -> Option<bool> {
         (operator == "ison").then(|| left == "alice" && right == "#rust")
+    }
+
+    fn read_file(&mut self, path: &str) -> Option<String> {
+        self.files.get(path).cloned()
+    }
+
+    fn write_file(&mut self, path: &str, content: &str) -> Result<(), String> {
+        self.files.insert(path.to_owned(), content.to_owned());
+        Ok(())
     }
 }
 
@@ -289,4 +299,67 @@ fn the_documented_events_run() {
         host.commands,
         ["msg #rust alice: I do not keep logs of bob yet.", "notice carol Welcome to #rust, carol!", "msg #rust be right back"]
     );
+}
+
+#[test]
+fn hash_tables() {
+    let lines = echo(
+        "hmake scores\n\
+         hadd scores Alice 10\n\
+         hinc scores alice 5\n\
+         hinc scores bob\n\
+         hdec scores carol 2\n\
+         echo $hget(scores,ALICE) $hget(scores,bob) $hget(scores,carol) $hget(scores,0).item\n\
+         echo $hget(scores,1).item = $hget(scores,1).data $hget(scores) [ $+ $hget(nope) $+ ]\n\
+         hdel scores bob\n\
+         hdel -w scores c*\n\
+         echo $hget(scores,0).item\n\
+         hsave scores scores.txt\n\
+         hfree scores\n\
+         echo [ $+ $hget(scores) $+ ]\n\
+         hload restored scores.txt\n\
+         echo $hget(restored,alice)",
+        "",
+    );
+    assert_eq!(lines, ["15 1 -2 3", "Alice = 15 scores []", "1", "[]", "15"]);
+}
+
+#[test]
+fn ini_and_text_files() {
+    let mut interpreter = Interpreter::default();
+    interpreter
+        .load(
+            "files.mrc",
+            "alias t {\n\
+               writeini settings.ini greet message Hello there\n\
+               writeini settings.ini greet count 3\n\
+               writeini settings.ini other x 1\n\
+               remini settings.ini other\n\
+               echo $readini(settings.ini, greet, message) / $readini(settings.ini, greet, count) / [ $+ $readini(settings.ini, other, x) $+ ]\n\
+               write -c quotes.txt first quote\n\
+               write quotes.txt second quote\n\
+               echo $lines(quotes.txt) / $read(quotes.txt, 2) / $isfile(quotes.txt) $isfile(nope.txt)\n\
+             }",
+        )
+        .unwrap();
+    let mut host = Recorder::default();
+    interpreter.call("t", "", &mut host).unwrap();
+    assert_eq!(host.echoes, ["Hello there / 3 / []", "2 / second quote / $true $false"]);
+    assert_eq!(host.files["settings.ini"], "[greet]\nmessage=Hello there\ncount=3\n");
+}
+
+#[test]
+fn global_variables_round_trip_and_report_changes() {
+    use crate::storage::{format_variables, parse_variables};
+    let mut interpreter = Interpreter::default();
+    interpreter.load("v.mrc", "alias t { set %Seen 3 | var %local 1 }\nalias u var %only local").unwrap();
+    let mut host = Recorder::default();
+    interpreter.call("u", "", &mut host).unwrap();
+    assert!(!interpreter.take_globals_changed(), "locals do not count");
+    interpreter.call("t", "", &mut host).unwrap();
+    assert!(interpreter.take_globals_changed());
+    assert!(!interpreter.take_globals_changed());
+    let saved = format_variables(&interpreter.globals);
+    assert_eq!(saved, "[variables]\nn0=%seen 3\n");
+    assert_eq!(parse_variables(&saved), interpreter.globals);
 }

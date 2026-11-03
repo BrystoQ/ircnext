@@ -8,6 +8,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ### Added
 
+- Script timers (`/timer`, `/timers`), hash tables (`hadd`, `$hget`…), ini files (`$readini`, `/writeini`) and text files (`$read`, `/write`), kept inside the `scripts` folder; global variables kept between sessions; `/echo` command.
 - Script events: `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `CONNECT`, `DISCONNECT`, `START` and `INPUT` (which can stop typed text), with mIRC match texts, targets and `me:`/`!`/`@` prefixes.
 - mIRC scripts (mSL), first part: `.mrc` files of the `scripts` folder are loaded at startup and with `/reload`; aliases are typed as commands or used as identifiers, with variables, `if`/`elseif`/`else`, `while`, mIRC conditions and about fifty identifiers. Runaway scripts are stopped.
 - FiSH encryption, compatible with FiSH 10: `/setkey [target] <key>` (`cbc:` prefix for CBC), `/delkey`, and `/keyx <nick>` for a DH1080 key exchange. Messages, actions, notices and topics are encrypted and decrypted; encrypted messages carry a *FiSH* badge and the header says when a conversation is encrypted. Keys are kept in the system keychain.

@@ -258,6 +258,7 @@ impl Server {
                 self.remove_buffer(id);
                 effects.closed = true;
             }
+            Command::Echo(text) => self.push(id, Line::new(Local::now(), LineKind::Info(text)), ctx),
             Command::Clear => {
                 if let Some(buffer) = self.buffer_mut(id) {
                     buffer.clear();

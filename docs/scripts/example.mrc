@@ -55,3 +55,19 @@ on *:INPUT:#:{
     halt
   }
 }
+
+; Hash tables and timers: count messages per person, report every hour.
+on *:TEXT:*:#:{
+  hinc -m stats $nick
+}
+
+alias top {
+  echo -a $hget(stats, 0).item people talked
+  var %i = 1
+  while (%i <= $hget(stats, 0).item) {
+    echo -a $hget(stats, %i).item : $hget(stats, %i).data
+    inc %i
+  }
+}
+
+on *:CONNECT:timerstats 0 3600 top

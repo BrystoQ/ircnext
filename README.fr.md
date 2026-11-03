@@ -259,7 +259,12 @@ on *:TEXT:!seen &:#:msg $chan $nick $+ : I have not seen $2 yet.
 on *:JOIN:#:notice $nick Welcome to $chan $+ !
 ```
 
-Les minuteries, les tables de hachage, les fichiers ini et un gestionnaire de scripts arrivent ensuite. Un script qui boucle sans fin est arrêté automatiquement.
+- minuteries : `/timer[nom] [-m] <répétitions> <intervalle> <commande>` (`0` répétition : sans fin), `/timers`, `/timer<nom> off`, `/timers off` ;
+- tables de hachage : `hmake`, `hadd`, `hinc`, `hdec`, `hdel [-w]`, `hfree`, `hsave`, `hload`, `$hget(table, élément)`, `$hget(table, N).item` / `.data` ;
+- fichiers : `$readini`, `/writeini`, `/remini`, `$read(fichier, [N])`, `$lines`, `$isfile`, `/write [-c]`. Les scripts ne lisent et n'écrivent que des fichiers du dossier `scripts` ;
+- variables globales conservées d'une session à l'autre (`scripts/vars.ini`).
+
+Un gestionnaire de scripts arrive ensuite. Un script qui boucle sans fin est arrêté automatiquement.
 
 ## Configuration
 
@@ -328,7 +333,8 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Chiffrement FiSH 10 natif (Blowfish, échange de clés DH1080)
 - [x] Scripts compatibles mIRC (mSL) : alias et langage
 - [x] Événements de scripts (`on TEXT`, `on JOIN`…)
-- [ ] Minuteries, tables de hachage, fichiers ini, gestionnaire de scripts
+- [x] Minuteries, tables de hachage, fichiers ini et texte
+- [ ] Gestionnaire de scripts
 - [x] `draft/multiline`
 
 ## Contribuer

@@ -24,6 +24,15 @@ pub trait Host {
     /// Result of a condition operator that needs the client (`ison`,
     /// `isop`, `ischan`…), `None` if unknown.
     fn condition(&mut self, operator: &str, left: &str, right: &str) -> Option<bool>;
+    /// Content of a script file (`$read`, `hload`, ini files), `None` if
+    /// it does not exist or is not allowed.
+    fn read_file(&mut self, _path: &str) -> Option<String> {
+        None
+    }
+    /// Writes a script file.
+    fn write_file(&mut self, path: &str, _content: &str) -> Result<(), String> {
+        Err(format!("cannot write {path}"))
+    }
 }
 
 /// Error stopping a script.
@@ -76,6 +85,10 @@ pub struct Interpreter {
     /// Identifiers of the event being handled (`$nick`, `$chan`…), also
     /// seen by the aliases it calls.
     pub(crate) event: BTreeMap<String, String>,
+    /// Hash tables, by lowercase name.
+    pub tables: BTreeMap<String, crate::storage::Table>,
+    /// Global variables changed since the last [`take_globals_changed`](Self::take_globals_changed).
+    globals_changed: bool,
 }
 
 impl Interpreter {
@@ -91,6 +104,11 @@ impl Interpreter {
 
     pub fn unload(&mut self, name: &str) {
         self.scripts.retain(|loaded| loaded.name != name);
+    }
+
+    /// Whether global variables changed since the last call (to save them).
+    pub fn take_globals_changed(&mut self) -> bool {
+        std::mem::take(&mut self.globals_changed)
     }
 
     /// Alias visible from outside its script (or from `from`).
@@ -218,6 +236,7 @@ impl Interpreter {
                     let key = variable.to_ascii_lowercase();
                     if global {
                         self.globals.insert(key, value);
+                        self.globals_changed = true;
                     } else {
                         frame.locals.insert(key, value);
                     }
@@ -228,12 +247,14 @@ impl Interpreter {
                 let (variable, value) = rest.split_once(' ').unwrap_or((rest, ""));
                 let value = self.eval(value.trim(), frame, host)?;
                 self.globals.insert(variable.to_ascii_lowercase(), value);
+                self.globals_changed = true;
             }
             "unset" => {
                 for variable in skip_switches(rest).split_whitespace() {
                     let pattern = variable.to_ascii_lowercase();
                     self.globals.retain(|name, _| !builtins::wildcard_match(&pattern, name, false));
                 }
+                self.globals_changed = true;
             }
             "inc" | "dec" => {
                 let rest = skip_switches(rest);
@@ -241,7 +262,9 @@ impl Interpreter {
                 let amount = builtins::number(&self.eval(amount.trim(), frame, host)?);
                 let key = variable.to_ascii_lowercase();
                 let sign = if name.eq_ignore_ascii_case("dec") { -1.0 } else { 1.0 };
-                let target = if frame.locals.contains_key(&key) { &mut frame.locals } else { &mut self.globals };
+                let local = frame.locals.contains_key(&key);
+                self.globals_changed |= !local;
+                let target = if local { &mut frame.locals } else { &mut self.globals };
                 let current = target.get(&key).map_or(0.0, |value| builtins::number(value));
                 target.insert(key, builtins::format_number(current + sign * amount));
             }
@@ -258,6 +281,12 @@ impl Interpreter {
             }
             "noop" => {
                 self.eval(rest, frame, host)?;
+            }
+            storage @ ("hmake" | "hfree" | "hadd" | "hinc" | "hdec" | "hdel" | "hsave" | "hload" | "writeini" | "remini" | "write") => {
+                let args = self.eval(rest, frame, host)?;
+                if let Some(result) = self.storage_command(storage, &args, host) {
+                    result?;
+                }
             }
             _ => {
                 let args = self.eval(rest, frame, host)?;
@@ -434,17 +463,25 @@ impl Interpreter {
         if let Some(value) = self.event.get(&lower) {
             return Ok(value.clone());
         }
+        if let Some(value) = self.storage_identifier(&lower, args, property, host) {
+            return Ok(value);
+        }
         if self.find_alias(&lower, frame.script).is_some() {
             return Ok(self.call_alias(&lower, args.to_vec(), frame.script, host)?.0.unwrap_or_default());
         }
         Ok(host.identifier(&lower, args, property).unwrap_or_default())
     }
 
-    /// `$rand(a,b)`: a number, or a character between two characters.
-    fn rand(&mut self, args: &[String]) -> String {
+    /// A random number below `bound`.
+    pub(crate) fn roll(&mut self, bound: u64) -> u64 {
         use std::hash::BuildHasher;
         self.random = self.random.wrapping_add(1);
-        let roll = std::hash::RandomState::new().hash_one(self.random);
+        std::hash::RandomState::new().hash_one(self.random) % bound.max(1)
+    }
+
+    /// `$rand(a,b)`: a number, or a character between two characters.
+    fn rand(&mut self, args: &[String]) -> String {
+        let roll = self.roll(u64::MAX);
         let (low, high) = (args.first().map_or("0", String::as_str), args.get(1).map_or("0", String::as_str));
         if let (Ok(a), Ok(b)) = (low.parse::<i64>(), high.parse::<i64>()) {
             let (a, b) = (a.min(b), a.max(b));
