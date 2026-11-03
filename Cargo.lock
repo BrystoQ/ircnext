@@ -1813,7 +1813,7 @@ dependencies = [
 
 [[package]]
 name = "ircnext"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "directories",
@@ -1835,7 +1835,7 @@ dependencies = [
 
 [[package]]
 name = "ircnext-client"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "blowfish",
@@ -1854,14 +1854,14 @@ dependencies = [
 
 [[package]]
 name = "ircnext-proto"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "ircnext-script"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "thiserror 2.0.21",
 ]

@@ -6,6 +6,8 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+## [0.3.0] - 2026-11-04
+
 ### Ajouté
 
 - Gestionnaire de scripts dans *Réglages → Scripts* : chaque fichier avec son état (chargé avec ses alias et événements, désactivé, ou son erreur), un interrupteur pour l'activer ou le désactiver, et des boutons pour recharger, ouvrir le dossier ou modifier un fichier.
@@ -60,6 +62,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Limitation du débit d'envoi et des réponses CTCP, mémoire bornée face à un serveur hostile.
 - Mots de passe NickServ masqués à l'affichage, dans les journaux et l'historique de saisie.
 
-[Non publié]: https://github.com/BrystoQ/ircnext/compare/v0.2.0...HEAD
+[Non publié]: https://github.com/BrystoQ/ircnext/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/BrystoQ/ircnext/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/BrystoQ/ircnext/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/BrystoQ/ircnext/releases/tag/v0.1.0
