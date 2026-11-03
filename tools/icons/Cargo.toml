@@ -1,0 +1,13 @@
+[package]
+name = "ircnext-icons"
+description = "Generates the application icons from assets/icon/ircnext.svg."
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Not part of the main workspace: only run when the logo changes.
+[workspace]
+
+[dependencies]
+ico = "0.6"
+resvg = "0.49"

@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/icon/ircnext.svg" alt="Logo d'ircnext" width="112">
+
 # ircnext
 
 **Un client IRC moderne, rapide et sûr, écrit en Rust.**<br>
