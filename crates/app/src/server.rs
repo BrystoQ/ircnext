@@ -3,6 +3,9 @@
 mod fish;
 mod incoming;
 mod outgoing;
+mod script_events;
+
+pub use script_events::ScriptEvent;
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -139,6 +142,8 @@ pub struct Server {
     dcc: Vec<(String, Dcc)>,
     /// Last away message shown per nickname (folded), to avoid repeating it.
     away_replies: std::collections::HashMap<String, String>,
+    /// Events for the scripts, collected by the application.
+    script_events: Vec<ScriptEvent>,
     /// DH1080 key exchanges we started, by nickname (lowercase).
     key_exchanges: std::collections::HashMap<String, ircnext_client::fish::KeyExchange>,
     /// The message being handled comes from a replayed history.
@@ -166,6 +171,7 @@ impl Server {
             dcc: Vec::new(),
             away_replies: std::collections::HashMap::new(),
             key_exchanges: std::collections::HashMap::new(),
+            script_events: Vec::new(),
             replaying: false,
             entry,
         };
@@ -388,6 +394,8 @@ impl Server {
                 };
                 let text = tr!("Connected as {nick}. IRCv3 capabilities: {caps}.", nick = registered.nick, caps = caps);
                 self.info(LineKind::Info(text), ctx);
+                let buffer = self.server_buffer();
+                self.script_event(buffer, "CONNECT", None, "", true, &[]);
             }
             Event::UpgradedToTls { port } => {
                 self.entry.connection.tls = true;
@@ -421,6 +429,8 @@ impl Server {
                         buffer.joined = false;
                     }
                 }
+                let buffer = self.server_buffer();
+                self.script_event(buffer, "DISCONNECT", None, "", true, &[]);
                 self.status = if let Some(retry_in) = retry_in {
                     Status::Waiting { error, retry_in }
                 } else {

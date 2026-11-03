@@ -175,11 +175,16 @@ impl App {
         if !script_errors.is_empty() && app.banner.is_none() {
             app.banner = Some(tr!("Script errors: {errors}", errors = script_errors.join(" · ")));
         }
+        let start = app.active.map(|(server, buffer)| {
+            let event = ircnext_script::Event { name: "START".into(), own: true, ..ircnext_script::Event::default() };
+            app.fire_script_event(server, buffer, &event).1
+        });
         app.system_notifications = true;
         app.sync_prefs();
         let tasks = Task::batch([
             system::theme().map(Message::SystemTheme),
             iced::widget::operation::focus(INPUT_ID),
+            start.unwrap_or_else(Task::none),
         ]);
         (app, tasks)
     }
@@ -480,8 +485,14 @@ impl App {
         let effects = server.on_event(event, &ctx);
         let alerts = server.take_alerts();
         let dcc = server.take_dcc();
+        let script_events = server.take_script_events();
         self.now = Instant::now();
-        let mut tasks = vec![self.apply_effects(id, effects), self.alert(id, alerts), self.on_dcc(id, dcc)];
+        let mut tasks = vec![
+            self.apply_effects(id, effects),
+            self.alert(id, alerts),
+            self.on_dcc(id, dcc),
+            self.fire_script_events(id, script_events),
+        ];
         if registered {
             tasks.push(self.run_connect_commands(id));
         }
@@ -601,7 +612,12 @@ impl App {
         let Some((id, buffer)) = self.active else {
             return Task::none();
         };
-        self.run_line(id, buffer, &text)
+        // `on INPUT` handlers see the text first, and may stop it.
+        let (halted, task) = self.input_event(id, buffer, &text);
+        if halted {
+            return task;
+        }
+        Task::batch([task, self.run_line(id, buffer, &text)])
     }
 
     /// Runs a typed line (text or command) in a tab.
@@ -1362,6 +1378,35 @@ mod tests {
         app.input = "/unignore troll".into();
         let _ = app.update(Message::Submit);
         assert_eq!(app.config.settings.ignored, Vec::<String>::new());
+    }
+
+    #[test]
+    fn script_events_react_to_the_network_and_input() {
+        let mut app = demo();
+        app.scripts
+            .load(
+                "events.mrc",
+                "on *:TEXT:!mute &:#:{ ignore $2 | echo $nick muted $2 in $chan }\n\
+                 on *:JOIN:#rust:echo welcome $nick from $address\n\
+                 on *:INPUT:#:{ if ($1 == secret) { echo kept for myself | halt } }",
+            )
+            .unwrap();
+        let (server, buffer) = app.active.unwrap();
+        let last = |app: &App| app.server(server).unwrap().buffer(buffer).unwrap().lines().last().unwrap().kind.clone();
+
+        inject(&mut app, ":alice!a@h PRIVMSG #rust :!mute spammer");
+        assert_eq!(app.config.settings.ignored, ["spammer"]);
+        assert_eq!(last(&app), LineKind::Info("alice muted spammer in #rust".into()));
+
+        inject(&mut app, ":frank!f@example.org JOIN #rust");
+        assert_eq!(last(&app), LineKind::Info("welcome frank from f@example.org".into()));
+
+        app.input = "secret".into();
+        let _ = app.update(Message::Submit);
+        assert_eq!(last(&app), LineKind::Info("kept for myself".into()), "nothing sent");
+        app.input = "public".into();
+        let _ = app.update(Message::Submit);
+        assert!(matches!(last(&app), LineKind::Error(_)), "sent (the demo is not connected)");
     }
 
     #[test]

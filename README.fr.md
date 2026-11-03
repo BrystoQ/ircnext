@@ -251,9 +251,15 @@ Déjà pris en charge :
 - variables : `var` (locales), `set` / `unset` / `inc` / `dec` (globales) ; `$1`, `$2-`, `$0` ; `$+` ;
 - conditions : `==`, `===`, `!=`, `<`, `>`, `<=`, `>=`, `//`, `\\`, `&`, `isin`, `iswm`, `isnum`, `isletter`, `isalpha`, `isalnum`, `islower`, `isupper`, `ison`, `isop`, `isvoice`, `isreg`, `ischan`, avec `!`, `&&`, `||` ;
 - identifiants : `$me`, `$chan`, `$active`, `$network`, `$server`, `$time`, `$date`, `$ctime`, `$len`, `$upper`, `$lower`, `$left`, `$right`, `$mid`, `$replace`, `$remove`, `$pos`, `$count`, `$str`, `$strip`, `$chr`, `$asc`, `$gettok`, `$numtok`, `$addtok`, `$deltok`, `$istok`, `$findtok`, `$puttok`, `$instok`, `$calc`, `$round`, `$int`, `$abs`, `$rand`, `$iif`, `$ord`… ;
-- toutes les commandes d'ircnext (`msg`, `notice`, `join`, `mode`, `echo`…).
+- toutes les commandes d'ircnext (`msg`, `notice`, `join`, `mode`, `echo`…) ;
+- événements : `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `CONNECT`, `DISCONNECT`, `START` et `INPUT` (`halt` empêche l'envoi du texte), avec textes filtrés (`*`, `?`, `&` pour un mot), cibles (`#`, `?`, `*`, `#a,#b`), préfixes `me:`, `!` et `@`, et `$nick`, `$address`, `$chan`, `$target`, `$knick`, `$newnick`, `$opnick`, `$vnick`.
 
-Les événements (`on TEXT`, `on JOIN`…), les minuteries, les tables de hachage et un gestionnaire de scripts arrivent ensuite. Un script qui boucle sans fin est arrêté automatiquement.
+```mrc
+on *:TEXT:!seen &:#:msg $chan $nick $+ : I have not seen $2 yet.
+on *:JOIN:#:notice $nick Welcome to $chan $+ !
+```
+
+Les minuteries, les tables de hachage, les fichiers ini et un gestionnaire de scripts arrivent ensuite. Un script qui boucle sans fin est arrêté automatiquement.
 
 ## Configuration
 
@@ -321,7 +327,8 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Transferts DCC
 - [x] Chiffrement FiSH 10 natif (Blowfish, échange de clés DH1080)
 - [x] Scripts compatibles mIRC (mSL) : alias et langage
-- [ ] Événements de scripts, minuteries, tables de hachage, gestionnaire de scripts
+- [x] Événements de scripts (`on TEXT`, `on JOIN`…)
+- [ ] Minuteries, tables de hachage, fichiers ini, gestionnaire de scripts
 - [x] `draft/multiline`
 
 ## Contribuer

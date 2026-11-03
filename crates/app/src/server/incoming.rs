@@ -80,6 +80,9 @@ impl Server {
         }
         let time = message_time(message);
         let line = |kind| Line::new(time, kind);
+        if !history {
+            self.message_script_events(message, &source, &shared_channels);
+        }
 
         match &message.command {
             Command::Privmsg | Command::Notice => {
@@ -344,6 +347,17 @@ impl Server {
             && let Some(buffer) = self.buffer_mut(id)
         {
             buffer.note_speaker(source);
+        }
+        // Scripts: messages of the others (own lines go through `on INPUT`).
+        if !history && !own && !from_server {
+            let name = match (is_notice, ctcp.is_some()) {
+                (true, _) => "NOTICE",
+                (false, true) => "ACTION",
+                (false, false) => "TEXT",
+            };
+            let channel = self.network.is_channel(stripped).then_some(stripped);
+            let address = message.source.as_ref().and_then(ircnext_client::proto::Source::mask).unwrap_or_default();
+            self.script_event(id, name, channel, &body, false, &[("nick", source), ("address", &address)]);
         }
         false
     }

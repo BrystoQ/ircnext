@@ -150,8 +150,12 @@ pub fn format_number(value: f64) -> String {
     text.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
-/// Wildcard match: `*` any sequence, `?` one character.
-pub fn wildcard_match(pattern: &str, text: &str, _case_sensitive: bool) -> bool {
+/// Wildcard match: `*` any sequence, `?` one character, and with `words`,
+/// `&` one whole word (as in `on TEXT` match texts).
+pub fn wildcard_match(pattern: &str, text: &str, words: bool) -> bool {
+    if words && pattern.contains('&') {
+        return word_match(pattern, text);
+    }
     let pattern: Vec<char> = pattern.chars().collect();
     let text: Vec<char> = text.chars().collect();
     let (mut p, mut t) = (0, 0);
@@ -172,6 +176,24 @@ pub fn wildcard_match(pattern: &str, text: &str, _case_sensitive: bool) -> bool 
         }
     }
     pattern[p..].iter().all(|&c| c == '*')
+}
+
+/// Match where `&` stands for one word: compared word by word, other words
+/// being plain wildcard patterns (`*` alone also covers several words).
+fn word_match(pattern: &str, text: &str) -> bool {
+    fn matches(pattern: &[&str], words: &[&str]) -> bool {
+        match pattern.split_first() {
+            None => words.is_empty(),
+            Some((&"*", rest)) => (0..=words.len()).any(|skip| matches(rest, &words[skip..])),
+            Some((&"&", rest)) => !words.is_empty() && matches(rest, &words[1..]),
+            Some((first, rest)) => {
+                !words.is_empty() && wildcard_match(first, words[0], false) && matches(rest, &words[1..])
+            }
+        }
+    }
+    let pattern: Vec<&str> = pattern.split_whitespace().collect();
+    let words: Vec<&str> = text.split_whitespace().collect();
+    matches(&pattern, &words)
 }
 
 fn left(text: &str, n: i64) -> String {

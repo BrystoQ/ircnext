@@ -251,9 +251,15 @@ Supported today:
 - variables: `var` (local), `set` / `unset` / `inc` / `dec` (global); `$1`, `$2-`, `$0`; `$+`;
 - conditions: `==`, `===`, `!=`, `<`, `>`, `<=`, `>=`, `//`, `\\`, `&`, `isin`, `iswm`, `isnum`, `isletter`, `isalpha`, `isalnum`, `islower`, `isupper`, `ison`, `isop`, `isvoice`, `isreg`, `ischan`, with `!`, `&&`, `||`;
 - identifiers: `$me`, `$chan`, `$active`, `$network`, `$server`, `$time`, `$date`, `$ctime`, `$len`, `$upper`, `$lower`, `$left`, `$right`, `$mid`, `$replace`, `$remove`, `$pos`, `$count`, `$str`, `$strip`, `$chr`, `$asc`, `$gettok`, `$numtok`, `$addtok`, `$deltok`, `$istok`, `$findtok`, `$puttok`, `$instok`, `$calc`, `$round`, `$int`, `$abs`, `$rand`, `$iif`, `$ord`…;
-- every ircnext command (`msg`, `notice`, `join`, `mode`, `echo`…).
+- every ircnext command (`msg`, `notice`, `join`, `mode`, `echo`…);
+- events: `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `CONNECT`, `DISCONNECT`, `START` and `INPUT` (`halt` keeps the text from being sent), with match texts (`*`, `?`, `&` for one word), targets (`#`, `?`, `*`, `#a,#b`), `me:`, `!` and `@` prefixes, and `$nick`, `$address`, `$chan`, `$target`, `$knick`, `$newnick`, `$opnick`, `$vnick`.
 
-Events (`on TEXT`, `on JOIN`…), timers, hash tables and a script manager are coming next. A script that loops forever is stopped automatically.
+```mrc
+on *:TEXT:!seen &:#:msg $chan $nick $+ : I have not seen $2 yet.
+on *:JOIN:#:notice $nick Welcome to $chan $+ !
+```
+
+Timers, hash tables, ini files and a script manager are coming next. A script that loops forever is stopped automatically.
 
 ## Configuration
 
@@ -321,7 +327,8 @@ The screenshots in this README are rendered headlessly by the `snapshots` test, 
 - [x] DCC transfers
 - [x] Native FiSH 10 encryption (Blowfish, DH1080 key exchange)
 - [x] mIRC-compatible scripting (mSL): aliases and the language
-- [ ] Script events, timers, hash tables, script manager
+- [x] Script events (`on TEXT`, `on JOIN`…)
+- [ ] Script timers, hash tables, ini files, script manager
 - [x] `draft/multiline`
 
 ## Contributing
