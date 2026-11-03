@@ -1315,6 +1315,21 @@ mod tests {
 
     fn snapshots_in(language: i18n::Language, dir: &std::path::Path) {
         let mut app = demo();
+        // A second network, to show how networks are set apart.
+        let oftc = app.add_server(ServerEntry {
+            name: "OFTC".into(),
+            auto_connect: false,
+            on_connect: Vec::new(),
+            connection: Config { host: "irc.oftc.net".into(), nick: "me".into(), ..Config::default() },
+        });
+        let registered = Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false, multiline: None };
+        let _ = app.update(Message::Client(oftc, Event::Registered(registered)));
+        for line in [":me!u@h JOIN #debian", ":me!u@h JOIN #tor", ":sam!s@h PRIVMSG me :ping"] {
+            let message: IrcMessage = line.parse().unwrap();
+            let _ = app.update(Message::Client(oftc, Event::Message(message)));
+        }
+        let rust = app.servers[0].find("#rust").unwrap();
+        let _ = app.update(Message::Select(app.servers[0].id, rust));
         app.config.settings.language = language;
         i18n::set_language(language);
         for mode in ThemeMode::ALL.into_iter().skip(1) {
