@@ -89,6 +89,12 @@ pub enum Message {
     FileDropped(PathBuf),
     /// Script timers to check.
     TimerTick(Instant),
+    /// Script manager: loads the scripts again.
+    ReloadScripts,
+    /// Script manager: turns a script on or off.
+    ToggleScript(String, bool),
+    /// Opens the scripts folder, or one script file.
+    OpenScripts(Option<String>),
 }
 
 /// Keys with a fixed role (not configurable).
@@ -155,6 +161,8 @@ pub struct App {
     keychain: keychain::Cache,
     /// mIRC scripts (`scripts/*.mrc`).
     scripts: ircnext_script::Interpreter,
+    /// State of each script file, for the script manager.
+    script_status: Vec<crate::ui::settings_form::ScriptStatus>,
     /// Script timers (`/timer`).
     timers: Vec<scripts::ScriptTimer>,
     next_timer: u32,
@@ -216,6 +224,7 @@ impl App {
             system_notifications: false,
             keychain: keychain::Cache::new(),
             scripts: ircnext_script::Interpreter::default(),
+            script_status: Vec::new(),
             timers: Vec::new(),
             next_timer: 0,
             transfers: Vec::new(),
@@ -444,6 +453,11 @@ impl App {
             Message::DismissBanner => self.banner = None,
             Message::OpenTransfers => self.modal = Some(Modal::Transfers),
             Message::TimerTick(now) => return self.run_timers(now),
+            Message::ReloadScripts => {
+                self.load_scripts();
+            }
+            Message::ToggleScript(name, enabled) => self.toggle_script(&name, enabled),
+            Message::OpenScripts(file) => self.open_script_path(file.as_deref()),
             Message::ToggleDoNotDisturb => {
                 self.config.settings.do_not_disturb = !self.config.settings.do_not_disturb;
                 self.save();
@@ -1107,7 +1121,7 @@ impl App {
             return base.into();
         };
         let dialog = match modal {
-            Modal::Settings(form) => form.view(colors, self.window.dark),
+            Modal::Settings(form) => form.view(colors, self.window.dark, &self.script_status, self.scripts_dir()),
             Modal::Server(form) => form.view(colors),
             Modal::Switcher(switcher) => switcher.view(&self.servers, self.active, colors),
             Modal::Transfers => crate::ui::transfers::view(&self.transfers, self.now, colors),
@@ -1483,6 +1497,31 @@ mod tests {
     }
 
     #[test]
+    fn script_manager_turns_scripts_on_and_off() {
+        use crate::ui::settings_form::ScriptState;
+        let dir = std::env::temp_dir().join(format!("ircnext-script-manager-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("scripts")).unwrap();
+        std::fs::write(dir.join("scripts/bot.mrc"), "alias hi echo hi\non *:JOIN:#:echo hello").unwrap();
+        std::fs::write(dir.join("scripts/broken.mrc"), "alias {").unwrap();
+        let mut app = App::new(AppConfig::default(), Some(dir.join("config.toml")), None);
+        app.load_scripts();
+        assert_eq!(app.script_status[0].state, ScriptState::Loaded { aliases: 1, events: 1 });
+        assert!(matches!(app.script_status[1].state, ScriptState::Error(_)));
+
+        let _ = app.update(Message::ToggleScript("bot.mrc".into(), false));
+        assert_eq!(app.script_status[0].state, ScriptState::Disabled);
+        assert!(!app.scripts.has_alias("hi"));
+        assert_eq!(app.config.settings.disabled_scripts, ["bot.mrc"]);
+        let saved = std::fs::read_to_string(dir.join("config.toml")).unwrap();
+        assert!(saved.contains("bot.mrc"), "choice saved");
+
+        let _ = app.update(Message::ToggleScript("bot.mrc".into(), true));
+        assert!(app.scripts.has_alias("hi"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn loads_scripts_from_the_scripts_folder() {
         let dir = std::env::temp_dir().join(format!("ircnext-scripts-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("scripts")).unwrap();
@@ -1636,6 +1675,17 @@ mod tests {
             render(&app, &dir.join(format!("{mode:?}").to_lowercase()));
         }
         app.config.settings.theme = ThemeMode::Dark;
+        app.script_status = vec![
+            crate::ui::settings_form::ScriptStatus {
+                name: "bot.mrc".into(),
+                state: crate::ui::settings_form::ScriptState::Loaded { aliases: 4, events: 6 },
+            },
+            crate::ui::settings_form::ScriptStatus { name: "away.mrc".into(), state: crate::ui::settings_form::ScriptState::Disabled },
+            crate::ui::settings_form::ScriptStatus {
+                name: "quiz.mrc".into(),
+                state: crate::ui::settings_form::ScriptState::Error("quiz.mrc: line 12: missing }".into()),
+            },
+        ];
         let _ = app.update(Message::OpenSettings);
         for section in settings_form::Section::ALL {
             let _ = app.update(Message::Settings(settings_form::Msg::Section(section)));

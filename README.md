@@ -116,8 +116,8 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 | <img src="docs/screenshots/en/midnight.png" alt="Midnight theme"> | <img src="docs/screenshots/en/nord.png" alt="Nordic theme"> |
 | **Search in a tab** | **Adding a network** |
 | <img src="docs/screenshots/en/search.png" alt="Search in the history"> | <img src="docs/screenshots/en/server-form.png" alt="Network form"> |
-| **File transfers** | |
-| <img src="docs/screenshots/en/transfers.png" alt="DCC transfers"> | |
+| **File transfers** | **Script manager** |
+| <img src="docs/screenshots/en/transfers.png" alt="DCC transfers"> | <img src="docs/screenshots/en/scripts.png" alt="Script manager"> |
 
 </details>
 
@@ -264,7 +264,7 @@ on *:JOIN:#:notice $nick Welcome to $chan $+ !
 - files: `$readini`, `/writeini`, `/remini`, `$read(file, [N])`, `$lines`, `$isfile`, `/write [-c]`. Scripts only read and write files of the `scripts` folder;
 - global variables kept between sessions (`scripts/vars.ini`).
 
-A script manager is coming next. A script that loops forever is stopped automatically.
+*Settings → Scripts* lists the script files with their state (loaded, disabled, or the error and its line), turns each one on or off, and opens the folder or a file in your editor. A script that loops forever is stopped automatically.
 
 ## Configuration
 
@@ -334,7 +334,7 @@ The screenshots in this README are rendered headlessly by the `snapshots` test, 
 - [x] mIRC-compatible scripting (mSL): aliases and the language
 - [x] Script events (`on TEXT`, `on JOIN`…)
 - [x] Script timers, hash tables, ini and text files
-- [ ] Script manager
+- [x] Script manager
 - [x] `draft/multiline`
 
 ## Contributing

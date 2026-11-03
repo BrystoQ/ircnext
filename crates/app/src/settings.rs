@@ -211,6 +211,8 @@ pub struct Settings {
     pub dcc_address: String,
     /// Offer files passively: the receiver listens (useful behind a router).
     pub dcc_passive: bool,
+    /// Script files (`.mrc`) not loaded.
+    pub disabled_scripts: Vec<String>,
 
     // Typing indicator (IRCv3 `+typing`)
     pub send_typing: bool,
@@ -270,6 +272,7 @@ impl Default for Settings {
             download_dir: String::new(),
             dcc_address: String::new(),
             dcc_passive: false,
+            disabled_scripts: Vec::new(),
             send_typing: true,
             show_typing: true,
             nick: "ircnext".to_owned(),

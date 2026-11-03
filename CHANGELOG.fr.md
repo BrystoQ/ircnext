@@ -8,6 +8,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ### Ajouté
 
+- Gestionnaire de scripts dans *Réglages → Scripts* : chaque fichier avec son état (chargé avec ses alias et événements, désactivé, ou son erreur), un interrupteur pour l'activer ou le désactiver, et des boutons pour recharger, ouvrir le dossier ou modifier un fichier.
 - Minuteries de scripts (`/timer`, `/timers`), tables de hachage (`hadd`, `$hget`…), fichiers ini (`$readini`, `/writeini`) et texte (`$read`, `/write`), limités au dossier `scripts` ; variables globales conservées d'une session à l'autre ; commande `/echo`.
 - Événements de scripts : `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `CONNECT`, `DISCONNECT`, `START` et `INPUT` (qui peut retenir un texte tapé), avec les textes filtrés, cibles et préfixes `me:`/`!`/`@` de mIRC.
 - Scripts mIRC (mSL), première partie : les fichiers `.mrc` du dossier `scripts` sont chargés au démarrage et avec `/reload` ; les alias se tapent comme des commandes ou servent d'identifiants, avec variables, `if`/`elseif`/`else`, `while`, conditions mIRC et une cinquantaine d'identifiants. Un script qui boucle sans fin est arrêté.

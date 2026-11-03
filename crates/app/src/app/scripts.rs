@@ -11,6 +11,7 @@ use ircnext_script::{Event, Host, Interpreter};
 use super::{App, Message};
 use crate::buffer::{Kind, Line, LineKind};
 use crate::server::{BufferId, Context, ScriptEvent, ServerId};
+use crate::ui::settings_form::{ScriptState, ScriptStatus};
 use crate::i18n::tr;
 use crate::tr;
 
@@ -42,17 +43,62 @@ impl App {
             .unwrap_or_default();
         files.sort();
         let (mut loaded, mut errors) = (Vec::new(), Vec::new());
+        self.script_status.clear();
         for path in files {
             let name = path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
-            match std::fs::read_to_string(&path) {
-                Ok(source) => match self.scripts.load(&name, &source) {
-                    Ok(()) => loaded.push(name),
-                    Err(error) => errors.push(error.to_string()),
-                },
-                Err(error) => errors.push(format!("{name}: {error}")),
-            }
+            let disabled = self.config.settings.disabled_scripts.iter().any(|script| script.eq_ignore_ascii_case(&name));
+            let state = if disabled {
+                ScriptState::Disabled
+            } else {
+                match std::fs::read_to_string(&path).map_err(|error| format!("{name}: {error}")) {
+                    Ok(source) => match self.scripts.load(&name, &source) {
+                        Ok(()) => {
+                            let script = &self.scripts.scripts.last().expect("just loaded").script;
+                            let state = ScriptState::Loaded { aliases: script.aliases.len(), events: script.handlers.len() };
+                            loaded.push(name.clone());
+                            state
+                        }
+                        Err(error) => {
+                            errors.push(error.to_string());
+                            ScriptState::Error(error.to_string())
+                        }
+                    },
+                    Err(error) => {
+                        errors.push(error.clone());
+                        ScriptState::Error(error)
+                    }
+                }
+            };
+            self.script_status.push(ScriptStatus { name, state });
         }
         (loaded, errors)
+    }
+
+    /// Turns a script on or off (script manager), then reloads the scripts.
+    pub(super) fn toggle_script(&mut self, name: &str, enabled: bool) {
+        for list in std::iter::once(&mut self.config.settings.disabled_scripts).chain(match &mut self.modal {
+            Some(super::Modal::Settings(form)) => Some(&mut form.draft.disabled_scripts),
+            _ => None,
+        }) {
+            list.retain(|script| !script.eq_ignore_ascii_case(name));
+            if !enabled {
+                list.push(name.to_owned());
+            }
+        }
+        self.save();
+        self.load_scripts();
+    }
+
+    /// Opens the scripts folder, or one of its files, with the system.
+    pub(super) fn open_script_path(&mut self, file: Option<&str>) {
+        let Some(dir) = self.scripts_dir() else {
+            return;
+        };
+        let _ = std::fs::create_dir_all(&dir);
+        let path = file.and_then(|file| script_file(&dir, file)).unwrap_or(dir);
+        if let Err(error) = open::that_detached(&path) {
+            self.banner = Some(tr!("Cannot open {path}: {error}", path = path.display(), error = error));
+        }
     }
 
     /// `/reload`: loads the scripts again and says what happened.
