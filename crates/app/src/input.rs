@@ -44,6 +44,10 @@ pub enum Command {
     /// `/ignore [mask]`: adds a mask, or lists the ignored users.
     Ignore(Option<String>),
     Unignore(String),
+    /// `/dcc send <nick> <file>`: offers a file.
+    DccSend { nick: String, path: String },
+    /// `/dcc`: shows the transfers.
+    Transfers,
 }
 
 /// Parsing error, shown in the current tab.
@@ -107,6 +111,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["clear"], usage: "/clear", help: tr("Clear the current tab") },
         Spec { names: &["ignore"], usage: tr("/ignore [nick or mask]"), help: tr("Ignore someone (no argument: the list)") },
         Spec { names: &["unignore"], usage: tr("/unignore <nick or mask>"), help: tr("Stop ignoring someone") },
+        Spec { names: &["dcc"], usage: tr("/dcc [send <nick> <file>]"), help: tr("Send a file, or show the transfers") },
         Spec { names: &["help"], usage: "/help", help: tr("Show this help") },
     ]
 }
@@ -207,6 +212,15 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "ignore" => Command::Ignore(owned(args.map(first_word))),
         "unignore" => Command::Unignore(required(args.map(first_word))?),
         "help" => Command::Help,
+        "dcc" => match args.map(split) {
+            None | Some(("list" | "LIST", None)) => Command::Transfers,
+            Some((sub, Some(rest))) if sub.eq_ignore_ascii_case("send") => {
+                let (nick, path) = split(rest);
+                let path = path.ok_or_else(usage)?.trim().trim_matches('"').to_owned();
+                Command::DccSend { nick: nick.to_owned(), path }
+            }
+            _ => return Err(usage()),
+        },
         other => unreachable!("declared command without handling: {other}"),
     };
     Ok(Input::Command(command))
@@ -320,6 +334,17 @@ mod tests {
             command("/ctcp bob version"),
             Command::Ctcp { target: "bob".into(), command: "VERSION".into(), params: None }
         );
+    }
+
+    #[test]
+    fn parses_dcc_commands() {
+        assert_eq!(command("/dcc"), Command::Transfers);
+        assert_eq!(
+            command("/dcc send bob \"~/My Documents/notes.txt\""),
+            Command::DccSend { nick: "bob".into(), path: "~/My Documents/notes.txt".into() }
+        );
+        assert!(matches!(parse("/dcc send bob"), Err(Error::Usage(_))));
+        assert!(matches!(parse("/dcc chat bob"), Err(Error::Usage(_))));
     }
 
     #[test]

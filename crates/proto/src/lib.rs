@@ -6,6 +6,7 @@
 //! back, which makes it fully testable.
 
 pub mod casemap;
+pub mod dcc;
 pub mod format;
 pub mod ircv3;
 pub mod isupport;

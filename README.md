@@ -61,6 +61,7 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 - History loaded when joining (IRCv3 `chathistory`)
 - Search in a tab's history
 - Logs on disk, ignored users
+- DCC file transfers: send and receive, resume, passive mode, drag and drop
 
 </td><td width="50%" valign="top">
 
@@ -111,6 +112,8 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 | <img src="docs/screenshots/en/midnight.png" alt="Midnight theme"> | <img src="docs/screenshots/en/nord.png" alt="Nordic theme"> |
 | **Search in a tab** | **Adding a network** |
 | <img src="docs/screenshots/en/search.png" alt="Search in the history"> | <img src="docs/screenshots/en/server-form.png" alt="Network form"> |
+| **File transfers** | |
+| <img src="docs/screenshots/en/transfers.png" alt="DCC transfers"> | |
 
 </details>
 
@@ -206,6 +209,7 @@ Fixed keys: `Tab` completes, `↑` / `↓` browse the input history or the sugge
 | `/ignore [mask]`, `/unignore <mask>` | Ignored users |
 | `/ctcp`, `/quote <line>` | CTCP and raw command |
 | `/connect`, `/quit [reason]`, `/close`, `/clear` | Connection and tabs |
+| `/dcc send <nick> <file>`, `/dcc` | Send a file, show the transfers |
 
 NickServ, ChanServ, MemoServ and HostServ commands are suggested with their syntax as soon as you type `/ns `. Bot commands (`!weather`, `!help`…) seen in a channel are offered as soon as you type `!`.
 
@@ -244,6 +248,7 @@ The `IRCNEXT_CONFIG` environment variable points to another file. Logs go to a `
 - **Private files**: configuration and logs in `0600`, folders in `0700`, atomic writes.
 - **NickServ passwords masked** on display, in logs and in the input history.
 - **Filtered links**: only `http` and `https` open; bidirectional control characters are removed, so a link cannot be disguised.
+- **DCC**: offers are never accepted automatically; file names are cleaned of any path, and the announced size is enforced.
 - **Flood protection**: limited sending (5 messages, then 1 every 2 s), limited CTCP replies.
 - **Robustness**: bounded memory against a hostile server, no command injection, `unsafe` forbidden in all the code.
 
@@ -282,7 +287,9 @@ The screenshots in this README are rendered headlessly by the `snapshots` test, 
 - [x] Certificate authentication (SASL EXTERNAL)
 - [x] English interface, French translation
 - [x] SOCKS5 proxy
-- [ ] DCC transfers
+- [x] DCC transfers
+- [ ] Native FiSH 10 encryption (Blowfish, DH1080 key exchange)
+- [ ] mIRC-compatible scripting (mSL)
 - [x] `draft/multiline`
 
 ## Contributing

@@ -8,6 +8,7 @@ pub mod server_form;
 pub mod settings_form;
 pub mod sidebar;
 pub mod switcher;
+pub mod transfers;
 
 use iced::{Font, font};
 

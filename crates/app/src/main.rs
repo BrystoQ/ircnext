@@ -20,6 +20,7 @@ mod server;
 mod settings;
 mod suggest;
 mod theme;
+mod transfer;
 mod ui;
 
 use app::App;

@@ -6,6 +6,7 @@ use chrono::Local;
 use ircnext_client::proto::ircv3::{CompletionEdit, ReplyKind, StandardReply};
 use ircnext_client::proto::numeric::{self, ERR_NOMOTD, RPL_ENDOFMOTD, RPL_TOPIC};
 use ircnext_client::proto::text::{self, Ctcp};
+use ircnext_client::proto::dcc::Dcc;
 use ircnext_client::proto::{Command, Message, format};
 use ircnext_client::whox_request;
 
@@ -323,6 +324,14 @@ impl Server {
 
     fn on_ctcp(&mut self, ctcp: Ctcp<'_>, source: &str, is_reply: bool, own: bool, ctx: &Context<'_>) {
         let params = ctcp.params.unwrap_or_default();
+        // File transfers are handled by the application, whatever the CTCP
+        // reply settings and limits.
+        if ctcp.command == "DCC" && !is_reply && !own {
+            if let Some(dcc) = Dcc::parse(params) {
+                self.dcc.push((source.to_owned(), dcc));
+            }
+            return;
+        }
         if is_reply {
             let text = tr!("CTCP {command} reply from {nick}: {reply}", command = ctcp.command, nick = source, reply = params);
             self.info(LineKind::Info(text), ctx);

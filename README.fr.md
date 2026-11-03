@@ -61,6 +61,7 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 - Historique chargé à l'arrivée (IRCv3 `chathistory`)
 - Recherche dans l'historique d'un onglet
 - Journaux sur disque, utilisateurs ignorés
+- Transferts de fichiers DCC : envoi et réception, reprise, mode passif, glisser-déposer
 
 </td><td width="50%" valign="top">
 
@@ -111,6 +112,8 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 | <img src="docs/screenshots/fr/midnight.png" alt="Thème Minuit"> | <img src="docs/screenshots/fr/nord.png" alt="Thème Nordique"> |
 | **Recherche dans l'onglet** | **Ajout d'un réseau** |
 | <img src="docs/screenshots/fr/search.png" alt="Recherche dans l'historique"> | <img src="docs/screenshots/fr/server-form.png" alt="Formulaire d'ajout de réseau"> |
+| **Transferts de fichiers** | |
+| <img src="docs/screenshots/fr/transfers.png" alt="Transferts DCC"> | |
 
 </details>
 
@@ -206,6 +209,7 @@ Touches fixes : `Tab` complète, `↑` / `↓` parcourent l'historique de saisie
 | `/ignore [masque]`, `/unignore <masque>` | Utilisateurs ignorés |
 | `/ctcp`, `/quote <ligne>` | CTCP et commande brute |
 | `/connect`, `/quit [raison]`, `/close`, `/clear` | Connexion et onglets |
+| `/dcc send <pseudo> <fichier>`, `/dcc` | Envoyer un fichier, afficher les transferts |
 
 Les commandes de NickServ, ChanServ, MemoServ et HostServ sont suggérées avec leur syntaxe dès `/ns `. Les commandes de bots (`!meteo`, `!help`…) vues dans un salon sont proposées dès `!`.
 
@@ -244,6 +248,7 @@ La variable d'environnement `IRCNEXT_CONFIG` permet d'utiliser un autre fichier.
 - **Fichiers privés** : configuration et journaux en `0600`, dossiers en `0700`, écriture atomique.
 - **Mots de passe NickServ masqués** à l'affichage, dans les journaux et l'historique de saisie.
 - **Liens filtrés** : seuls `http` et `https` s'ouvrent ; les caractères de contrôle bidirectionnels sont retirés, un lien ne peut donc pas être maquillé.
+- **DCC** : une proposition n'est jamais acceptée automatiquement ; le nom du fichier est débarrassé de tout chemin et la taille annoncée est respectée.
 - **Anti-flood** : envoi limité (5 messages, puis 1 toutes les 2 s), réponses CTCP limitées.
 - **Robustesse** : mémoire bornée face à un serveur hostile, aucune injection de commande possible, `unsafe` interdit dans tout le code.
 
@@ -282,7 +287,9 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Authentification par certificat (SASL EXTERNAL)
 - [x] Interface en anglais, traduction française
 - [x] Proxy SOCKS5
-- [ ] Transferts DCC
+- [x] Transferts DCC
+- [ ] Chiffrement FiSH 10 natif (Blowfish, échange de clés DH1080)
+- [ ] Scripts compatibles mIRC (mSL)
 - [x] `draft/multiline`
 
 ## Contribuer
