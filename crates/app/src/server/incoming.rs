@@ -40,6 +40,14 @@ const SILENT_NUMERICS: &[u16] = &[
 impl Server {
     /// Applies a message to the state and shows it in the relevant tabs.
     pub(super) fn receive(&mut self, message: &Message, ctx: &Context<'_>) -> Effects {
+        // `draft/multiline`: lines are kept until the batch closes, then
+        // handled as one message.
+        if let Some(combined) = self.network.finish_multiline(message) {
+            return self.receive(&combined, ctx);
+        }
+        if self.network.collect_multiline(message) {
+            return Effects::default();
+        }
         let mut effects = Effects::default();
         let source = message.source_nick().unwrap_or_default().to_owned();
         // History batches (`chathistory`) must not change the current state.

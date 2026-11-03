@@ -349,6 +349,7 @@ impl Server {
             }
             Event::Registered(registered) => {
                 self.network.reset(&registered.nick, &registered.caps);
+                self.network.set_multiline(registered.multiline);
                 self.status = Status::Online;
                 if let Some(policy) = registered.sts
                     && let (Some(port), Some(duration)) = (policy.port, policy.duration)

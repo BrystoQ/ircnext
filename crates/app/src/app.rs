@@ -1072,7 +1072,7 @@ mod tests {
         });
         let mut app = App::new(config, None, None);
         let id = app.servers[0].id;
-        let registered = Registered { nick: "me".into(), caps: vec!["echo-message".into()], sts: None, sasl_refused: false };
+        let registered = Registered { nick: "me".into(), caps: vec!["echo-message".into()], sts: None, sasl_refused: false, multiline: None };
         let _ = app.update(Message::Client(id, Event::Registered(registered)));
         for line in [
             ":s 005 me CHANTYPES=# PREFIX=(ov)@+ NETWORK=Libera.Chat MONITOR=100 :are supported",
@@ -1089,6 +1089,11 @@ mod tests {
             ":alice!a@h PRIVMSG #rust :me: what do you think of ircnext?",
             ":me!u@h PRIVMSG #rust :honestly, it looks clean",
             "@bot :helper!h@h PRIVMSG #rust :Reminder: meeting at 6 pm",
+            ":bob!b@h BATCH +ml draft/multiline #rust",
+            "@batch=ml :bob!b@h PRIVMSG #rust :multiline works too:",
+            "@batch=ml :bob!b@h PRIVMSG #rust :let client = Client::new();",
+            "@batch=ml :bob!b@h PRIVMSG #rust :client.connect().await?;",
+            ":bob!b@h BATCH -ml",
             ":bob!b@h NICK bobby",
             ":zoe!z@h PRIVMSG me :hi, got two minutes?",
             ":carol!c@h PRIVMSG #ircnext :hello",
@@ -1190,7 +1195,7 @@ mod tests {
         let mut app = demo();
         app.servers[0].entry.on_connect = vec!["/ignore chatty".into()];
         let id = app.servers[0].id;
-        let registered = Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false };
+        let registered = Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false, multiline: None };
         let _ = app.update(Message::Client(id, Event::Registered(registered)));
         assert_eq!(app.config.settings.ignored, ["chatty"]);
     }

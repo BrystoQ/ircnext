@@ -8,7 +8,8 @@ use ircnext_proto::numeric::{
     RPL_ENDOFNAMES, RPL_ISUPPORT, RPL_MONOFFLINE, RPL_MONONLINE, RPL_NAMREPLY, RPL_NOTOPIC,
     RPL_NOWAWAY, RPL_TOPIC, RPL_TOPICWHOTIME, RPL_UNAWAY, RPL_WELCOME, RPL_WHOSPCRPL,
 };
-use ircnext_proto::{Command, ISupport, Message};
+use ircnext_proto::ircv3::Multiline;
+use ircnext_proto::{Command, ISupport, Message, Tags};
 
 /// Token identifying our WHOX requests in the 354 replies.
 const WHOX_TOKEN: &str = "42";
@@ -21,6 +22,8 @@ pub fn whox_request(channel: &str) -> Message {
 
 /// Maximum number of batches open at the same time.
 const MAX_OPEN_BATCHES: usize = 64;
+/// Maximum number of lines kept for a `draft/multiline` batch.
+const MAX_MULTILINE_LINES: usize = 256;
 
 /// Channel member.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +102,10 @@ pub struct Batch {
     /// Batch type (`chathistory`, `netsplit`...).
     pub kind: String,
     pub params: Vec<String>,
+    /// Tags of the `BATCH +` line (`time`, `msgid`, outer `batch`...).
+    pub tags: Tags,
+    /// Lines of a `draft/multiline` batch, until it closes.
+    pub lines: Vec<Message>,
 }
 
 /// Full state of a connection.
@@ -112,6 +119,7 @@ pub struct Network {
     /// Nicknames followed by `MONITOR` and currently online.
     online: HashSet<String>,
     away: bool,
+    multiline: Option<Multiline>,
 }
 
 impl Network {
@@ -141,6 +149,54 @@ impl Network {
 
     pub fn has_cap(&self, cap: &str) -> bool {
         self.caps.contains(cap)
+    }
+
+    /// Limits of `draft/multiline`, if the server accepts it.
+    pub fn multiline(&self) -> Option<Multiline> {
+        self.multiline
+    }
+
+    pub fn set_multiline(&mut self, multiline: Option<Multiline>) {
+        self.multiline = multiline;
+    }
+
+    /// Keeps a line of an open `draft/multiline` batch for later; returns
+    /// `true` if the line was taken (it must not be shown on its own).
+    pub fn collect_multiline(&mut self, message: &Message) -> bool {
+        if !matches!(message.command, Command::Privmsg | Command::Notice) {
+            return false;
+        }
+        let Some(batch) = message.batch().and_then(|id| self.batches.get_mut(id)) else {
+            return false;
+        };
+        if batch.kind != Multiline::CAP {
+            return false;
+        }
+        if batch.lines.len() < MAX_MULTILINE_LINES {
+            batch.lines.push(message.clone());
+        }
+        true
+    }
+
+    /// For the `BATCH -` line closing a `draft/multiline` batch: the whole
+    /// message, with the tags of the batch and the lines joined.
+    pub fn finish_multiline(&mut self, message: &Message) -> Option<Message> {
+        if message.command != Command::Batch {
+            return None;
+        }
+        let id = message.param(0)?.strip_prefix('-')?;
+        if self.batches.get(id)?.kind != Multiline::CAP {
+            return None;
+        }
+        let batch = self.batches.remove(id)?;
+        let first = batch.lines.first()?;
+        let mut combined = first.clone();
+        combined.tags = batch.tags.clone();
+        combined.params = vec![
+            batch.params.first().cloned().unwrap_or_else(|| first.param(0).unwrap_or_default().to_owned()),
+            Multiline::join(&batch.lines),
+        ];
+        Some(combined)
     }
 
     pub fn is_away(&self) -> bool {
@@ -430,6 +486,8 @@ impl Network {
             let batch = Batch {
                 kind: message.param(1).unwrap_or_default().to_owned(),
                 params: message.params.iter().skip(2).cloned().collect(),
+                tags: message.tags.clone(),
+                lines: Vec::new(),
             };
             self.batches.insert(id.to_owned(), batch);
         } else if let Some(id) = reference.strip_prefix('-') {
@@ -591,6 +649,33 @@ mod tests {
             network.apply(&format!(":s BATCH +b{i} chathistory #c").parse().unwrap());
         }
         assert_eq!(network.batches.len(), MAX_OPEN_BATCHES);
+    }
+
+    #[test]
+    fn joins_multiline_batches() {
+        let mut network = Network::new("me");
+        let lines = [
+            "@time=2026-11-03T10:00:00.000Z;msgid=ml1 :bob!b@h BATCH +ml draft/multiline #rust",
+            "@batch=ml :bob!b@h PRIVMSG #rust :first line",
+            "@batch=ml;draft/multiline-concat :bob!b@h PRIVMSG #rust : continued",
+            "@batch=ml :bob!b@h PRIVMSG #rust :second line",
+        ];
+        for line in lines {
+            let message: Message = line.parse().unwrap();
+            if !network.collect_multiline(&message) {
+                network.apply(&message);
+            }
+        }
+        let close: Message = "BATCH -ml".parse().unwrap();
+        let combined = network.finish_multiline(&close).unwrap();
+        assert_eq!(combined.param(0), Some("#rust"));
+        assert_eq!(combined.param(1), Some("first line continued\nsecond line"));
+        assert_eq!(combined.source_nick(), Some("bob"));
+        assert_eq!(combined.msgid(), Some("ml1"));
+        assert!(network.batches.is_empty());
+
+        let other: Message = "BATCH -unknown".parse().unwrap();
+        assert!(network.finish_multiline(&other).is_none());
     }
 
     #[test]

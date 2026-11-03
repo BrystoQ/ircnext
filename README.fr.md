@@ -216,7 +216,7 @@ ircnext négocie automatiquement les extensions [IRCv3](https://ircv3.net) propo
 | Domaine | Extensions |
 |---|---|
 | Connexion | `cap-notify`, `sasl` (PLAIN, EXTERNAL), `sts` |
-| Messages | `message-tags`, `server-time`, `echo-message`, `batch`, `labeled-response`, `msgid` (dédoublonnage), `standard-replies`, `UTF8ONLY` |
+| Messages | `message-tags`, `server-time`, `echo-message`, `batch`, `labeled-response`, `msgid` (dédoublonnage), `standard-replies`, `draft/multiline`, `UTF8ONLY` |
 | Historique | `draft/chathistory`, `draft/event-playback`, `draft/read-marker`, `draft/message-redaction` |
 | Utilisateurs | `account-notify`, `account-tag`, `away-notify`, `extended-join`, `chghost`, `setname`, `multi-prefix`, `userhost-in-names`, `invite-notify` |
 | Présence | `MONITOR`, `extended-monitor`, `WHOX`, `BOT` |
@@ -283,7 +283,7 @@ Les captures de ce README sont générées par le test `snapshots`, sans fenêtr
 - [x] Interface en anglais, traduction française
 - [x] Proxy SOCKS5
 - [ ] Transferts DCC
-- [ ] `draft/multiline`
+- [x] `draft/multiline`
 
 ## Contribuer
 

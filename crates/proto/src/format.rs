@@ -128,13 +128,13 @@ pub fn strip(input: &str) -> String {
 /// - bidirectional controls (U+202A–U+202E, U+2066–U+2069), which can
 ///   reverse text and disguise a link
 ///   (`https://evil.example/\u{202E}moc.elgoog`);
-/// - the remaining C0 control characters (except tab), otherwise shown as
-///   boxes.
+/// - the remaining C0 control characters (except tab and line feed, which
+///   only `draft/multiline` messages contain), otherwise shown as boxes.
 ///
 /// mIRC formatting codes must be interpreted first.
 pub fn sanitize(input: &str) -> std::borrow::Cow<'_, str> {
     let unsafe_char = |c: char| {
-        matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}') || (c.is_control() && c != '\t')
+        matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}') || (c.is_control() && !matches!(c, '\t' | '\n'))
     };
     if input.contains(unsafe_char) {
         input.chars().filter(|&c| !unsafe_char(c)).collect::<String>().into()
@@ -221,6 +221,7 @@ mod tests {
     fn sanitizes_bidi_and_control_characters() {
         assert_eq!(sanitize("https://evil.example/\u{202E}moc.elgoog"), "https://evil.example/moc.elgoog");
         assert_eq!(sanitize("a\u{2067}b\u{7}c\td"), "abc\td");
+        assert_eq!(sanitize("line\nbreak\r"), "line\nbreak");
         assert!(matches!(sanitize("clean é"), std::borrow::Cow::Borrowed(_)));
         assert_eq!(strip("\x02gras\x02\u{202E}"), "gras");
     }
