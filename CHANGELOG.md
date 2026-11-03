@@ -17,6 +17,8 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ### Changed
 
+- Clearer sidebar: each network is a block set apart by a line, its tabs are grouped under “Channels” and “Private messages” headings with their count, and a vertical guide links them to their network.
+
 - Two networks can no longer have the same name.
 - Code, comments and documentation are in English; the README is also available in French.
 

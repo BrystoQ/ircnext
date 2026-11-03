@@ -1,6 +1,6 @@
 //! Sidebar: networks and tabs, as a tree like in HexChat.
 
-use iced::widget::{button, column, container, row, scrollable, space, text, tooltip};
+use iced::widget::{button, column, container, row, scrollable, space, stack, text, tooltip};
 use iced::{Alignment, Element, Length};
 
 use crate::app::Message;
@@ -24,9 +24,14 @@ pub fn view(servers: &[Server], active: Option<(ServerId, BufferId)>, c: Colors)
     .align_y(Alignment::Center)
     .padding([14, 12]);
 
-    let tree = servers.iter().fold(column![].spacing(10), |tree, server| {
-        tree.push(server_section(server, active, c))
-    });
+    // Networks separated by a thin line, so that each one reads as a block.
+    let mut tree = column![].spacing(10);
+    for (index, server) in servers.iter().enumerate() {
+        if index > 0 {
+            tree = tree.push(container(space().height(1)).width(Length::Fill).style(theme::panel(c.border)));
+        }
+        tree = tree.push(server_section(server, active, c));
+    }
 
     let list: Element<'_, Message> = if servers.is_empty() {
         container(text(tr("No network.\nClick + to add one.")).size(13).color(c.muted))
@@ -108,16 +113,41 @@ fn server_section(server: &Server, active: Option<(ServerId, BufferId)>, c: Colo
         return header.into();
     }
 
-    let items = server
-        .buffers()
-        .filter(|(buffer_id, _)| *buffer_id != server_buffer)
-        .fold(column![].spacing(1), |items, (buffer_id, buffer)| {
-            items.push(buffer_item(server, buffer_id, buffer, active == Some((id, buffer_id)), c))
-        });
+    // Channels, then private conversations, each under a discreet heading.
+    let mut body = column![].spacing(1);
+    for (kind, heading) in [(Kind::Channel, tr("Channels")), (Kind::Query, tr("Private messages"))] {
+        let tabs: Vec<_> = server.buffers().filter(|(_, buffer)| buffer.kind == kind).collect();
+        if tabs.is_empty() {
+            continue;
+        }
+        body = body.push(section_heading(heading, tabs.len(), c));
+        for (buffer_id, buffer) in tabs {
+            body = body.push(buffer_item(server, buffer_id, buffer, active == Some((id, buffer_id)), c));
+        }
+    }
 
-    column![header, container(items).padding(iced::Padding { left: 22.0, ..iced::Padding::ZERO })]
-        .spacing(2)
-        .into()
+    // A vertical guide links the tabs to their network, as in a tree. It is
+    // stacked over the list so that it takes exactly the list's height.
+    let guide = container(container(space().width(1).height(Length::Fill)).style(theme::panel(c.border)))
+        .padding(iced::Padding { left: 13.0, top: 4.0, bottom: 4.0, ..iced::Padding::ZERO })
+        .height(Length::Fill);
+    let tree = stack![
+        container(body.width(Length::Fill)).padding(iced::Padding { left: 22.0, ..iced::Padding::ZERO }),
+        guide,
+    ];
+
+    column![header, tree].spacing(4).into()
+}
+
+/// Small uppercase heading of a group of tabs, with its count.
+fn section_heading(label: &str, count: usize, c: Colors) -> Element<'_, Message> {
+    row![
+        text(label.to_uppercase()).size(10).font(BOLD).color(c.muted),
+        text(count.to_string()).size(10).color(c.muted.scale_alpha(0.7)),
+    ]
+    .spacing(6)
+    .padding(iced::Padding { top: 8.0, right: 8.0, bottom: 3.0, left: 8.0 })
+    .into()
 }
 
 fn buffer_item<'a>(
