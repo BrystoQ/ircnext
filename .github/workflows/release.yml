@@ -2,9 +2,16 @@ name: Release
 
 # To publish a version, push a “vX.Y.Z” tag matching the version in
 # Cargo.toml, for example `git tag v0.1.0 && git push origin v0.1.0`.
+# Pull requests touching the packaging build every package without
+# publishing anything.
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    paths:
+      - "packaging/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -37,28 +44,31 @@ jobs:
           targets: ${{ matrix.targets }}
       - uses: Swatinem/rust-cache@v2
 
-      - name: Version check
+      - name: Version
         shell: bash
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in Cargo.toml."
-            exit 1
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match version $version in Cargo.toml."
+              exit 1
+            fi
+            # No version goes out without its patch notes.
+            sh .github/scripts/release-notes.sh "$version" > /dev/null
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
-          # No version goes out without its patch notes.
-          sh .github/scripts/release-notes.sh "$version" > /dev/null
 
       - name: System dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev
 
-      - name: macOS package (universal app)
+      - name: macOS packages (universal app, zip and dmg)
         if: runner.os == 'macOS'
         run: |
           cargo build --release --locked -p ircnext --target aarch64-apple-darwin
           cargo build --release --locked -p ircnext --target x86_64-apple-darwin
-          app=dist/ircnext.app
+          stage=dist/stage
+          app=$stage/ircnext.app
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
           cp assets/icon/ircnext.icns "$app/Contents/Resources/ircnext.icns"
           lipo -create -output "$app/Contents/MacOS/ircnext" \
@@ -85,27 +95,41 @@ jobs:
           # Ad hoc signature: without it, macOS refuses to run the universal binary.
           codesign --force --deep --sign - "$app"
           ditto -c -k --keepParent "$app" "dist/ircnext-$VERSION-macos.zip"
-          rm -rf "$app"
+          # Disk image: the app and a link to Applications, to drag it there.
+          ln -s /Applications "$stage/Applications"
+          hdiutil create -volname "ircnext $VERSION" -srcfolder "$stage" -ov -format UDZO "dist/ircnext-$VERSION-macos.dmg"
+          rm -rf "$stage"
 
-      - name: Windows package
+      - name: Windows packages (portable zip and installer)
         if: runner.os == 'Windows'
         shell: bash
         run: |
           cargo build --release --locked -p ircnext
           mkdir -p dist/ircnext
-          cp target/release/ircnext.exe LICENSE README.md dist/ircnext/
-          cd dist && 7z a "ircnext-$VERSION-windows-x64.zip" ircnext >/dev/null && rm -rf ircnext
+          cp target/release/ircnext.exe LICENSE README.md packaging/portable.txt dist/ircnext/
+          (cd dist && 7z a "ircnext-$VERSION-windows-x64-portable.zip" ircnext >/dev/null && rm -rf ircnext)
+          iscc="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          if [ ! -f "$iscc" ]; then
+            choco install innosetup --no-progress -y
+          fi
+          "$iscc" //Q "//DAppVersion=$VERSION" packaging/windows/ircnext.iss
 
-      - name: Linux package
+      - name: Linux packages (portable archive and .deb)
         if: runner.os == 'Linux'
         run: |
           cargo build --release --locked -p ircnext
           mkdir -p dist/ircnext
-          cp target/release/ircnext LICENSE README.md dist/ircnext/
+          cp target/release/ircnext LICENSE README.md packaging/portable.txt dist/ircnext/
           cp assets/icon/png/ircnext-256.png dist/ircnext/ircnext.png
           cp assets/icon/ircnext.desktop dist/ircnext/
-          tar -C dist -czf "dist/ircnext-$VERSION-linux-x64.tar.gz" ircnext
+          tar -C dist -czf "dist/ircnext-$VERSION-linux-x64-portable.tar.gz" ircnext
           rm -rf dist/ircnext
+          packaging/linux/build-deb.sh "$VERSION"
+          dpkg-deb --info "dist/ircnext_${VERSION}_amd64.deb"
+
+      - name: Packages built
+        shell: bash
+        run: ls -l dist
 
       - uses: actions/upload-artifact@v4
         with:
@@ -115,6 +139,7 @@ jobs:
   release:
     name: Publish
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

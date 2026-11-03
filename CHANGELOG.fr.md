@@ -6,6 +6,10 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+### Ajouté
+
+- Paquets installables et portables : un installeur `setup.exe` pour Windows, un `.dmg` pour macOS et un `.deb` pour Debian et Ubuntu, à côté des archives portables. Un fichier `portable.txt` à côté de l'exécutable range la configuration, les journaux et les scripts dans un dossier `data` voisin.
+
 ## [0.3.0] - 2026-11-04
 
 ### Ajouté

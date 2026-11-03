@@ -608,7 +608,11 @@ impl SettingsForm {
                     tr("Passwords"),
                     [toggle(
                         keychain_label(),
-                        Some(tr("Otherwise they are written to the configuration file, readable by you only")),
+                        Some(if crate::config::portable_dir().is_some() {
+                            tr("Portable copy: passwords stay in its data folder, readable by you only")
+                        } else {
+                            tr("Otherwise they are written to the configuration file, readable by you only")
+                        }),
                         draft.use_keychain,
                         Msg::UseKeychain,
                         c,

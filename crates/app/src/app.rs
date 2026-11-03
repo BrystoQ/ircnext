@@ -1025,7 +1025,9 @@ impl App {
             return;
         };
         let mut on_disk = self.config.clone();
-        let use_keychain = self.config.settings.use_keychain;
+        // A portable copy keeps its passwords with it, not in this
+        // machine's keychain.
+        let use_keychain = self.config.settings.use_keychain && crate::config::portable_dir().is_none();
         let keychain_error = if use_keychain {
             keychain::stash(&mut on_disk, &keychain::System, &mut self.keychain)
         } else {

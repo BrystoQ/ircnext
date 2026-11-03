@@ -127,11 +127,13 @@ L'ergonomie éprouvée de HexChat, les normes IRCv3 et une interface native soig
 
 Chaque version publie des exécutables prêts à l'emploi sur la [page des releases](https://github.com/BrystoQ/ircnext/releases/latest) :
 
-| Système | Fichier |
-|---|---|
-| macOS 11+ (Apple Silicon et Intel) | `ircnext-X.Y.Z-macos.zip` |
-| Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64.zip` |
-| Linux (x64) | `ircnext-X.Y.Z-linux-x64.tar.gz` |
+| Système | Installeur | Portable |
+|---|---|---|
+| macOS 11+ (Apple Silicon et Intel) | `ircnext-X.Y.Z-macos.dmg` | `ircnext-X.Y.Z-macos.zip` |
+| Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64-setup.exe` | `ircnext-X.Y.Z-windows-x64-portable.zip` |
+| Linux (x64) | `ircnext_X.Y.Z_amd64.deb` | `ircnext-X.Y.Z-linux-x64-portable.tar.gz` |
+
+L'**installeur** ajoute ircnext au menu Démarrer, aux Applications ou au menu de votre bureau, et se désinstalle comme n'importe quel logiciel (celui de Windows demande s'il faut installer pour vous seul ou pour tous). Les archives **portables** de Windows et Linux contiennent un fichier `portable.txt` : tant qu'il est à côté de l'exécutable, la configuration, les journaux et les scripts restent dans un dossier `data` voisin, et le dossier peut être déplacé ou emporté sur une clé USB. Supprimez `portable.txt` pour utiliser les dossiers du système.
 
 Les sommes de contrôle sont dans `SHA256SUMS.txt`. Les nouveautés de chaque version sont décrites dans les [notes de version](CHANGELOG.fr.md).
 
