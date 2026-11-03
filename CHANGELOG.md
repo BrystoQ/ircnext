@@ -8,6 +8,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ### Added
 
+- Application logo: window, macOS app, Windows executable and Linux package (icon and `.desktop` entry).
 - Options taken from mIRC: *Do not disturb* (☾ in the sidebar, `Mod+Shift+D`) silences notifications and window alerts; optional shaded lines; an eye button shows the passwords of the network form; middle click closes a tab; ⧉ copies a whole tab to the clipboard; an away message is shown once until it changes (setting to repeat it).
 - DCC file transfers: `/dcc send <nick> <file>` or drop a file on a private conversation; incoming offers wait for your answer in the new *Transfers* panel (⇅), with progress, speed, cancel and resume of interrupted downloads. Passive mode for users behind a router, downloads folder and announced address in *Chat* settings.
 

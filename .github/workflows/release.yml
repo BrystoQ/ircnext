@@ -59,7 +59,8 @@ jobs:
           cargo build --release --locked -p ircnext --target aarch64-apple-darwin
           cargo build --release --locked -p ircnext --target x86_64-apple-darwin
           app=dist/ircnext.app
-          mkdir -p "$app/Contents/MacOS"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp assets/icon/ircnext.icns "$app/Contents/Resources/ircnext.icns"
           lipo -create -output "$app/Contents/MacOS/ircnext" \
             target/aarch64-apple-darwin/release/ircnext \
             target/x86_64-apple-darwin/release/ircnext
@@ -72,6 +73,7 @@ jobs:
             <key>CFBundleDisplayName</key><string>ircnext</string>
             <key>CFBundleIdentifier</key><string>ircnext</string>
             <key>CFBundleExecutable</key><string>ircnext</string>
+            <key>CFBundleIconFile</key><string>ircnext</string>
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleVersion</key><string>$VERSION</string>
             <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -100,6 +102,8 @@ jobs:
           cargo build --release --locked -p ircnext
           mkdir -p dist/ircnext
           cp target/release/ircnext LICENSE README.md dist/ircnext/
+          cp assets/icon/png/ircnext-256.png dist/ircnext/ircnext.png
+          cp assets/icon/ircnext.desktop dist/ircnext/
           tar -C dist -czf "dist/ircnext-$VERSION-linux-x64.tar.gz" ircnext
           rm -rf dist/ircnext
 

@@ -55,6 +55,15 @@ When you add or change a text, add its French entry to `fr.toml`. `cargo test` f
 
 To add a language, create `locales/<code>.toml`, add a variant to `Language` in `crates/app/src/i18n.rs`, and open a pull request.
 
+## Logo
+
+The logo is drawn in [`assets/icon/ircnext.svg`](assets/icon/ircnext.svg). After changing it, regenerate the icons (PNG sizes, Windows `.ico`, window icon) and the macOS `.icns`:
+
+```sh
+cargo run --manifest-path tools/icons/Cargo.toml
+iconutil -c icns assets/icon/ircnext.iconset -o assets/icon/ircnext.icns   # macOS only
+```
+
 ## Code layout
 
 | Folder | Content |

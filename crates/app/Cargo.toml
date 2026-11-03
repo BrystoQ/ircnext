@@ -32,3 +32,6 @@ workspace = true
 
 [dev-dependencies]
 iced_test = "0.14"
+
+[build-dependencies]
+embed-resource = "3"

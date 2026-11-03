@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=ircnext
+GenericName=IRC Client
+GenericName[fr]=Client IRC
+Comment=A modern IRC client with IRCv3 support
+Comment[fr]=Un client IRC moderne, compatible IRCv3
+Exec=ircnext
+Icon=ircnext
+Terminal=false
+Categories=Network;Chat;IRCClient;
+Keywords=IRC;chat;IRCv3;
