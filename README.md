@@ -126,7 +126,7 @@ Each version publishes ready-to-use executables on the [releases page](https://g
 | Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64.zip` |
 | Linux (x64) | `ircnext-X.Y.Z-linux-x64.tar.gz` |
 
-Checksums are in `SHA256SUMS.txt`.
+Checksums are in `SHA256SUMS.txt`. What changed in each version is described in the [patch notes](CHANGELOG.md).
 
 > [!IMPORTANT]
 > The executables are not signed with an Apple or Microsoft certificate yet. On first launch:

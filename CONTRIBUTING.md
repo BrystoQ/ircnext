@@ -23,7 +23,16 @@ For a security vulnerability, do **not** open a public issue: follow [SECURITY.m
    cargo clippy --workspace --all-targets -- -D warnings
    ```
 
-4. Open a pull request explaining **why** the change is needed.
+4. Add a line to the patch notes, under *Unreleased*: [`CHANGELOG.md`](CHANGELOG.md) in English and [`CHANGELOG.fr.md`](CHANGELOG.fr.md) in French. Write it for users: what changes for them, not how it is coded.
+5. Open a pull request explaining **why** the change is needed.
+
+## Releasing a version
+
+1. In both changelogs, rename the *Unreleased* section to `[X.Y.Z] - YYYY-MM-DD` and add a new empty *Unreleased* section.
+2. Set `version = "X.Y.Z"` in `Cargo.toml` and run `cargo check` to update `Cargo.lock`.
+3. Merge, then push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+The release workflow builds the executables and publishes that version's patch notes, in English and French, as the release notes. It fails if the notes are missing.
 
 ## Conventions
 

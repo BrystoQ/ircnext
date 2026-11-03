@@ -46,6 +46,8 @@ jobs:
             exit 1
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          # No version goes out without its patch notes.
+          sh .github/scripts/release-notes.sh "$version" > /dev/null
 
       - name: System dependencies (Linux)
         if: runner.os == 'Linux'
@@ -111,10 +113,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      - name: Release notes
+        run: sh .github/scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > release-notes.md
       - name: Checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt
       - name: Create the release
@@ -124,4 +129,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "ircnext ${GITHUB_REF_NAME#v}" \
-            --generate-notes
+            --notes-file release-notes.md
