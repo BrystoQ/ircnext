@@ -6,6 +6,8 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+## [0.2.0] - 2026-11-03
+
 ### Ajouté
 
 - Identification par certificat client : SASL `EXTERNAL` et CertFP. Le formulaire du réseau peut créer un certificat auto-signé, rangé dans `certs/` à côté de la configuration.
@@ -47,5 +49,6 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Limitation du débit d'envoi et des réponses CTCP, mémoire bornée face à un serveur hostile.
 - Mots de passe NickServ masqués à l'affichage, dans les journaux et l'historique de saisie.
 
-[Non publié]: https://github.com/BrystoQ/ircnext/compare/v0.1.0...HEAD
+[Non publié]: https://github.com/BrystoQ/ircnext/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/BrystoQ/ircnext/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/BrystoQ/ircnext/releases/tag/v0.1.0

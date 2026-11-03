@@ -1789,7 +1789,7 @@ dependencies = [
 
 [[package]]
 name = "ircnext"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "directories",
@@ -1809,7 +1809,7 @@ dependencies = [
 
 [[package]]
 name = "ircnext-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "futures",
@@ -1824,7 +1824,7 @@ dependencies = [
 
 [[package]]
 name = "ircnext-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror 2.0.21",
 ]
