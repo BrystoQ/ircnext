@@ -116,6 +116,13 @@ pub fn view<'a>(line: &'a Line, server: ServerId, settings: &Settings, shaded: b
             .align_x(align)
             .clip(true),
     );
+    if line.encrypted {
+        content = content.push(
+            container(text("FiSH").size(size - 4.0).font(BOLD).color(c.on_accent))
+                .padding([1, 5])
+                .style(theme::badge(c.success.scale_alpha(0.85))),
+        );
+    }
     if line.bot && settings.show_bot_badge {
         content = content.push(
             container(text("BOT").size(size - 4.0).font(BOLD).color(c.on_accent))

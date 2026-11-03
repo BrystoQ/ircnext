@@ -8,6 +8,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ### Ajouté
 
+- Chiffrement FiSH, compatible FiSH 10 : `/setkey [cible] <clé>` (préfixe `cbc:` pour CBC), `/delkey`, et `/keyx <pseudo>` pour un échange de clés DH1080. Messages, actions, notices et sujets sont chiffrés et déchiffrés ; les messages chiffrés portent un badge *FiSH* et l'en-tête indique quand une conversation est chiffrée. Les clés sont rangées dans le trousseau du système.
 - Logo de l'application : fenêtre, app macOS, exécutable Windows et paquet Linux (icône et entrée `.desktop`).
 - Options reprises de mIRC : *Ne pas déranger* (☾ dans la barre latérale, `Mod+Maj+D`) coupe les notifications et alertes de fenêtre ; lignes ombrées en option ; un œil affiche les mots de passe du formulaire réseau ; clic du milieu pour fermer un onglet ; ⧉ copie tout un onglet dans le presse-papiers ; un message d'absence n'est affiché qu'une fois tant qu'il ne change pas (réglage pour le répéter).
 - Transferts de fichiers DCC : `/dcc send <pseudo> <fichier>` ou glisser un fichier sur une conversation privée ; les propositions reçues attendent votre réponse dans le nouveau panneau *Transferts* (⇅), avec progression, vitesse, annulation et reprise des téléchargements interrompus. Mode passif pour qui est derrière une box, dossier de téléchargement et adresse annoncée dans les réglages *Discussion*.

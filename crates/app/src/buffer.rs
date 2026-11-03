@@ -71,6 +71,8 @@ pub struct Line {
     pub highlight: bool,
     /// Sender flagged as a bot.
     pub bot: bool,
+    /// Sent or received encrypted (FiSH).
+    pub encrypted: bool,
 }
 
 impl Line {
@@ -105,6 +107,7 @@ impl Line {
             own: false,
             highlight: false,
             bot: false,
+            encrypted: false,
         }
     }
 }

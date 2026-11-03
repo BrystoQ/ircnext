@@ -6,6 +6,7 @@ use chrono::Local;
 use ircnext_client::proto::ircv3::{CompletionEdit, ReplyKind, StandardReply};
 use ircnext_client::proto::numeric::{self, ERR_NOMOTD, RPL_ENDOFMOTD, RPL_TOPIC};
 use ircnext_client::proto::text::{self, Ctcp};
+use ircnext_client::fish::Dh1080;
 use ircnext_client::proto::dcc::Dcc;
 use ircnext_client::proto::{Command, Message, format};
 use ircnext_client::whox_request;
@@ -81,7 +82,9 @@ impl Server {
         let line = |kind| Line::new(time, kind);
 
         match &message.command {
-            Command::Privmsg | Command::Notice => self.on_text(message, &source, history, ctx),
+            Command::Privmsg | Command::Notice => {
+                effects.config_changed |= self.on_text(message, &source, history, ctx);
+            }
             Command::Tagmsg => self.on_tagmsg(message, &source),
             Command::Join => {
                 let Some(channel) = message.param(0) else {
@@ -149,14 +152,14 @@ impl Server {
             Command::Topic => {
                 if let Some(channel) = message.param(0) {
                     let id = self.ensure(channel);
-                    let topic = message.param(1).filter(|t| !t.is_empty()).map(str::to_owned);
+                    let topic = message.param(1).filter(|t| !t.is_empty()).map(|t| self.display_topic(channel, t));
                     self.push(id, line(LineKind::Topic { nick: Some(source), topic }), ctx);
                 }
             }
             Command::Numeric(RPL_TOPIC) => {
                 if let (Some(channel), Some(topic)) = (message.param(1), message.param(2)) {
                     let id = self.ensure(channel);
-                    let kind = LineKind::Topic { nick: None, topic: Some(topic.to_owned()) };
+                    let kind = LineKind::Topic { nick: None, topic: Some(self.display_topic(channel, topic)) };
                     self.push(id, line(kind), ctx);
                 }
             }
@@ -250,19 +253,25 @@ impl Server {
         effects
     }
 
-    fn on_text(&mut self, message: &Message, source: &str, history: bool, ctx: &Context<'_>) {
+    /// Returns whether the configuration changed (FiSH key exchanged).
+    fn on_text(&mut self, message: &Message, source: &str, history: bool, ctx: &Context<'_>) -> bool {
         let (Some(target), Some(body)) = (message.param(0), message.param(1)) else {
-            return;
+            return false;
         };
         let is_notice = message.command == Command::Notice;
         let own = self.network.is_me(source);
+        if is_notice && !own && !history
+            && let Some(dh) = Dh1080::parse(body)
+        {
+            return self.on_dh1080(source, dh, ctx);
+        }
         let ctcp = text::parse_ctcp(body);
 
         if let Some(ctcp) = ctcp.filter(|ctcp| ctcp.command != "ACTION") {
             if !history {
                 self.on_ctcp(ctcp, source, is_notice, own, ctx);
             }
-            return;
+            return false;
         }
 
         let stripped = self.network.isupport().strip_statusmsg(target);
@@ -287,21 +296,38 @@ impl Server {
             .channel(stripped)
             .and_then(|channel| channel.member(&self.network.fold(source)))
             .and_then(ircnext_client::Member::highest_prefix);
+        // FiSH: the key is the one of the conversation (channel, or the
+        // other person in private).
+        let conversation = if self.network.is_channel(stripped) {
+            stripped
+        } else if own {
+            target
+        } else {
+            source
+        };
         let nick = source.to_owned();
-        let kind = match ctcp {
-            Some(action) => LineKind::Action {
-                nick,
-                text: action.params.unwrap_or_default().to_owned(),
-            },
-            None if is_notice => LineKind::Notice { nick, text: body.to_owned() },
-            None => LineKind::Message { nick, prefix, text: body.to_owned() },
+        let (kind, encrypted) = if let Some(action) = ctcp {
+            let (text, encrypted) = self.unseal(conversation, action.params.unwrap_or_default());
+            (LineKind::Action { nick, text }, encrypted)
+        } else {
+            let (text, encrypted) = self.unseal(conversation, body);
+            if is_notice {
+                (LineKind::Notice { nick, text }, encrypted)
+            } else {
+                (LineKind::Message { nick, prefix, text }, encrypted)
+            }
+        };
+        let body = match &kind {
+            LineKind::Action { text, .. } | LineKind::Notice { text, .. } | LineKind::Message { text, .. } => text.clone(),
+            _ => String::new(),
         };
 
         let mut line = Line::new(message_time(message), kind);
         line.own = own;
         line.bot = message.is_from_bot();
         line.msgid = message.msgid().map(str::to_owned);
-        line.highlight = !own && !from_server && self.mentions_me(body, ctx);
+        line.encrypted = encrypted;
+        line.highlight = !own && !from_server && self.mentions_me(&body, ctx);
         let private = !is_notice && self.buffer(id).is_some_and(|b| b.kind == Kind::Query);
         if !history && !own && !is_notice && (line.highlight || private) {
             let title = if private { source.to_owned() } else { tr!("{nick} in {channel}", nick = source, channel = stripped) };
@@ -319,6 +345,7 @@ impl Server {
         {
             buffer.note_speaker(source);
         }
+        false
     }
 
     fn mentions_me(&self, body: &str, ctx: &Context<'_>) -> bool {

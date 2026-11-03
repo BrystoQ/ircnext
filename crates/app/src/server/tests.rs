@@ -9,6 +9,7 @@ fn server() -> Server {
         name: "Test".into(),
         auto_connect: false,
         on_connect: Vec::new(),
+        fish_keys: std::collections::BTreeMap::new(),
         connection: Config {
             host: "irc.example.net".into(),
             nick: "me".into(),
@@ -358,4 +359,61 @@ fn away_replies_are_shown_once_per_message() {
     receive_with(&mut server, ":s 301 me bob :at lunch", &always, None);
     receive_with(&mut server, ":s 301 me bob :at lunch", &always, None);
     assert_eq!(count(&server), 4);
+}
+
+#[test]
+fn fish_decrypts_conversations_with_a_key() {
+    use ircnext_client::fish::Key;
+    let mut server = server();
+    let settings = Settings::default();
+    let ctx = Context { settings: &settings, active: None };
+    let rust = server.find("#rust").unwrap();
+    let effects = server.execute(rust, Cmd::SetKey { target: None, key: "cbc:channel secret".into() }, &ctx).unwrap();
+    assert!(effects.config_changed, "key saved");
+    assert!(server.execute(rust, Cmd::SetKey { target: None, key: "abc".into() }, &ctx).is_err(), "too short");
+
+    let key = Key::parse("cbc:channel secret").unwrap();
+    receive(&mut server, &format!(":alice!a@h PRIVMSG #rust :{}", key.encrypt("secret plans")));
+    let line = last(&server, "#rust");
+    assert!(line.encrypted);
+    assert!(matches!(&line.kind, LineKind::Message { text, .. } if text == "secret plans"));
+
+    receive(&mut server, &format!(":alice!a@h PRIVMSG #rust :\x01ACTION {}\x01", key.encrypt("whispers")));
+    assert!(matches!(&last(&server, "#rust").kind, LineKind::Action { text, .. } if text == "whispers"));
+
+    // Encrypted with another key: shown as received.
+    let other = Key::parse("cbc:another key").unwrap().encrypt("nope");
+    receive(&mut server, &format!(":alice!a@h PRIVMSG #rust :{other}"));
+    let line = last(&server, "#rust");
+    assert!(!line.encrypted);
+    assert!(matches!(&line.kind, LineKind::Message { text, .. } if *text == other));
+
+    // Topics too.
+    receive(&mut server, &format!(":s 332 me #rust :{}", key.encrypt("hidden topic")));
+    assert!(matches!(&last(&server, "#rust").kind, LineKind::Topic { topic: Some(topic), .. } if topic == "hidden topic"));
+
+    // What we send is encrypted with the same key.
+    assert_eq!(key.decrypt(&server.seal("#rust", "hello")).as_deref(), Some("hello"));
+
+    server.execute(rust, Cmd::DelKey(None), &ctx).unwrap();
+    assert!(server.fish_key("#rust").is_none());
+    assert_eq!(server.seal("#rust", "hello"), "hello");
+}
+
+#[test]
+fn fish_key_exchange_stores_a_key() {
+    use ircnext_client::fish::{KeyExchange, Mode};
+    let mut server = server();
+    let peer = KeyExchange::new();
+    let effects = receive(&mut server, &format!(":bob!b@h NOTICE me :DH1080_INIT {} CBC", peer.public_key()));
+    assert!(effects.config_changed, "key saved");
+    assert_eq!(server.fish_key("bob").unwrap().mode, Mode::Cbc);
+    let bob = server.find("bob").expect("conversation opened");
+    assert!(server.buffer(bob).unwrap().lines().any(|line| matches!(&line.kind, LineKind::Info(text) if text.contains("bob"))));
+
+    // A FINISH nobody asked for is ignored, an invalid key too.
+    receive(&mut server, ":eve!e@h NOTICE me :DH1080_FINISH AQIDA");
+    assert!(server.fish_key("eve").is_none());
+    receive(&mut server, ":eve!e@h NOTICE me :DH1080_INIT AQ CBC");
+    assert!(server.fish_key("eve").is_none());
 }

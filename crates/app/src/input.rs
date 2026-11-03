@@ -48,6 +48,12 @@ pub enum Command {
     DccSend { nick: String, path: String },
     /// `/dcc`: shows the transfers.
     Transfers,
+    /// `/setkey [target] <key>`: FiSH key of a conversation.
+    SetKey { target: Option<String>, key: String },
+    /// `/delkey [target]`.
+    DelKey(Option<String>),
+    /// `/keyx [nick]`: DH1080 key exchange.
+    KeyExchange(Option<String>),
 }
 
 /// Parsing error, shown in the current tab.
@@ -112,6 +118,9 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["ignore"], usage: tr("/ignore [nick or mask]"), help: tr("Ignore someone (no argument: the list)") },
         Spec { names: &["unignore"], usage: tr("/unignore <nick or mask>"), help: tr("Stop ignoring someone") },
         Spec { names: &["dcc"], usage: tr("/dcc [send <nick> <file>]"), help: tr("Send a file, or show the transfers") },
+        Spec { names: &["setkey"], usage: tr("/setkey [#channel|nick] <key>"), help: tr("Encrypt a conversation with FiSH (cbc: prefix for CBC)") },
+        Spec { names: &["delkey"], usage: tr("/delkey [#channel|nick]"), help: tr("Stop encrypting a conversation") },
+        Spec { names: &["keyx"], usage: tr("/keyx [nick]"), help: tr("Exchange a FiSH key with someone (DH1080)") },
         Spec { names: &["help"], usage: "/help", help: tr("Show this help") },
     ]
 }
@@ -212,6 +221,12 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "ignore" => Command::Ignore(owned(args.map(first_word))),
         "unignore" => Command::Unignore(required(args.map(first_word))?),
         "help" => Command::Help,
+        "setkey" => match split(args.ok_or_else(usage)?) {
+            (key, None) => Command::SetKey { target: None, key: key.to_owned() },
+            (target, Some(key)) => Command::SetKey { target: Some(target.to_owned()), key: key.trim().to_owned() },
+        },
+        "delkey" => Command::DelKey(owned(args.map(first_word))),
+        "keyx" => Command::KeyExchange(owned(args.map(first_word))),
         "dcc" => match args.map(split) {
             None | Some(("list" | "LIST", None)) => Command::Transfers,
             Some((sub, Some(rest))) if sub.eq_ignore_ascii_case("send") => {
@@ -337,6 +352,15 @@ mod tests {
     }
 
     #[test]
+    fn parses_fish_commands() {
+        assert_eq!(command("/setkey cbc:secret"), Command::SetKey { target: None, key: "cbc:secret".into() });
+        assert_eq!(command("/setkey #c secret"), Command::SetKey { target: Some("#c".into()), key: "secret".into() });
+        assert_eq!(command("/delkey"), Command::DelKey(None));
+        assert_eq!(command("/keyx bob"), Command::KeyExchange(Some("bob".into())));
+        assert!(matches!(parse("/setkey"), Err(Error::Usage(_))));
+    }
+
+    #[test]
     fn parses_dcc_commands() {
         assert_eq!(command("/dcc"), Command::Transfers);
         assert_eq!(
@@ -359,7 +383,7 @@ mod tests {
 
     #[test]
     fn completes_command_names() {
-        assert_eq!(command_names("de"), ["/deop", "/devoice"]);
+        assert_eq!(command_names("de"), ["/deop", "/devoice", "/delkey"]);
         assert_eq!(command_names("DIS"), ["/disconnect"]);
     }
 }

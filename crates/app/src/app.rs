@@ -935,7 +935,8 @@ impl App {
 
         let task = if let Some(server) = editing.and_then(|id| self.server_mut(id)) {
             let reconnect = server.entry.connection != entry.connection;
-            server.entry = entry;
+            let fish_keys = std::mem::take(&mut server.entry.fish_keys);
+            server.entry = ServerEntry { fish_keys, ..entry };
             if reconnect && server.enabled {
                 server.generation += 1;
             }
@@ -1121,6 +1122,7 @@ mod tests {
             name: "Libera.Chat".into(),
             auto_connect: false,
             on_connect: Vec::new(),
+            fish_keys: std::collections::BTreeMap::new(),
             connection: Config { host: "irc.libera.chat".into(), nick: "me".into(), ..Config::default() },
         });
         let mut app = App::new(config, None, None);
@@ -1428,6 +1430,7 @@ mod tests {
             name: "OFTC".into(),
             auto_connect: false,
             on_connect: Vec::new(),
+            fish_keys: std::collections::BTreeMap::new(),
             connection: Config { host: "irc.oftc.net".into(), nick: "me".into(), ..Config::default() },
         });
         let registered = Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false, multiline: None };
@@ -1436,6 +1439,10 @@ mod tests {
             let message: IrcMessage = line.parse().unwrap();
             let _ = app.update(Message::Client(oftc, Event::Message(message)));
         }
+        // An encrypted channel (FiSH).
+        app.servers[0].entry.fish_keys.insert("#rust".into(), ircnext_client::Secret::new("cbc:demo key"));
+        let key = ircnext_client::fish::Key::parse("cbc:demo key").unwrap();
+        inject(&mut app, &format!(":erin!e@h PRIVMSG #rust :{}", key.encrypt("this one is end-to-end encrypted")));
         let rust = app.servers[0].find("#rust").unwrap();
         let _ = app.update(Message::Select(app.servers[0].id, rust));
         app.config.settings.language = language;

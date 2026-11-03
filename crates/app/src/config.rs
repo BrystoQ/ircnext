@@ -31,6 +31,10 @@ pub struct ServerEntry {
     /// “connect commands” list.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_connect: Vec<String>,
+    /// FiSH keys by target (channel or nickname, lowercase), `cbc:…` or
+    /// `ecb:…`; stored in the system keychain like passwords.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fish_keys: BTreeMap<String, ircnext_client::Secret>,
     #[serde(flatten)]
     pub connection: Connection,
 }
@@ -230,6 +234,7 @@ mod tests {
             name: "Libera".into(),
             auto_connect: true,
             on_connect: vec!["/mode me +i".into()],
+            fish_keys: std::collections::BTreeMap::new(),
             connection: Connection {
                 host: "irc.libera.chat".into(),
                 sasl: Some(Sasl {

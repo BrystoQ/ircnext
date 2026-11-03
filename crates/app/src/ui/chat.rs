@@ -110,7 +110,7 @@ fn header<'a>(props: &Props<'a>) -> Element<'a, Message> {
         Kind::Channel => {
             let channel = server.network.channel(&buffer.name);
             match channel.and_then(|channel| channel.topic.as_deref()) {
-                Some(topic) => format::strip(topic),
+                Some(topic) => format::strip(&server.display_topic(&buffer.name, topic)),
                 None if !buffer.joined => tr("You are not in this channel.").to_owned(),
                 None => tr("No topic").to_owned(),
             }
@@ -137,6 +137,14 @@ fn header<'a>(props: &Props<'a>) -> Element<'a, Message> {
         }
     };
 
+    // Encrypted conversation: said first, so that it is never missed.
+    let subtitle = match server.fish_key(&buffer.name) {
+        Some(key) => {
+            let mode = if key.mode == ircnext_client::fish::Mode::Cbc { "CBC" } else { "ECB" };
+            format!("{} · {subtitle}", tr!("Encrypted with FiSH ({mode})", mode = mode))
+        }
+        None => subtitle,
+    };
     let title = column![
         text(buffer.name.as_str()).size(16).font(BOLD).color(c.text),
         text(subtitle).size(12).color(c.muted).wrapping(text::Wrapping::None),

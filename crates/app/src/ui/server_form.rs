@@ -396,6 +396,8 @@ impl ServerForm {
             name: name.to_owned(),
             auto_connect: self.auto_connect,
             on_connect,
+            // Kept by the application when editing: the form does not show them.
+            fish_keys: std::collections::BTreeMap::new(),
             connection: Config {
                 host: host.to_owned(),
                 port,
