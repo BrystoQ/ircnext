@@ -6,6 +6,8 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-04
+
 ### Added
 
 - Script manager in *Settings → Scripts*: each script file with its state (loaded with its aliases and events, disabled, or its error), a switch to turn it on or off, and buttons to reload, open the folder or edit a file.
@@ -60,6 +62,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 - Limited send rate and CTCP replies, bounded memory against a hostile server.
 - NickServ passwords masked on display, in logs and in the input history.
 
-[Unreleased]: https://github.com/BrystoQ/ircnext/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/BrystoQ/ircnext/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/BrystoQ/ircnext/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/BrystoQ/ircnext/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/BrystoQ/ircnext/releases/tag/v0.1.0
