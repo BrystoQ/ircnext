@@ -590,3 +590,10 @@
 "Invalid key exchange from {nick}: ignored." = "Échange de clés invalide de {nick} : ignoré."
 "Key exchanged with {nick} ({mode}): messages are now encrypted." = "Clé échangée avec {nick} ({mode}) : les messages sont désormais chiffrés."
 "Encrypted with FiSH ({mode})" = "Chiffré avec FiSH ({mode})"
+
+# Scripts
+"Reload the scripts (scripts folder)" = "Recharger les scripts (dossier scripts)"
+"No script loaded. Put .mrc files in {folder}" = "Aucun script chargé. Placez des fichiers .mrc dans {folder}"
+"Scripts loaded: {scripts}" = "Scripts chargés : {scripts}"
+"Script: {error}" = "Script : {error}"
+"Script errors: {errors}" = "Erreurs de script : {errors}"

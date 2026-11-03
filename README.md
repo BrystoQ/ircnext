@@ -32,6 +32,7 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Commands](#commands)
 - [IRCv3](#ircv3)
+- [Scripts](#scripts)
 - [Configuration](#configuration)
 - [Security](#security)
 - [Architecture](#architecture)
@@ -232,6 +233,28 @@ ircnext automatically negotiates the [IRCv3](https://ircv3.net) extensions offer
 | Channels | `draft/channel-rename` |
 | Client tags | `+typing`, the [`+draft/autocomplete`](https://github.com/ircv3/ircv3-specifications/pull/415) draft (completion offered by bots) |
 
+## Scripts
+
+ircnext runs mIRC scripts (mSL). Put `.mrc` files in the `scripts` folder next to the configuration file, then type `/reload`; they are also loaded at startup. A commented example is in [`docs/scripts/example.mrc`](docs/scripts/example.mrc).
+
+```mrc
+alias hello {
+  if ($1 == $null) { echo -a Usage: /hello <nick> | halt }
+  msg $chan Hello $1 $+ , welcome to $chan $+ !
+}
+```
+
+Supported today:
+
+- `alias` (and `alias -l`), called as commands (`/hello bob`) or identifiers (`$initials(…)`), with `return`;
+- `if` / `elseif` / `else`, `while`, `break`, `continue`, `halt`; `|` and `{ }` blocks; `;` and `/* */` comments;
+- variables: `var` (local), `set` / `unset` / `inc` / `dec` (global); `$1`, `$2-`, `$0`; `$+`;
+- conditions: `==`, `===`, `!=`, `<`, `>`, `<=`, `>=`, `//`, `\\`, `&`, `isin`, `iswm`, `isnum`, `isletter`, `isalpha`, `isalnum`, `islower`, `isupper`, `ison`, `isop`, `isvoice`, `isreg`, `ischan`, with `!`, `&&`, `||`;
+- identifiers: `$me`, `$chan`, `$active`, `$network`, `$server`, `$time`, `$date`, `$ctime`, `$len`, `$upper`, `$lower`, `$left`, `$right`, `$mid`, `$replace`, `$remove`, `$pos`, `$count`, `$str`, `$strip`, `$chr`, `$asc`, `$gettok`, `$numtok`, `$addtok`, `$deltok`, `$istok`, `$findtok`, `$puttok`, `$instok`, `$calc`, `$round`, `$int`, `$abs`, `$rand`, `$iif`, `$ord`…;
+- every ircnext command (`msg`, `notice`, `join`, `mode`, `echo`…).
+
+Events (`on TEXT`, `on JOIN`…), timers, hash tables and a script manager are coming next. A script that loops forever is stopped automatically.
+
 ## Configuration
 
 Everything is set from the interface. Settings are saved in a TOML file:
@@ -262,7 +285,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Architecture
 
-A Cargo workspace of three crates, from the protocol to the interface:
+A Cargo workspace of four crates, from the protocol to the interface:
 
 ```
 crates/
@@ -270,6 +293,8 @@ crates/
 │                             mIRC formatting, ISUPPORT, casemapping
 ├── client/   ircnext-client  TCP/TLS connection (rustls), CAP/SASL/STS registration,
 │                             network state, reconnection, rate limiting
+├── script/   ircnext-script  mIRC script (mSL) interpreter, no I/O: parsing,
+│                             evaluation, conditions, built-in identifiers
 └── app/      ircnext         iced interface (Elm architecture): tabs, settings,
                               shortcuts, notifications, logs, translations
 ```
@@ -295,7 +320,8 @@ The screenshots in this README are rendered headlessly by the `snapshots` test, 
 - [x] SOCKS5 proxy
 - [x] DCC transfers
 - [x] Native FiSH 10 encryption (Blowfish, DH1080 key exchange)
-- [ ] mIRC-compatible scripting (mSL)
+- [x] mIRC-compatible scripting (mSL): aliases and the language
+- [ ] Script events, timers, hash tables, script manager
 - [x] `draft/multiline`
 
 ## Contributing

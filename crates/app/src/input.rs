@@ -54,6 +54,8 @@ pub enum Command {
     DelKey(Option<String>),
     /// `/keyx [nick]`: DH1080 key exchange.
     KeyExchange(Option<String>),
+    /// `/reload`: loads the scripts again.
+    Reload,
 }
 
 /// Parsing error, shown in the current tab.
@@ -121,6 +123,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["setkey"], usage: tr("/setkey [#channel|nick] <key>"), help: tr("Encrypt a conversation with FiSH (cbc: prefix for CBC)") },
         Spec { names: &["delkey"], usage: tr("/delkey [#channel|nick]"), help: tr("Stop encrypting a conversation") },
         Spec { names: &["keyx"], usage: tr("/keyx [nick]"), help: tr("Exchange a FiSH key with someone (DH1080)") },
+        Spec { names: &["reload"], usage: "/reload", help: tr("Reload the scripts (scripts folder)") },
         Spec { names: &["help"], usage: "/help", help: tr("Show this help") },
     ]
 }
@@ -227,6 +230,7 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         },
         "delkey" => Command::DelKey(owned(args.map(first_word))),
         "keyx" => Command::KeyExchange(owned(args.map(first_word))),
+        "reload" => Command::Reload,
         "dcc" => match args.map(split) {
             None | Some(("list" | "LIST", None)) => Command::Transfers,
             Some((sub, Some(rest))) if sub.eq_ignore_ascii_case("send") => {

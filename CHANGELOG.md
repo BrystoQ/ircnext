@@ -8,6 +8,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ### Added
 
+- mIRC scripts (mSL), first part: `.mrc` files of the `scripts` folder are loaded at startup and with `/reload`; aliases are typed as commands or used as identifiers, with variables, `if`/`elseif`/`else`, `while`, mIRC conditions and about fifty identifiers. Runaway scripts are stopped.
 - FiSH encryption, compatible with FiSH 10: `/setkey [target] <key>` (`cbc:` prefix for CBC), `/delkey`, and `/keyx <nick>` for a DH1080 key exchange. Messages, actions, notices and topics are encrypted and decrypted; encrypted messages carry a *FiSH* badge and the header says when a conversation is encrypted. Keys are kept in the system keychain.
 - Application logo: window, macOS app, Windows executable and Linux package (icon and `.desktop` entry).
 - Options taken from mIRC: *Do not disturb* (☾ in the sidebar, `Mod+Shift+D`) silences notifications and window alerts; optional shaded lines; an eye button shows the passwords of the network form; middle click closes a tab; ⧉ copies a whole tab to the clipboard; an away message is shown once until it changes (setting to repeat it).
