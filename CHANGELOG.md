@@ -6,6 +6,10 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ## [Unreleased]
 
+### Added
+
+- DCC file transfers: `/dcc send <nick> <file>` or drop a file on a private conversation; incoming offers wait for your answer in the new *Transfers* panel (⇅), with progress, speed, cancel and resume of interrupted downloads. Passive mode for users behind a router, downloads folder and announced address in *Chat* settings.
+
 ## [0.2.0] - 2026-11-03
 
 ### Added

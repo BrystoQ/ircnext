@@ -33,6 +33,7 @@ use crate::ui::{chat, nicklist, sidebar};
 use crate::tr;
 
 mod keys;
+mod transfers;
 
 /// Id of the input field (to focus it).
 pub const INPUT_ID: &str = "input";
@@ -76,6 +77,12 @@ pub enum Message {
     DismissBanner,
     SystemTheme(iced::theme::Mode),
     Tick(Instant),
+    OpenTransfers,
+    Transfers(crate::ui::transfers::Msg),
+    /// Event of a running file transfer.
+    Transfer(crate::transfer::TransferId, crate::transfer::Event),
+    /// A file was dropped on the window.
+    FileDropped(PathBuf),
 }
 
 /// Keys with a fixed role (not configurable).
@@ -92,6 +99,7 @@ enum Modal {
     Settings(SettingsForm),
     Server(ServerForm),
     Switcher(Switcher),
+    Transfers,
 }
 
 /// State of the main window.
@@ -139,6 +147,9 @@ pub struct App {
     system_notifications: bool,
     /// Passwords already stored in the system keychain.
     keychain: keychain::Cache,
+    /// DCC file transfers of the session.
+    transfers: Vec<crate::transfer::Transfer>,
+    next_transfer: u64,
     banner: Option<String>,
     now: Instant,
 }
@@ -184,6 +195,8 @@ impl App {
             window: WindowState { id: None, focused: true, dark: true },
             system_notifications: false,
             keychain: keychain::Cache::new(),
+            transfers: Vec::new(),
+            next_transfer: 0,
             banner,
             now: Instant::now(),
         };
@@ -406,6 +419,20 @@ impl App {
                 return iced::widget::operation::focus(INPUT_ID);
             }
             Message::DismissBanner => self.banner = None,
+            Message::OpenTransfers => self.modal = Some(Modal::Transfers),
+            Message::Transfers(msg) => return self.on_transfers(&msg),
+            Message::Transfer(id, event) => self.on_transfer_event(id, event),
+            Message::FileDropped(path) => {
+                // Dropped on a private conversation: offer the file to that person.
+                let target = self
+                    .active_buffer()
+                    .filter(|(server, buffer)| buffer.kind == Kind::Query && server.is_online())
+                    .map(|(server, buffer)| (server.id, buffer.name.clone()));
+                match target {
+                    Some((server, nick)) => return self.offer_file(server, &nick, &path),
+                    None => self.banner = Some(tr("Drop a file on a private conversation to send it.").to_owned()),
+                }
+            }
             Message::SystemTheme(mode) => self.window.dark = mode != iced::theme::Mode::Light,
             Message::Tick(now) => {
                 self.now = now;
@@ -431,8 +458,9 @@ impl App {
         let ctx = Context { settings: &self.config.settings, active };
         let effects = server.on_event(event, &ctx);
         let alerts = server.take_alerts();
+        let dcc = server.take_dcc();
         self.now = Instant::now();
-        let mut tasks = vec![self.apply_effects(id, effects), self.alert(id, alerts)];
+        let mut tasks = vec![self.apply_effects(id, effects), self.alert(id, alerts), self.on_dcc(id, dcc)];
         if registered {
             tasks.push(self.run_connect_commands(id));
         }
@@ -557,6 +585,13 @@ impl App {
         match input::parse(text) {
             Ok(Input::Command(Command::Ignore(mask))) => return self.ignore(id, buffer, mask),
             Ok(Input::Command(Command::Unignore(mask))) => return self.unignore(id, buffer, &mask),
+            Ok(Input::Command(Command::Transfers)) => {
+                self.modal = Some(Modal::Transfers);
+                return Task::none();
+            }
+            Ok(Input::Command(Command::DccSend { nick, path })) => {
+                return self.offer_file(id, &nick, &crate::transfer::expand_home(&path));
+            }
             _ => {}
         }
         let active = self.active.filter(|(server, _)| *server == id).map(|(_, b)| b);
@@ -964,7 +999,7 @@ impl App {
 
         let sidebar = settings
             .show_sidebar
-            .then(|| sidebar::view(&self.servers, self.active, colors));
+            .then(|| sidebar::view(&self.servers, self.active, self.pending_offers(), colors));
         let main: Element<'_, Message> = match self.active_buffer() {
             Some((server, buffer)) => {
                 let id = self.active.expect("active tab").1;
@@ -1003,6 +1038,7 @@ impl App {
             Modal::Settings(form) => form.view(colors, self.window.dark),
             Modal::Server(form) => form.view(colors),
             Modal::Switcher(switcher) => switcher.view(&self.servers, self.active, colors),
+            Modal::Transfers => crate::ui::transfers::view(&self.transfers, self.now, colors),
         };
         stack![
             base,
@@ -1047,6 +1083,7 @@ fn runtime_event(event: iced::Event, status: event::Status, window: window::Id) 
         }
         iced::Event::Window(window::Event::Focused) => Some(Message::WindowFocus { window, focused: true }),
         iced::Event::Window(window::Event::Unfocused) => Some(Message::WindowFocus { window, focused: false }),
+        iced::Event::Window(window::Event::FileDropped(path)) => Some(Message::FileDropped(path)),
         _ => None,
     }
 }
@@ -1221,6 +1258,47 @@ mod tests {
     }
 
     #[test]
+    fn dcc_offers_wait_for_the_user() {
+        let mut app = demo();
+        inject(&mut app, ":bob!b@h PRIVMSG me :\x01DCC SEND \"../../.ssh/id_rsa\" 2130706433 5000 1234\x01");
+        assert_eq!(app.transfers.len(), 1);
+        let offer = &app.transfers[0];
+        assert_eq!(offer.state, crate::transfer::State::Offered, "never accepted automatically");
+        assert_eq!(offer.name, "id_rsa", "path removed from the name");
+        assert_eq!(app.pending_offers(), 1);
+        let query = app.servers[0].find("bob").expect("conversation with the sender");
+        assert!(app.servers[0].buffer(query).unwrap().lines().any(|line| matches!(&line.kind, LineKind::Info(text) if text.contains("id_rsa"))));
+
+        let id = offer.id;
+        let _ = app.update(Message::Transfers(crate::ui::transfers::Msg::Decline(id)));
+        assert_eq!(app.transfers[0].state, crate::transfer::State::Declined);
+        assert_eq!(app.pending_offers(), 0);
+    }
+
+    #[test]
+    fn partial_downloads_are_resumed() {
+        let dir = std::env::temp_dir().join(format!("ircnext-resume-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("big.iso"), vec![0; 400]).unwrap();
+        let mut app = demo();
+        app.config.settings.download_dir = dir.display().to_string();
+        inject(&mut app, ":bob!b@h PRIVMSG me :\x01DCC SEND big.iso 2130706433 5000 1000\x01");
+        let id = app.transfers[0].id;
+        let _ = app.update(Message::Transfers(crate::ui::transfers::Msg::Accept(id)));
+        assert_eq!(app.transfers[0].resuming, Some(400), "RESUME asked at the partial size");
+        assert_eq!(app.transfers[0].path, dir.join("big.iso"));
+
+        // A different file or port does not match.
+        inject(&mut app, ":bob!b@h PRIVMSG me :\x01DCC ACCEPT big.iso 6000 400\x01");
+        assert_eq!(app.transfers[0].resuming, Some(400));
+        inject(&mut app, ":bob!b@h PRIVMSG me :\x01DCC ACCEPT big.iso 5000 400\x01");
+        assert_eq!(app.transfers[0].resuming, None);
+        assert_eq!(app.transfers[0].done, 400);
+        assert!(app.transfers[0].handle.is_some(), "download started");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn title_counts_unread_mentions() {
         let mut app = demo();
         inject(&mut app, ":alice!a@h PRIVMSG #ircnext :me: look at this");
@@ -1358,6 +1436,14 @@ mod tests {
         let _ = app.update(Message::Action(Action::Search));
         let _ = app.update(Message::SearchChanged("rust".into()));
         render(&app, &dir.join("search"));
+        let _ = app.update(Message::Shortcut(Shortcut::Escape));
+        inject(&mut app, ":carol!c@h PRIVMSG me :\x01DCC SEND \"holiday photos.zip\" 2130706433 5000 48213000\x01");
+        inject(&mut app, ":dave!d@h PRIVMSG me :\x01DCC SEND notes.pdf 2130706433 5001 812000\x01");
+        let last = app.transfers.len() - 1;
+        app.transfers[last].state = crate::transfer::State::Active;
+        app.transfers[last].done = 530_000;
+        let _ = app.update(Message::OpenTransfers);
+        render(&app, &dir.join("transfers"));
     }
 
     fn render(app: &App, path: &std::path::Path) {

@@ -108,6 +108,9 @@ pub enum Msg {
     CtcpVersion(String),
     SendReadMarkers(bool),
     UseKeychain(bool),
+    DownloadDir(String),
+    DccAddress(String),
+    DccPassive(bool),
     PartMessage(String),
     CaptureBinding(Action),
     Captured(Combo),
@@ -162,6 +165,9 @@ impl SettingsForm {
             Msg::CtcpVersion(value) => draft.ctcp_version = value,
             Msg::SendReadMarkers(value) => draft.send_read_markers = value,
             Msg::UseKeychain(value) => draft.use_keychain = value,
+            Msg::DownloadDir(value) => draft.download_dir = value,
+            Msg::DccAddress(value) => draft.dcc_address = value,
+            Msg::DccPassive(value) => draft.dcc_passive = value,
             Msg::PartMessage(value) => draft.part_message = value,
             Msg::CaptureBinding(action) => {
                 self.capturing = Some(action);
@@ -439,6 +445,31 @@ impl SettingsForm {
                         )
                         .description(home_relative(logs_dir()))
                         .view(c),
+                    ],
+                    c,
+                ),
+                form::group(
+                    tr("File transfers (DCC)"),
+                    [
+                        form::setting(
+                            tr("Downloads folder"),
+                            form::input(tr("~/Downloads"), &draft.download_dir, |v| Message::Settings(Msg::DownloadDir(v)), c),
+                        )
+                        .description(tr("Empty: the system downloads folder"))
+                        .view(c),
+                        form::setting(
+                            tr("Announced address"),
+                            form::input(tr("detected"), &draft.dcc_address, |v| Message::Settings(Msg::DccAddress(v)), c),
+                        )
+                        .description(tr("Public IP to give when offering a file; empty: this machine's address"))
+                        .view(c),
+                        toggle(
+                            tr("Passive offers"),
+                            Some(tr("The receiver listens: works when you are behind a router")),
+                            draft.dcc_passive,
+                            Msg::DccPassive,
+                            c,
+                        ),
                     ],
                     c,
                 ),

@@ -198,6 +198,14 @@ pub struct Settings {
     /// Passwords stored in the system keychain rather than in the file.
     pub use_keychain: bool,
 
+    // File transfers (DCC)
+    /// Folder for received files (empty: the system downloads folder).
+    pub download_dir: String,
+    /// Address announced when offering a file (empty: detected).
+    pub dcc_address: String,
+    /// Offer files passively: the receiver listens (useful behind a router).
+    pub dcc_passive: bool,
+
     // Typing indicator (IRCv3 `+typing`)
     pub send_typing: bool,
     pub show_typing: bool,
@@ -250,6 +258,9 @@ impl Default for Settings {
             send_read_markers: true,
             bot_completion: true,
             use_keychain: true,
+            download_dir: String::new(),
+            dcc_address: String::new(),
+            dcc_passive: false,
             send_typing: true,
             show_typing: true,
             nick: "ircnext".to_owned(),

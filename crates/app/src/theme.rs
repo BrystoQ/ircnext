@@ -1,6 +1,6 @@
 //! Color palette and widget styles.
 
-use iced::widget::{button, container, pick_list, scrollable, text_input};
+use iced::widget::{button, container, pick_list, progress_bar, scrollable, text_input};
 use iced::{Background, Border, Color, Shadow, Theme, Vector};
 use ircnext_client::proto::format;
 
@@ -233,6 +233,15 @@ pub fn badge(background: Color) -> impl Fn(&Theme) -> container::Style {
         background: Some(background.into()),
         border: Border { radius: 999.0.into(), ..Border::default() },
         ..container::Style::default()
+    }
+}
+
+/// Thin progress bar in the accent color.
+pub fn progress(c: Colors) -> impl Fn(&Theme) -> progress_bar::Style {
+    move |_| progress_bar::Style {
+        background: c.hover.into(),
+        bar: c.accent.into(),
+        border: Border { radius: 999.0.into(), ..Border::default() },
     }
 }
 

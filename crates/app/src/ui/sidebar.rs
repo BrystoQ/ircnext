@@ -13,13 +13,15 @@ use crate::ui::BOLD;
 
 const WIDTH: f32 = 236.0;
 
-pub fn view(servers: &[Server], active: Option<(ServerId, BufferId)>, c: Colors) -> Element<'_, Message> {
+pub fn view(servers: &[Server], active: Option<(ServerId, BufferId)>, pending_offers: usize, c: Colors) -> Element<'_, Message> {
     let header = row![
         text("ircnext").size(17).font(BOLD).color(c.text),
         space().width(Length::Fill),
-        icon_button("+", tr("Add a network"), Message::OpenServerForm(None), c),
-        icon_button("⚙", tr("Settings"), Message::OpenSettings, c),
     ]
+    .push((pending_offers > 0).then(|| unread_badge(pending_offers, true, c)))
+    .push(icon_button("⇅", tr("Transfers"), Message::OpenTransfers, c))
+    .push(icon_button("+", tr("Add a network"), Message::OpenServerForm(None), c))
+    .push(icon_button("⚙", tr("Settings"), Message::OpenSettings, c))
     .spacing(2)
     .align_y(Alignment::Center)
     .padding([14, 12]);

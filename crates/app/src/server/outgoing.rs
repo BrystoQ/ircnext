@@ -215,7 +215,7 @@ impl Server {
                 self.generation += 1;
             }
             // Application settings: handled before getting here.
-            Command::Ignore(_) | Command::Unignore(_) => {}
+            Command::Ignore(_) | Command::Unignore(_) | Command::DccSend { .. } | Command::Transfers => {}
             Command::Close => {
                 let Some((kind, name)) = current else {
                     return Ok(effects);

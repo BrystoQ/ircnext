@@ -6,6 +6,10 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+### Ajouté
+
+- Transferts de fichiers DCC : `/dcc send <pseudo> <fichier>` ou glisser un fichier sur une conversation privée ; les propositions reçues attendent votre réponse dans le nouveau panneau *Transferts* (⇅), avec progression, vitesse, annulation et reprise des téléchargements interrompus. Mode passif pour qui est derrière une box, dossier de téléchargement et adresse annoncée dans les réglages *Discussion*.
+
 ## [0.2.0] - 2026-11-03
 
 ### Ajouté

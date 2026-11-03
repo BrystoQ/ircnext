@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Local, SecondsFormat, Utc};
+use ircnext_client::proto::dcc::Dcc;
 use ircnext_client::proto::{Command, Message};
 use ircnext_client::{Event, Handle, Network};
 
@@ -133,6 +134,8 @@ pub struct Server {
     pub prefs: Prefs,
     /// Messages to report, collected by the application.
     alerts: Vec<Alert>,
+    /// `DCC` requests received (sender, request), for the application.
+    dcc: Vec<(String, Dcc)>,
     /// The message being handled comes from a replayed history.
     replaying: bool,
 }
@@ -155,6 +158,7 @@ impl Server {
             ctcp_replies: VecDeque::new(),
             prefs: Prefs::default(),
             alerts: Vec::new(),
+            dcc: Vec::new(),
             replaying: false,
             entry,
         };
@@ -278,6 +282,16 @@ impl Server {
     }
 
     /// Messages to report since the last call.
+    /// `DCC` requests received since the last call.
+    pub fn take_dcc(&mut self) -> Vec<(String, Dcc)> {
+        std::mem::take(&mut self.dcc)
+    }
+
+    /// Sends a `DCC` request to `nick`.
+    pub fn send_dcc(&self, nick: &str, dcc: &Dcc) -> Result<(), String> {
+        self.send(Message::privmsg(nick, ircnext_client::proto::text::ctcp("DCC", Some(&dcc.to_string()))))
+    }
+
     pub fn take_alerts(&mut self) -> Vec<Alert> {
         std::mem::take(&mut self.alerts)
     }
