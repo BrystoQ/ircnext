@@ -126,7 +126,7 @@ Chaque version publie des exécutables prêts à l'emploi sur la [page des relea
 | Windows 10+ (x64) | `ircnext-X.Y.Z-windows-x64.zip` |
 | Linux (x64) | `ircnext-X.Y.Z-linux-x64.tar.gz` |
 
-Les sommes de contrôle sont dans `SHA256SUMS.txt`.
+Les sommes de contrôle sont dans `SHA256SUMS.txt`. Les nouveautés de chaque version sont décrites dans les [notes de version](CHANGELOG.fr.md).
 
 > [!IMPORTANT]
 > Les exécutables ne sont pas encore signés par un certificat Apple ou Microsoft. Au premier lancement :
