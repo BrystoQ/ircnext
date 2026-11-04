@@ -61,6 +61,8 @@ pub enum Command {
     Reload,
     /// `/links`: the links seen in the open tabs.
     Links,
+    /// `/list [filter]`: the network's channels.
+    List(Option<String>),
     /// `/echo <text>`: a line in the current tab, for the user only.
     Echo(String),
 }
@@ -131,6 +133,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["setkey"], usage: tr("/setkey [#channel|nick] <key>"), help: tr("Encrypt a conversation with FiSH (cbc: prefix for CBC)") },
         Spec { names: &["delkey"], usage: tr("/delkey [#channel|nick]"), help: tr("Stop encrypting a conversation") },
         Spec { names: &["keyx"], usage: tr("/keyx [nick]"), help: tr("Exchange a FiSH key with someone (DH1080)") },
+        Spec { names: &["list"], usage: tr("/list [filter]"), help: tr("Browse the network's channels") },
         Spec { names: &["links", "url"], usage: "/links", help: tr("Show the links posted in the open tabs") },
         Spec { names: &["reload"], usage: "/reload", help: tr("Reload the scripts (scripts folder)") },
         Spec { names: &["echo"], usage: tr("/echo <text>"), help: tr("Show a line in the current tab, for you only") },
@@ -247,6 +250,7 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "keyx" => Command::KeyExchange(owned(args.map(first_word))),
         "reload" => Command::Reload,
         "links" | "url" => Command::Links,
+        "list" => Command::List(owned(args)),
         "echo" => {
             // Switches such as `-a` are accepted and ignored.
             let mut text = required(args)?;

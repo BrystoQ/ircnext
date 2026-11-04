@@ -14,6 +14,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Panneau des liens, comme le « URL catcher » de mIRC : `/links` ou ⌘/Ctrl+Maj+L liste les liens web postés dans les onglets ouverts, du plus récent au plus ancien, avec leur auteur et leur salon. On peut les filtrer, les ouvrir, les copier ou revenir à la conversation.
 - Ligne « Nouveaux messages » : en revenant sur un onglet, une ligne rouge montre où commencent les messages écrits pendant votre absence.
 - Liste de notification, comme dans mIRC : `/notify alice` (ou le formulaire du réseau) signale dans l'onglet du serveur quand quelqu'un se connecte ou part, avec une notification à l'arrivée. `/notify` montre qui est en ligne, `/notify -r alice` retire. S'appuie sur `MONITOR` (IRCv3). Les scripts reçoivent les événements `on NOTIFY` et `on UNOTIFY`.
+- Liste des salons : `/list` ouvre une fenêtre avec les salons du réseau, les plus peuplés d'abord, avec leur sujet et leur nombre d'utilisateurs. On cherche par nom ou par sujet, et on rejoint en un clic.
 
 ### Corrigé
 

@@ -234,6 +234,10 @@ impl Server {
                 self.delete_key(&target, ctx)?;
                 effects.config_changed = true;
             }
+            Command::List(filter) => {
+                self.request_list(filter.as_deref())?;
+                effects.channel_list = true;
+            }
             Command::Notify { nick, remove } => {
                 effects.config_changed = self.notify_command(nick.as_deref(), remove, ctx);
             }

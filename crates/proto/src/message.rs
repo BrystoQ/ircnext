@@ -296,6 +296,7 @@ commands! {
     Invite => "INVITE",
     Join => "JOIN",
     Kick => "KICK",
+    List => "LIST",
     Markread => "MARKREAD",
     Mode => "MODE",
     Monitor => "MONITOR",

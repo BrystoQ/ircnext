@@ -14,6 +14,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 - Links panel, like mIRC's URL catcher: `/links` or ⌘/Ctrl+Shift+L lists the web links posted in the open tabs, newest first, with who posted them and where. Filter them, open, copy, or jump to the conversation.
 - “New messages” line: coming back to a tab, a red line shows where the messages written while you were away start.
 - Notify list, as in mIRC: `/notify alice` (or the network form) reports in the server tab when someone connects or leaves, with a notification on arrival. `/notify` shows who is online, `/notify -r alice` removes. Based on IRCv3 `MONITOR`. Scripts get the `on NOTIFY` and `on UNOTIFY` events.
+- Channel list: `/list` opens a window with the network's channels, most populated first, their topic and user count. Search by name or topic, and join in one click.
 
 ### Fixed
 

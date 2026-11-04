@@ -78,6 +78,9 @@ impl Server {
         if !history {
             self.network.apply(message);
         }
+        if self.on_list_reply(message) {
+            return effects;
+        }
         let time = message_time(message);
         let line = |kind| Line::new(time, kind);
         if !history {
