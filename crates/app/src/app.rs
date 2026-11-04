@@ -107,6 +107,7 @@ pub enum Message {
     PasteSend,
     /// Sends it as one line.
     PasteJoined,
+    Links(crate::ui::links::Msg),
     /// Clipboard text, read after a paste in the input.
     Pasted(Option<String>),
 }
@@ -127,6 +128,7 @@ enum Modal {
     Switcher(Switcher),
     Transfers,
     Paste(crate::ui::paste::Paste),
+    Links(crate::ui::links::Links),
 }
 
 /// State of the main window.
@@ -483,6 +485,7 @@ impl App {
             Message::UpdateDownloaded(result) => return self.update_downloaded(result),
             Message::DismissUpdate => self.update = None,
             Message::Pasted(text) => self.on_paste(text),
+            Message::Links(msg) => return self.on_links(msg),
             Message::PasteSend | Message::PasteJoined => {
                 let Some(Modal::Paste(paste)) = self.modal.take() else {
                     return Task::none();
@@ -706,6 +709,29 @@ impl App {
         }
     }
 
+    /// Opens the links panel.
+    pub(super) fn open_links(&mut self) -> Task<Message> {
+        self.modal = Some(Modal::Links(crate::ui::links::Links::new(&self.servers)));
+        iced::widget::operation::focus(crate::ui::links::LINKS_ID)
+    }
+
+    fn on_links(&mut self, msg: crate::ui::links::Msg) -> Task<Message> {
+        use crate::ui::links::Msg;
+        match msg {
+            Msg::Query(query) => {
+                if let Some(Modal::Links(links)) = &mut self.modal {
+                    links.query = query;
+                }
+                Task::none()
+            }
+            Msg::Copy(url) => iced::clipboard::write(url),
+            Msg::GoTo(server, buffer) => {
+                self.modal = None;
+                self.update(Message::Select(server, buffer))
+            }
+        }
+    }
+
     /// Sends typed text, after the scripts' `on INPUT` handlers.
     fn send_input(&mut self, id: ServerId, buffer: BufferId, text: &str) -> Task<Message> {
         // `on INPUT` handlers see the text first, and may stop it.
@@ -741,6 +767,7 @@ impl App {
                 self.modal = Some(Modal::Transfers);
                 return Task::none();
             }
+            Ok(Input::Command(Command::Links)) => return self.open_links(),
             Ok(Input::Command(Command::DccSend { nick, path })) => {
                 return self.offer_file(id, &nick, &crate::transfer::expand_home(&path));
             }
@@ -1204,6 +1231,7 @@ impl App {
             Modal::Switcher(switcher) => switcher.view(&self.servers, self.active, colors),
             Modal::Transfers => crate::ui::transfers::view(&self.transfers, self.now, colors),
             Modal::Paste(paste) => crate::ui::paste::view(paste, colors),
+            Modal::Links(links) => links.view(colors),
         };
         stack![
             base,
@@ -1544,6 +1572,34 @@ mod tests {
     }
 
     #[test]
+    fn links_panel_lists_posted_links() {
+        let mut app = demo();
+        inject(&mut app, ":carol!c@h PRIVMSG #rust :see https://docs.rs/tokio again, and \x02www.example.org\x02.");
+        inject(&mut app, ":dave!d@h PRIVMSG #rust :javascript:alert(1) is not a link");
+        app.input = "/links".into();
+        let _ = app.update(Message::Submit);
+        let Some(Modal::Links(links)) = &app.modal else { panic!("panel open") };
+        let urls: Vec<&str> = links.links.iter().map(|link| link.url.as_str()).collect();
+        assert_eq!(&urls[..2], ["https://docs.rs/tokio", "www.example.org"], "newest first, formatting removed");
+        assert_eq!(urls.iter().filter(|url| **url == "https://docs.rs/tokio").count(), 1, "posted twice, listed once");
+        assert!(urls.contains(&"https://www.rust-lang.org"), "topics too");
+        assert_eq!(links.links[0].nick, "carol");
+        assert!(links.links[0].place.starts_with("#rust"));
+
+        let _ = app.update(Message::Links(crate::ui::links::Msg::Query("EXAMPLE".into())));
+        let Some(Modal::Links(links)) = &app.modal else { panic!() };
+        assert_eq!(links.filtered().map(|link| link.url.as_str()).collect::<Vec<_>>(), ["www.example.org"]);
+
+        let target = (links.links[0].server, links.links[0].buffer);
+        let zoe = app.servers[0].find("zoe").unwrap();
+        let _ = app.update(Message::Select(app.servers[0].id, zoe));
+        let _ = app.update(Message::Action(Action::Links));
+        let _ = app.update(Message::Links(crate::ui::links::Msg::GoTo(target.0, target.1)));
+        assert!(app.modal.is_none());
+        assert_eq!(app.active, Some(target), "back to the conversation");
+    }
+
+    #[test]
     fn script_events_react_to_the_network_and_input() {
         let mut app = demo();
         app.scripts
@@ -1859,6 +1915,9 @@ mod tests {
         let _ = app.update(Message::InputChanged(code.chars().filter(|c| !c.is_control()).collect()));
         let _ = app.update(Message::Pasted(Some(code.into())));
         render(&app, &dir.join("paste"));
+        let _ = app.update(Message::CloseModal);
+        let _ = app.update(Message::Action(Action::Links));
+        render(&app, &dir.join("links"));
     }
 
     fn render(app: &App, path: &std::path::Path) {
