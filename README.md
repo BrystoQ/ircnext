@@ -57,7 +57,7 @@ HexChat's proven ergonomics, IRCv3 standards and a polished native interface.
 **Chat**
 - Several networks at once, automatic reconnection
 - SOCKS5 proxy per network (Tor, SSH tunnel), name resolved by the proxy
-- TLS by default, SASL PLAIN and EXTERNAL (client certificate, CertFP), STS
+- TLS by default, SASL SCRAM-SHA-256, PLAIN and EXTERNAL (client certificate, CertFP), STS
 - mIRC formatting codes (bold, colors…)
 - Clickable links, highlighted mentions
 - Private messages, notices, `/me` actions, CTCP
@@ -231,7 +231,7 @@ ircnext automatically negotiates the [IRCv3](https://ircv3.net) extensions offer
 
 | Area | Extensions |
 |---|---|
-| Connection | `cap-notify`, `sasl` (PLAIN, EXTERNAL), `sts` |
+| Connection | `cap-notify`, `sasl` (SCRAM-SHA-256, PLAIN, EXTERNAL), `sts` |
 | Messages | `message-tags`, `server-time`, `echo-message`, `batch`, `labeled-response`, `msgid` (deduplication), `standard-replies`, `draft/multiline`, `UTF8ONLY` |
 | History | `draft/chathistory`, `draft/event-playback`, `draft/read-marker`, `draft/message-redaction` |
 | Users | `account-notify`, `account-tag`, `away-notify`, `extended-join`, `chghost`, `setname`, `multi-prefix`, `userhost-in-names`, `invite-notify` |

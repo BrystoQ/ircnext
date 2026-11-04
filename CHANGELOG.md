@@ -19,6 +19,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 - Auto-op and auto-voice lists, as in mIRC: `/aop *!*@trusted.host` or `/avoice nick #channel` give `+o` or `+v` to matching people when they join a channel you manage. `/aop` lists, `/aop -r` removes. Kept per network.
 - Log viewer: `/logs`, or *Browse* next to the logs folder in Settings › Chat, lists the saved conversations by network and shows them with a search, opening on the current one.
 - `irc://` and `ircs://` links are clickable: on a known network they join the channel (connecting first if needed), otherwise the network form opens filled in. They also appear in the links panel.
+- SASL SCRAM-SHA-256: when the server offers it, the account password is proven without being sent, and the server must prove it knows it too. If the server refuses it (password stored in an older format), PLAIN is tried once over TLS.
 
 ### Fixed
 

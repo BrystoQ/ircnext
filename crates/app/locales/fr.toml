@@ -480,7 +480,7 @@
 "Optional (PASS), for a bouncer for example" = "Facultatif (PASS), pour un bouncer par exemple"
 "Identification" = "Identification"
 "No identification to the network account" = "Aucune identification au compte du réseau"
-"SASL PLAIN, as soon as you connect" = "SASL PLAIN, dès la connexion"
+"SASL SCRAM-SHA-256 when offered, otherwise PLAIN, as soon as you connect" = "SASL SCRAM-SHA-256 s'il est proposé, sinon PLAIN, dès la connexion"
 "SASL EXTERNAL. First link the certificate to your account: /msg NickServ CERT ADD" = "SASL EXTERNAL. Associez d'abord le certificat à votre compte : /msg NickServ CERT ADD"
 "Account" = "Compte"
 "account" = "compte"

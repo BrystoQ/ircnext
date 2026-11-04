@@ -514,7 +514,7 @@ impl ServerForm {
         let method = form::setting(tr("Identification"), form::select(Auth::ALL, Some(self.auth), |a| Message::Form(Msg::Auth(a)), c));
         let method = match self.auth {
             Auth::None => method.description(tr("No identification to the network account")),
-            Auth::Password => method.description(tr("SASL PLAIN, as soon as you connect")),
+            Auth::Password => method.description(tr("SASL SCRAM-SHA-256 when offered, otherwise PLAIN, as soon as you connect")),
             Auth::Certificate => method.description(tr("SASL EXTERNAL. First link the certificate to your account: /msg NickServ CERT ADD")),
         };
         let mut authentication = vec![method.view(c)];

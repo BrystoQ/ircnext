@@ -19,6 +19,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Listes d'auto-op et d'auto-voice, comme dans mIRC : `/aop *!*@hote.fiable` ou `/avoice pseudo #salon` donnent `+o` ou `+v` aux personnes correspondantes quand elles rejoignent un salon que vous gérez. `/aop` affiche la liste, `/aop -r` retire. Propres à chaque réseau.
 - Visionneuse de journaux : `/logs`, ou *Parcourir* à côté du dossier des journaux dans Réglages › Discussion, liste les conversations enregistrées par réseau et les affiche avec une recherche, en s'ouvrant sur la conversation en cours.
 - Les liens `irc://` et `ircs://` sont cliquables : sur un réseau connu, ils rejoignent le salon (en se connectant d'abord si besoin), sinon le formulaire du réseau s'ouvre prérempli. Ils apparaissent aussi dans le panneau des liens.
+- SASL SCRAM-SHA-256 : quand le serveur le propose, le mot de passe du compte est prouvé sans être envoyé, et le serveur doit prouver qu'il le connaît aussi. Si le serveur le refuse (mot de passe stocké dans un ancien format), PLAIN est essayé une fois, sur TLS.
 
 ### Corrigé
 

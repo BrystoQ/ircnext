@@ -11,6 +11,7 @@ pub mod fish;
 pub mod connection;
 pub mod network;
 pub mod registration;
+pub mod scram;
 pub mod socks;
 mod throttle;
 
