@@ -59,8 +59,10 @@ pub fn view<'a>(props: &Props<'a>) -> Element<'a, Message> {
         let hint = if needle.is_some() { tr("No message matches.") } else { empty_hint(buffer) };
         center(text(hint).size(14).color(c.muted)).into()
     } else {
+        let unseen = buffer.first_unseen().filter(|_| needle.is_none());
         let column = lines.into_iter().enumerate().fold(column![].padding([12, 0]), |column, (index, entry)| {
             let shaded = settings.line_shading && index % 2 == 1;
+            let column = if unseen.is_some_and(|first| std::ptr::eq(first, entry)) { column.push(unread_marker(c)) } else { column };
             column.push(line::view(entry, server.id, settings, shaded, c))
         });
         scrollable(column)
@@ -198,6 +200,16 @@ fn banner_view(message: &str, c: Colors) -> Element<'_, Message> {
     .width(Length::Fill)
     .style(theme::panel(c.warning.scale_alpha(0.18)))
     .into()
+}
+
+/// Line before the messages written since the tab was last seen.
+fn unread_marker<'a>(c: Colors) -> Element<'a, Message> {
+    let rule = || container(space().height(1)).width(Length::Fill).style(theme::panel(c.danger.scale_alpha(0.6)));
+    row![rule(), text(tr("New messages")).size(11).color(c.danger), rule()]
+        .spacing(10)
+        .padding([4, 18])
+        .align_y(Alignment::Center)
+        .into()
 }
 
 fn typing_indicator<'a>(props: &Props<'a>) -> Element<'a, Message> {

@@ -643,6 +643,11 @@ impl App {
 
     fn select(&mut self, id: ServerId, buffer: BufferId) -> Task<Message> {
         if self.active != Some((id, buffer)) {
+            if let Some((server, previous)) = self.active
+                && let Some(previous) = self.server_mut(server).and_then(|server| server.buffer_mut(previous))
+            {
+                previous.set_marker();
+            }
             self.stop_typing();
             self.completion = None;
             self.search = None;
@@ -1854,6 +1859,11 @@ mod tests {
         let key = ircnext_client::fish::Key::parse("cbc:demo key").unwrap();
         inject(&mut app, &format!(":erin!e@h PRIVMSG #rust :{}", key.encrypt("this one is end-to-end encrypted")));
         let rust = app.servers[0].find("#rust").unwrap();
+        let _ = app.update(Message::Select(app.servers[0].id, rust));
+        // Back from another tab: the new message is after the marker.
+        let zoe = app.servers[0].find("zoe").unwrap();
+        let _ = app.update(Message::Select(app.servers[0].id, zoe));
+        inject(&mut app, ":frank!f@h PRIVMSG #rust :anyone around? I just got back");
         let _ = app.update(Message::Select(app.servers[0].id, rust));
         app.config.settings.language = language;
         i18n::set_language(language);
