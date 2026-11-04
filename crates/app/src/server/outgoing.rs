@@ -234,6 +234,9 @@ impl Server {
                 self.delete_key(&target, ctx)?;
                 effects.config_changed = true;
             }
+            Command::Notify { nick, remove } => {
+                effects.config_changed = self.notify_command(nick.as_deref(), remove, ctx);
+            }
             Command::KeyExchange(nick) => {
                 let nick = nick.map_or_else(|| self.text_target(id), Ok)?;
                 self.start_key_exchange(&nick, ctx)?;
@@ -250,7 +253,7 @@ impl Server {
                         }
                     }
                     Kind::Query => {
-                        if self.network.isupport().monitor.is_some() {
+                        if self.network.isupport().monitor.is_some() && !self.is_notified(&name) {
                             let _ = self.send(Message::new(Verb::Monitor, ["-", name.as_str()]));
                         }
                     }

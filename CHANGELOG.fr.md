@@ -13,6 +13,11 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Confirmation avant de coller plusieurs lignes : à partir de 3 lignes (réglable dans Réglages › Discussion, 0 pour désactiver), une fenêtre montre ce qui sera envoyé, un message par ligne, et propose de l'envoyer en une seule ligne ou d'annuler. Les collages plus courts gardent leurs lignes, séparées par des espaces, au lieu d'être collées bout à bout.
 - Panneau des liens, comme le « URL catcher » de mIRC : `/links` ou ⌘/Ctrl+Maj+L liste les liens web postés dans les onglets ouverts, du plus récent au plus ancien, avec leur auteur et leur salon. On peut les filtrer, les ouvrir, les copier ou revenir à la conversation.
 - Ligne « Nouveaux messages » : en revenant sur un onglet, une ligne rouge montre où commencent les messages écrits pendant votre absence.
+- Liste de notification, comme dans mIRC : `/notify alice` (ou le formulaire du réseau) signale dans l'onglet du serveur quand quelqu'un se connecte ou part, avec une notification à l'arrivée. `/notify` montre qui est en ligne, `/notify -r alice` retire. S'appuie sur `MONITOR` (IRCv3). Les scripts reçoivent les événements `on NOTIFY` et `on UNOTIFY`.
+
+### Corrigé
+
+- Scripts : les gestionnaires `on QUIT` et `on NICK` n'ont pas de champ de cible, comme dans mIRC (`on *:QUIT:commandes`).
 
 ## [0.3.0] - 2026-11-04
 

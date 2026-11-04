@@ -10,6 +10,7 @@ fn server() -> Server {
         auto_connect: false,
         on_connect: Vec::new(),
         fish_keys: std::collections::BTreeMap::new(),
+            notify: Vec::new(),
         connection: Config {
             host: "irc.example.net".into(),
             nick: "me".into(),
@@ -417,4 +418,48 @@ fn fish_key_exchange_stores_a_key() {
     assert!(server.fish_key("eve").is_none());
     receive(&mut server, ":eve!e@h NOTICE me :DH1080_INIT AQ CBC");
     assert!(server.fish_key("eve").is_none());
+}
+
+#[test]
+fn notify_list_reports_arrivals_and_departures() {
+    use super::notify::parse_list;
+    assert_eq!(parse_list("alice, Bob bob  #chan *!*@host carol"), ["alice", "Bob", "carol"]);
+
+    let mut server = server();
+    let settings = Settings::default();
+    let ctx = Context { settings: &settings, active: None };
+    let status = server.server_buffer();
+    let info = |server: &Server| match server.buffer(status).unwrap().lines().last().unwrap().kind.clone() {
+        LineKind::Info(text) | LineKind::Error(text) => text,
+        other => panic!("{other:?}"),
+    };
+    let effects = server.execute(status, Cmd::Notify { nick: Some("alice".into()), remove: false }, &ctx).unwrap();
+    assert!(effects.config_changed);
+    assert_eq!(server.entry.notify, ["alice"]);
+    let effects = server.execute(status, Cmd::Notify { nick: Some("ALICE".into()), remove: false }, &ctx).unwrap();
+    assert!(!effects.config_changed, "already there, whatever the case");
+
+    receive(&mut server, ":s 005 me MONITOR=100 :are supported");
+    server.take_script_events();
+    receive(&mut server, ":s 730 me :alice!a@example.org,zed!z@h");
+    assert_eq!(info(&server), "alice (a@example.org) is on IRC", "only the notify list is reported");
+    assert_eq!(server.take_alerts().len(), 1);
+    let events = server.take_script_events();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].event.name, "NOTIFY");
+    assert_eq!(events[0].event.values["nick"], "alice");
+
+    server.execute(status, Cmd::Notify { nick: None, remove: false }, &ctx).unwrap();
+    assert_eq!(info(&server), "Notify list: alice (online)");
+
+    receive(&mut server, ":s 731 me :alice");
+    assert_eq!(info(&server), "alice has left IRC");
+    assert!(server.take_alerts().is_empty(), "departures are not notified");
+    assert_eq!(server.take_script_events()[0].event.name, "UNOTIFY");
+
+    let effects = server.execute(status, Cmd::Notify { nick: Some("Alice".into()), remove: true }, &ctx).unwrap();
+    assert!(effects.config_changed);
+    assert_eq!(server.entry.notify, Vec::<String>::new());
+    receive(&mut server, ":s 730 me :alice!a@example.org");
+    assert_eq!(info(&server), "Alice removed from the notify list", "no longer reported");
 }

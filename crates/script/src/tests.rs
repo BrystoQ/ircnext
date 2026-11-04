@@ -363,3 +363,23 @@ fn global_variables_round_trip_and_report_changes() {
     assert_eq!(saved, "[variables]\nn0=%seen 3\n");
     assert_eq!(parse_variables(&saved), interpreter.globals);
 }
+
+#[test]
+fn events_without_a_target() {
+    let mut interpreter = Interpreter::default();
+    interpreter
+        .load(
+            "people.mrc",
+            "on *:NOTIFY:echo $nick is here ( $+ $address $+ )\n\
+             on *:UNOTIFY:echo $nick left\n\
+             on *:QUIT:echo $nick quit: $1-\n\
+             on *:NICK:echo $nick is now $newnick",
+        )
+        .unwrap();
+    let mut host = Recorder::default();
+    interpreter.fire(&event("NOTIFY", None, "", &[("nick", "alice"), ("address", "a@h")]), &mut host);
+    interpreter.fire(&event("UNOTIFY", None, "", &[("nick", "alice")]), &mut host);
+    interpreter.fire(&event("QUIT", Some("#rust"), "bye all", &[("nick", "bob")]), &mut host);
+    interpreter.fire(&event("NICK", Some("#rust"), "", &[("nick", "bob"), ("newnick", "bobby")]), &mut host);
+    assert_eq!(host.echoes, ["alice is here (a@h)", "alice left", "bob quit: bye all", "bob is now bobby"]);
+}

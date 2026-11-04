@@ -254,7 +254,7 @@ Supported today:
 - conditions: `==`, `===`, `!=`, `<`, `>`, `<=`, `>=`, `//`, `\\`, `&`, `isin`, `iswm`, `isnum`, `isletter`, `isalpha`, `isalnum`, `islower`, `isupper`, `ison`, `isop`, `isvoice`, `isreg`, `ischan`, with `!`, `&&`, `||`;
 - identifiers: `$me`, `$chan`, `$active`, `$network`, `$server`, `$time`, `$date`, `$ctime`, `$len`, `$upper`, `$lower`, `$left`, `$right`, `$mid`, `$replace`, `$remove`, `$pos`, `$count`, `$str`, `$strip`, `$chr`, `$asc`, `$gettok`, `$numtok`, `$addtok`, `$deltok`, `$istok`, `$findtok`, `$puttok`, `$instok`, `$calc`, `$round`, `$int`, `$abs`, `$rand`, `$iif`, `$ord`…;
 - every ircnext command (`msg`, `notice`, `join`, `mode`, `echo`…);
-- events: `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `CONNECT`, `DISCONNECT`, `START` and `INPUT` (`halt` keeps the text from being sent), with match texts (`*`, `?`, `&` for one word), targets (`#`, `?`, `*`, `#a,#b`), `me:`, `!` and `@` prefixes, and `$nick`, `$address`, `$chan`, `$target`, `$knick`, `$newnick`, `$opnick`, `$vnick`.
+- events: `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `NOTIFY`, `UNOTIFY`, `CONNECT`, `DISCONNECT`, `START` and `INPUT` (`halt` keeps the text from being sent), with match texts (`*`, `?`, `&` for one word), targets (`#`, `?`, `*`, `#a,#b`), `me:`, `!` and `@` prefixes, and `$nick`, `$address`, `$chan`, `$target`, `$knick`, `$newnick`, `$opnick`, `$vnick`.
 
 ```mrc
 on *:TEXT:!seen &:#:msg $chan $nick $+ : I have not seen $2 yet.

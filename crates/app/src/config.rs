@@ -37,6 +37,10 @@ pub struct ServerEntry {
     /// `ecb:…`; stored in the system keychain like passwords.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub fish_keys: BTreeMap<String, ircnext_client::Secret>,
+    /// Notify list: nicknames whose arrivals and departures are reported
+    /// (`MONITOR`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notify: Vec<String>,
     #[serde(flatten)]
     pub connection: Connection,
 }
@@ -249,6 +253,7 @@ mod tests {
             auto_connect: true,
             on_connect: vec!["/mode me +i".into()],
             fish_keys: std::collections::BTreeMap::new(),
+            notify: Vec::new(),
             connection: Connection {
                 host: "irc.libera.chat".into(),
                 sasl: Some(Sasl {

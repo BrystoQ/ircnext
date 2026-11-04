@@ -44,6 +44,9 @@ pub enum Command {
     /// `/ignore [mask]`: adds a mask, or lists the ignored users.
     Ignore(Option<String>),
     Unignore(String),
+    /// `/notify [-r] [nick]`: adds to or removes from the notify list, or
+    /// shows it.
+    Notify { nick: Option<String>, remove: bool },
     /// `/dcc send <nick> <file>`: offers a file.
     DccSend { nick: String, path: String },
     /// `/dcc`: shows the transfers.
@@ -123,6 +126,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["clear"], usage: "/clear", help: tr("Clear the current tab") },
         Spec { names: &["ignore"], usage: tr("/ignore [nick or mask]"), help: tr("Ignore someone (no argument: the list)") },
         Spec { names: &["unignore"], usage: tr("/unignore <nick or mask>"), help: tr("Stop ignoring someone") },
+        Spec { names: &["notify"], usage: tr("/notify [-r] [nick]"), help: tr("Be told when someone connects (no argument: the list)") },
         Spec { names: &["dcc"], usage: tr("/dcc [send <nick> <file>]"), help: tr("Send a file, or show the transfers") },
         Spec { names: &["setkey"], usage: tr("/setkey [#channel|nick] <key>"), help: tr("Encrypt a conversation with FiSH (cbc: prefix for CBC)") },
         Spec { names: &["delkey"], usage: tr("/delkey [#channel|nick]"), help: tr("Stop encrypting a conversation") },
@@ -229,6 +233,11 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "clear" => Command::Clear,
         "ignore" => Command::Ignore(owned(args.map(first_word))),
         "unignore" => Command::Unignore(required(args.map(first_word))?),
+        "notify" => match args.map(str::trim).unwrap_or_default().split_whitespace().collect::<Vec<_>>().as_slice() {
+            [] => Command::Notify { nick: None, remove: false },
+            ["-r", nick, ..] => Command::Notify { nick: Some((*nick).to_owned()), remove: true },
+            [nick, ..] => Command::Notify { nick: Some((*nick).to_owned()), remove: false },
+        },
         "help" => Command::Help,
         "setkey" => match split(args.ok_or_else(usage)?) {
             (key, None) => Command::SetKey { target: None, key: key.to_owned() },

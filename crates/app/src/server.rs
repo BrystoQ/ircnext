@@ -2,6 +2,7 @@
 
 mod fish;
 mod incoming;
+pub mod notify;
 mod outgoing;
 mod script_events;
 

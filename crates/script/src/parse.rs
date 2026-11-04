@@ -122,7 +122,7 @@ fn strip_comments(source: &str) -> String {
 pub fn header_fields(event: &str) -> usize {
     match event {
         "TEXT" | "ACTION" | "NOTICE" | "CTCP" | "CTCPREPLY" => 4,
-        "CONNECT" | "DISCONNECT" | "START" | "EXIT" | "LOAD" | "UNLOAD" => 2,
+        "CONNECT" | "DISCONNECT" | "START" | "EXIT" | "LOAD" | "UNLOAD" | "QUIT" | "NICK" | "NOTIFY" | "UNOTIFY" => 2,
         _ => 3,
     }
 }
