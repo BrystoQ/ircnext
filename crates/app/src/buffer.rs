@@ -26,7 +26,7 @@ pub enum Kind {
 }
 
 /// Content of a line.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum LineKind {
     Message { nick: String, prefix: Option<char>, text: String },
     Action { nick: String, text: String },
@@ -59,7 +59,7 @@ impl LineKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Line {
     pub time: DateTime<Local>,

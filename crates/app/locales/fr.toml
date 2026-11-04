@@ -754,3 +754,6 @@
 "private" = "privé"
 "{mask} is now ignored: {details}." = "{mask} est désormais ignoré : {details}."
 "{minutes} min left" = "encore {minutes} min"
+"End of the previous session" = "Fin de la session précédente"
+"Keep messages between launches" = "Garder les messages d'un lancement à l'autre"
+"The last 200 of each tab, encrypted conversations excepted" = "Les 200 derniers de chaque onglet, sauf les conversations chiffrées"

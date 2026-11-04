@@ -314,6 +314,25 @@ impl App {
     }
 
     /// Logs folder, next to the configuration file.
+    /// Recent messages kept between launches.
+    fn history_dir(&self) -> Option<PathBuf> {
+        Some(self.config_path.as_ref()?.parent()?.join("history"))
+    }
+
+    /// Saves the recent messages (or forgets them), then closes.
+    fn exit(&mut self) -> Task<Message> {
+        if let Some(dir) = self.history_dir() {
+            if self.config.settings.keep_history {
+                for server in &self.servers {
+                    let _ = crate::history::save(&dir, &server.entry.name, server.buffers().map(|(_, buffer)| buffer));
+                }
+            } else {
+                crate::history::clear(&dir);
+            }
+        }
+        iced::exit()
+    }
+
     fn log_dir(&self) -> Option<PathBuf> {
         Some(self.config_path.as_ref()?.parent()?.join("logs"))
     }
@@ -352,7 +371,13 @@ impl App {
     fn add_server(&mut self, entry: ServerEntry) -> ServerId {
         let id = ServerId(self.next_server);
         self.next_server += 1;
-        self.servers.push(Server::new(id, entry));
+        let mut server = Server::new(id, entry);
+        if self.config.settings.keep_history
+            && let Some(dir) = self.history_dir()
+        {
+            server.restore_history(crate::history::load(&dir, &server.entry.name));
+        }
+        self.servers.push(server);
         self.sync_prefs();
         id
     }
@@ -401,7 +426,7 @@ impl App {
                     }
                 }
             }
-            Message::Exit => return iced::exit(),
+            Message::Exit => return self.exit(),
             Message::OpenUrl(link) if ircnext_client::proto::text::parse_irc_url(&link).is_some() => {
                 return self.open_irc_url(&link);
             }
@@ -1376,6 +1401,7 @@ impl App {
         Subscription::batch(connections.chain([
             event::listen_with(runtime_event),
             system::theme_changes().map(Message::SystemTheme),
+            window::close_requests().map(|_| Message::Action(Action::Quit)),
             tick,
             timers,
         ]))

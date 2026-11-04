@@ -43,7 +43,7 @@ pub fn path(dir: &Path, network: &str, buffer: &str) -> PathBuf {
 
 /// Safe file name: no separator, no `..`, no control character; channel
 /// names come from the network and cannot be trusted.
-fn file_name(name: &str) -> String {
+pub fn file_name(name: &str) -> String {
     let mut safe: String = name
         .chars()
         .map(|c| if c.is_alphanumeric() || "#&+-_.@".contains(c) { c } else { '_' })
