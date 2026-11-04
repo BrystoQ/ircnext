@@ -402,6 +402,9 @@ impl App {
                 }
             }
             Message::Exit => return iced::exit(),
+            Message::OpenUrl(link) if ircnext_client::proto::text::parse_irc_url(&link).is_some() => {
+                return self.open_irc_url(&link);
+            }
             Message::OpenUrl(link) => match ircnext_client::proto::text::safe_url(&link) {
                 Some(url) => {
                     if let Err(error) = open::that_detached(&url) {
@@ -765,6 +768,42 @@ impl App {
                 self.update(Message::Select(server, buffer))
             }
         }
+    }
+
+    /// `irc://` link: joins its channel on a known network (connecting it if
+    /// needed), or offers to add the network.
+    fn open_irc_url(&mut self, link: &str) -> Task<Message> {
+        let Some(url) = ircnext_client::proto::text::parse_irc_url(link) else {
+            return Task::none();
+        };
+        let known = self.servers.iter().position(|server| server.entry.connection.host.eq_ignore_ascii_case(&url.host));
+        let Some(index) = known else {
+            self.modal = Some(Modal::Server(ServerForm::from_url(&self.config.settings, &url)));
+            return Task::none();
+        };
+        let id = self.servers[index].id;
+        let Some(channel) = url.channel else {
+            let buffer = self.servers[index].server_buffer();
+            self.servers[index].enabled = true;
+            return self.select(id, buffer);
+        };
+        if self.servers[index].is_online() {
+            if let Some(buffer) = self.servers[index].find(&channel).filter(|buffer| self.servers[index].buffer(*buffer).is_some_and(|b| b.joined)) {
+                return self.select(id, buffer);
+            }
+            let effects = self.execute(id, None, Command::Join { channels: channel, key: url.key });
+            return self.apply_effects(id, effects);
+        }
+        // Offline: joined once connected.
+        let server = &mut self.servers[index];
+        server.enabled = true;
+        let mapping = server.network.isupport().casemapping;
+        if !server.entry.connection.autojoin.iter().any(|known| mapping.eq(known, &channel)) {
+            server.entry.connection.autojoin.push(channel);
+            self.persist_servers();
+        }
+        let buffer = self.servers[index].server_buffer();
+        self.select(id, buffer)
     }
 
     /// Log viewer, on the log of the current conversation if there is one.
@@ -1743,6 +1782,47 @@ mod tests {
         let _ = app.update(Message::Links(crate::ui::links::Msg::GoTo(target.0, target.1)));
         assert!(app.modal.is_none());
         assert_eq!(app.active, Some(target), "back to the conversation");
+    }
+
+    #[test]
+    fn irc_links_join_or_add_a_network() {
+        let mut app = demo();
+        let id = app.servers[0].id;
+        let (handle, mut outbox) = ircnext_client::Handle::detached();
+        let _ = app.update(Message::Client(id, Event::Connected(handle)));
+        app.servers[0].status = Status::Online;
+
+        // Known network, channel already joined: shown.
+        let zoe = app.servers[0].find("zoe").unwrap();
+        let _ = app.update(Message::Select(id, zoe));
+        let _ = app.update(Message::OpenUrl("ircs://IRC.libera.chat/rust".into()));
+        assert_eq!(app.active, Some((id, app.servers[0].find("#rust").unwrap())));
+        // Not joined yet: joined, with its key.
+        let _ = app.update(Message::OpenUrl("irc://irc.libera.chat/%23secret?key=hunter2".into()));
+        assert_eq!(outbox.sent(), ["JOIN #secret hunter2"]);
+
+        // Known but offline: connects, joins once registered.
+        let oftc = app.add_server(ServerEntry {
+            name: "OFTC".into(),
+            auto_connect: false,
+            on_connect: Vec::new(),
+            fish_keys: std::collections::BTreeMap::new(),
+            notify: Vec::new(),
+            auto_modes: Vec::new(),
+            connection: Config { host: "irc.oftc.net".into(), nick: "me".into(), ..Config::default() },
+        });
+        let _ = app.update(Message::OpenUrl("ircs://irc.oftc.net/debian".into()));
+        let server = app.server(oftc).unwrap();
+        assert!(server.enabled);
+        assert_eq!(server.entry.connection.autojoin, ["#debian"]);
+        assert_eq!(app.active, Some((oftc, server.server_buffer())));
+
+        // Unknown network: the form, filled in.
+        let _ = app.update(Message::OpenUrl("ircs://irc.example.org:7000/club".into()));
+        let Some(Modal::Server(form)) = &app.modal else { panic!("network form") };
+        let entry = form.validate().unwrap();
+        assert_eq!((entry.connection.host.as_str(), entry.connection.port, entry.connection.tls), ("irc.example.org", 7000, true));
+        assert_eq!(entry.connection.autojoin, ["#club"]);
     }
 
     #[test]

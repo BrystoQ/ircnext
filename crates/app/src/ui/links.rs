@@ -150,7 +150,7 @@ pub fn collect(servers: &[Server]) -> Vec<Caught> {
                 let clean = format::strip(content);
                 for found in irc_text::find_links(&clean) {
                     let url = &clean[found.start..found.end];
-                    if irc_text::safe_url(url).is_none() {
+                    if irc_text::safe_url(url).is_none() && irc_text::parse_irc_url(url).is_none() {
                         continue;
                     }
                     links.push(Caught {

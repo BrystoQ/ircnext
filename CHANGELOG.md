@@ -18,6 +18,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 - Channel settings (mIRC's channel central): the ⚙ button of a channel, or `/channel`, opens its topic, its modes (no outside messages, protected topic, invite only, moderated, secret, key, user limit) and its ban, exception and invitation lists. Operators change them in place; others see them read only.
 - Auto-op and auto-voice lists, as in mIRC: `/aop *!*@trusted.host` or `/avoice nick #channel` give `+o` or `+v` to matching people when they join a channel you manage. `/aop` lists, `/aop -r` removes. Kept per network.
 - Log viewer: `/logs`, or *Browse* next to the logs folder in Settings › Chat, lists the saved conversations by network and shows them with a search, opening on the current one.
+- `irc://` and `ircs://` links are clickable: on a known network they join the channel (connecting first if needed), otherwise the network form opens filled in. They also appear in the links panel.
 
 ### Fixed
 
