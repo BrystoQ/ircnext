@@ -97,6 +97,7 @@ actions! {
     QuickSwitcher => Navigation, tr("Quick tab switcher"), mac: ["Mod+T", "Mod+J"], other: ["Mod+T", "Mod+J"];
     Search => Navigation, tr("Search in the tab"), mac: ["Mod+F"], other: ["Mod+F"];
     CloseBuffer => Navigation, tr("Close tab"), mac: ["Mod+W"], other: ["Mod+W", "Mod+F4"];
+    Links => Navigation, tr("Links"), mac: ["Mod+Shift+L"], other: ["Mod+Shift+L"];
     MarkAllRead => Navigation, tr("Mark all as read"), mac: ["Shift+Escape"], other: ["Shift+Escape"];
 
     ScrollUp => Display, tr("Page up"), mac: ["PageUp", "Shift+PageUp"], other: ["PageUp", "Shift+PageUp"];

@@ -105,6 +105,7 @@ impl App {
                 self.search.get_or_insert_with(String::new);
                 operation::focus(SEARCH_ID)
             }
+            Action::Links => self.open_links(),
             Action::CloseBuffer => match self.active {
                 Some((server, buffer)) => self.update(Message::CloseBuffer(server, buffer)),
                 None => Task::none(),
