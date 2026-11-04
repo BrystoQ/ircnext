@@ -21,6 +21,7 @@ mod settings;
 mod suggest;
 mod theme;
 mod transfer;
+mod update;
 mod ui;
 
 use app::App;

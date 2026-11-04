@@ -19,6 +19,8 @@ pub struct AppConfig {
     pub servers: Vec<ServerEntry>,
     /// Remembered STS policies, by host name.
     pub sts: BTreeMap<String, StsEntry>,
+    /// Last automatic update check (Unix time).
+    pub last_update_check: i64,
 }
 
 /// Saved network.

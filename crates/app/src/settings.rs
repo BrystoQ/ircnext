@@ -190,6 +190,8 @@ pub struct Settings {
     pub title_unread_count: bool,
     /// Do not disturb: no notification nor window alert.
     pub do_not_disturb: bool,
+    /// Looks for a new version at startup, once a day.
+    pub check_updates: bool,
 
     // Privacy
     /// Automatic replies to CTCP requests (VERSION, PING, TIME).
@@ -262,6 +264,7 @@ impl Default for Settings {
             request_attention: true,
             title_unread_count: true,
             do_not_disturb: false,
+            check_updates: true,
             line_shading: false,
             repeat_away_replies: false,
             ctcp_replies: true,

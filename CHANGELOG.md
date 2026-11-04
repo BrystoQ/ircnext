@@ -9,6 +9,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 ### Added
 
 - Installable and portable packages: a `setup.exe` installer for Windows, a `.dmg` for macOS and a `.deb` for Debian and Ubuntu, next to portable archives. A `portable.txt` file next to the executable keeps the configuration, logs and scripts in a `data` folder beside it.
+- Update check: once a day at startup (or with *Check now* in Settings › Privacy), ircnext asks GitHub for the latest release. A bar offers to install it: the installer is downloaded, checked against the release's SHA-256 checksums, then opened. Portable copies open the release page instead.
 
 ## [0.3.0] - 2026-11-04
 

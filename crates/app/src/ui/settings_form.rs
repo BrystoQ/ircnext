@@ -80,6 +80,8 @@ pub struct SettingsForm {
     capturing: Option<Action>,
     /// Notice after a shortcut change (resolved conflict...).
     shortcut_notice: Option<String>,
+    /// Result of the last update check.
+    pub update_status: String,
 }
 
 #[derive(Debug, Clone)]
@@ -129,6 +131,7 @@ pub enum Msg {
     DccAddress(String),
     DccPassive(bool),
     DoNotDisturb(bool),
+    CheckUpdates(bool),
     LineShading(bool),
     RepeatAwayReplies(bool),
     PartMessage(String),
@@ -151,6 +154,7 @@ impl SettingsForm {
             ignored: settings.ignored.join(", "),
             capturing: None,
             shortcut_notice: None,
+            update_status: String::new(),
         }
     }
 
@@ -189,6 +193,7 @@ impl SettingsForm {
             Msg::DccAddress(value) => draft.dcc_address = value,
             Msg::DccPassive(value) => draft.dcc_passive = value,
             Msg::DoNotDisturb(value) => draft.do_not_disturb = value,
+            Msg::CheckUpdates(value) => draft.check_updates = value,
             Msg::LineShading(value) => draft.line_shading = value,
             Msg::RepeatAwayReplies(value) => draft.repeat_away_replies = value,
             Msg::PartMessage(value) => draft.part_message = value,
@@ -633,6 +638,25 @@ impl SettingsForm {
                     c,
                 ),
                 form::note(tr("TIME answers in UTC so as not to reveal your time zone. Replies are limited to 3 every 10 seconds."), c),
+                form::group(
+                    tr("Updates"),
+                    [
+                        toggle(
+                            tr("Check for updates"),
+                            Some(tr("At startup, once a day, on GitHub")),
+                            draft.check_updates,
+                            Msg::CheckUpdates,
+                            c,
+                        ),
+                        form::setting(
+                            concat!("ircnext ", env!("CARGO_PKG_VERSION")),
+                            button(text(tr("Check now")).size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::CheckUpdates),
+                        )
+                        .description(self.update_status.clone())
+                        .view(c),
+                    ],
+                    c,
+                ),
             ],
             c,
         )

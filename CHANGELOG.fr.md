@@ -9,6 +9,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 ### Ajouté
 
 - Paquets installables et portables : un installeur `setup.exe` pour Windows, un `.dmg` pour macOS et un `.deb` pour Debian et Ubuntu, à côté des archives portables. Un fichier `portable.txt` à côté de l'exécutable range la configuration, les journaux et les scripts dans un dossier `data` voisin.
+- Vérification des mises à jour : une fois par jour au démarrage (ou avec *Vérifier maintenant* dans Réglages › Confidentialité), ircnext demande à GitHub la dernière version. Un bandeau propose de l'installer : l'installeur est téléchargé, vérifié avec les sommes SHA-256 de la release, puis ouvert. Les copies portables ouvrent la page de la release.
 
 ## [0.3.0] - 2026-11-04
 
