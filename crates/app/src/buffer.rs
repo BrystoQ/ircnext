@@ -128,6 +128,9 @@ pub struct Buffer {
     speakers: VecDeque<String>,
     /// Bot commands (`!weather`) seen in the tab, most recent first.
     bot_commands: VecDeque<String>,
+    /// Time of the last line seen before leaving the tab: newer lines are
+    /// shown after a “new messages” line.
+    pub marker: Option<DateTime<Local>>,
 }
 
 impl Buffer {
@@ -143,6 +146,7 @@ impl Buffer {
             typing: Vec::new(),
             speakers: VecDeque::new(),
             bot_commands: VecDeque::new(),
+            marker: None,
         }
     }
 
@@ -192,6 +196,19 @@ impl Buffer {
     pub fn clear(&mut self) {
         self.lines.clear();
         self.msgids.clear();
+    }
+
+    /// Remembers what was seen, when leaving the tab.
+    pub fn set_marker(&mut self) {
+        self.marker = self.last_time();
+    }
+
+    /// First line after the marker, if someone else wrote since.
+    pub fn first_unseen(&self) -> Option<&Line> {
+        let marker = self.marker?;
+        let start = self.lines.partition_point(|line| line.time <= marker);
+        let mut newer = self.lines.range(start..);
+        newer.clone().any(|line| !line.own && line.kind.is_chat()).then(|| newer.next()).flatten()
     }
 
     pub fn mark_read(&mut self) {
@@ -378,6 +395,27 @@ mod tests {
         buffer.set_typing("bob", Typing::Active, start);
         buffer.set_typing("bob", Typing::Done, start);
         assert_eq!(buffer.typing(start).count(), 0);
+    }
+
+    #[test]
+    fn marker_shows_where_new_messages_start() {
+        let message = |seconds, nick: &str, own| {
+            let mut line = Line::new(at(seconds), LineKind::Message { nick: nick.into(), prefix: None, text: "hi".into() });
+            line.own = own;
+            line
+        };
+        let mut buffer = Buffer::new(Kind::Channel, "#c");
+        buffer.push(message(1, "alice", false), 100);
+        assert!(buffer.first_unseen().is_none(), "never left");
+        buffer.set_marker();
+        assert!(buffer.first_unseen().is_none(), "nothing new");
+        buffer.push(message(2, "me", true), 100);
+        buffer.push(info(3, "mode change"), 100);
+        assert!(buffer.first_unseen().is_none(), "only our own lines and events");
+        buffer.push(message(4, "bob", false), 100);
+        assert_eq!(buffer.first_unseen().map(|line| line.time), Some(at(2)), "the marker goes before the first newer line");
+        buffer.set_marker();
+        assert!(buffer.first_unseen().is_none(), "seen when leaving again");
     }
 
     #[test]

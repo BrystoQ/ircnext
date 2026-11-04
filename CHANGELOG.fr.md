@@ -12,6 +12,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Vérification des mises à jour : une fois par jour au démarrage (ou avec *Vérifier maintenant* dans Réglages › Confidentialité), ircnext demande à GitHub la dernière version. Un bandeau propose de l'installer : l'installeur est téléchargé, vérifié avec les sommes SHA-256 de la release, puis ouvert. Les copies portables ouvrent la page de la release.
 - Confirmation avant de coller plusieurs lignes : à partir de 3 lignes (réglable dans Réglages › Discussion, 0 pour désactiver), une fenêtre montre ce qui sera envoyé, un message par ligne, et propose de l'envoyer en une seule ligne ou d'annuler. Les collages plus courts gardent leurs lignes, séparées par des espaces, au lieu d'être collées bout à bout.
 - Panneau des liens, comme le « URL catcher » de mIRC : `/links` ou ⌘/Ctrl+Maj+L liste les liens web postés dans les onglets ouverts, du plus récent au plus ancien, avec leur auteur et leur salon. On peut les filtrer, les ouvrir, les copier ou revenir à la conversation.
+- Ligne « Nouveaux messages » : en revenant sur un onglet, une ligne rouge montre où commencent les messages écrits pendant votre absence.
 
 ## [0.3.0] - 2026-11-04
 

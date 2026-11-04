@@ -12,6 +12,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 - Update check: once a day at startup (or with *Check now* in Settings › Privacy), ircnext asks GitHub for the latest release. A bar offers to install it: the installer is downloaded, checked against the release's SHA-256 checksums, then opened. Portable copies open the release page instead.
 - Confirmation before pasting several lines: from 3 lines (adjustable in Settings › Chat, 0 to turn it off), a dialog shows what will be sent, one message per line, and offers to send it as one line or to cancel. Shorter pastes keep their lines, separated by spaces, instead of being glued together.
 - Links panel, like mIRC's URL catcher: `/links` or ⌘/Ctrl+Shift+L lists the web links posted in the open tabs, newest first, with who posted them and where. Filter them, open, copy, or jump to the conversation.
+- “New messages” line: coming back to a tab, a red line shows where the messages written while you were away start.
 
 ## [0.3.0] - 2026-11-04
 
