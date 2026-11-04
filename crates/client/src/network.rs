@@ -5,7 +5,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use ircnext_proto::isupport::{ModeKind, parse_channel_modes};
 use ircnext_proto::numeric::{
-    RPL_ENDOFNAMES, RPL_ISUPPORT, RPL_MONOFFLINE, RPL_MONONLINE, RPL_NAMREPLY, RPL_NOTOPIC,
+    RPL_BANLIST, RPL_CHANNELMODEIS, RPL_ENDOFBANLIST, RPL_ENDOFEXCEPTLIST, RPL_ENDOFINVITELIST,
+    RPL_EXCEPTLIST, RPL_INVITELIST, RPL_ENDOFNAMES, RPL_ISUPPORT, RPL_MONOFFLINE, RPL_MONONLINE, RPL_NAMREPLY, RPL_NOTOPIC,
     RPL_NOWAWAY, RPL_TOPIC, RPL_TOPICWHOTIME, RPL_UNAWAY, RPL_WELCOME, RPL_WHOSPCRPL,
 };
 use ircnext_proto::ircv3::Multiline;
@@ -61,6 +62,27 @@ pub struct Channel {
     members: HashMap<String, Member>,
     /// A `NAMES` reply is being received.
     names_pending: bool,
+    /// Modes other than lists and member prefixes (`n`, `t`, `k` with its
+    /// key, `l` with its limit), as far as known.
+    pub modes: BTreeMap<char, Option<String>>,
+    /// Mask lists (`b`, `e`, `I`), once asked with [`Network::request_mask_list`].
+    pub mask_lists: BTreeMap<char, MaskList>,
+}
+
+/// Entries of a mask list (bans, exceptions, invitations).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MaskList {
+    pub entries: Vec<MaskEntry>,
+    /// Replies still arriving.
+    pub loading: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MaskEntry {
+    pub mask: String,
+    pub set_by: Option<String>,
+    /// Unix time.
+    pub set_at: Option<i64>,
 }
 
 impl Channel {
@@ -71,6 +93,8 @@ impl Channel {
             topic_set_by: None,
             members: HashMap::new(),
             names_pending: false,
+            modes: BTreeMap::new(),
+            mask_lists: BTreeMap::new(),
         }
     }
 
@@ -215,6 +239,14 @@ impl Network {
         self.isupport.is_channel(target)
     }
 
+    /// Prepares the mask list `mode` of `channel` for the replies to
+    /// `MODE <channel> <mode>`, which the caller sends.
+    pub fn request_mask_list(&mut self, channel: &str, mode: char) {
+        if let Some(channel) = self.channel_mut(channel) {
+            channel.mask_lists.insert(mode, MaskList { entries: Vec::new(), loading: true });
+        }
+    }
+
     pub fn channel(&self, name: &str) -> Option<&Channel> {
         self.channels.get(&self.fold(name))
     }
@@ -278,6 +310,48 @@ impl Network {
                 }
             }
             Command::Numeric(RPL_NAMREPLY) => self.on_names(message),
+            Command::Numeric(RPL_CHANNELMODEIS) => {
+                if let Some(name) = message.param(1) {
+                    let isupport = self.isupport.clone();
+                    let changes = parse_channel_modes(&isupport, message.param(2).unwrap_or_default(), message.params.get(3..).unwrap_or_default());
+                    if let Some(channel) = self.channel_mut(name) {
+                        channel.modes.clear();
+                        for change in changes {
+                            channel.modes.insert(change.mode, change.arg);
+                        }
+                    }
+                }
+            }
+            Command::Numeric(code @ (RPL_BANLIST | RPL_EXCEPTLIST | RPL_INVITELIST)) => {
+                let mode = match *code {
+                    RPL_BANLIST => 'b',
+                    RPL_EXCEPTLIST => 'e',
+                    _ => 'I',
+                };
+                // `RPL_INVITELIST` and `RPL_EXCEPTLIST` may carry the mode
+                // letter on some servers: the mask is the first parameter
+                // after the channel either way.
+                if let (Some(name), Some(mask)) = (message.param(1), message.param(2))
+                    && let Some(list) = self.channel_mut(name).and_then(|channel| channel.mask_lists.get_mut(&mode))
+                    && list.loading
+                {
+                    list.entries.push(MaskEntry {
+                        mask: mask.to_owned(),
+                        set_by: message.param(3).map(str::to_owned),
+                        set_at: message.param(4).and_then(|time| time.parse().ok()),
+                    });
+                }
+            }
+            Command::Numeric(code @ (RPL_ENDOFBANLIST | RPL_ENDOFEXCEPTLIST | RPL_ENDOFINVITELIST)) => {
+                let mode = match *code {
+                    RPL_ENDOFBANLIST => 'b',
+                    RPL_ENDOFEXCEPTLIST => 'e',
+                    _ => 'I',
+                };
+                if let Some(list) = message.param(1).and_then(|name| self.channel_mut(name)).and_then(|channel| channel.mask_lists.get_mut(&mode)) {
+                    list.loading = false;
+                }
+            }
             Command::Numeric(RPL_ENDOFNAMES) => {
                 if let Some(channel) = message.param(1).and_then(|c| self.channel_mut(c)) {
                     channel.names_pending = false;
@@ -437,8 +511,28 @@ impl Network {
             return;
         };
         for change in changes {
-            if isupport.mode_kind(change.mode) != ModeKind::Prefix {
-                continue;
+            match isupport.mode_kind(change.mode) {
+                ModeKind::Prefix => {}
+                ModeKind::List => {
+                    if let Some(list) = channel.mask_lists.get_mut(&change.mode)
+                        && let Some(mask) = change.arg
+                    {
+                        list.entries.retain(|entry| entry.mask != mask);
+                        if change.adding {
+                            let set_by = message.source_nick().map(str::to_owned);
+                            list.entries.push(MaskEntry { mask, set_by, set_at: None });
+                        }
+                    }
+                    continue;
+                }
+                _ => {
+                    if change.adding {
+                        channel.modes.insert(change.mode, change.arg);
+                    } else {
+                        channel.modes.remove(&change.mode);
+                    }
+                    continue;
+                }
             }
             let (Some(symbol), Some(nick)) = (isupport.prefix_symbol(change.mode), change.arg)
             else {
@@ -569,6 +663,36 @@ mod tests {
             .iter()
             .map(|m| format!("{}{}", m.prefixes.iter().collect::<String>(), m.nick))
             .collect()
+    }
+
+    #[test]
+    fn tracks_channel_modes_and_mask_lists() {
+        let mut network = network();
+        apply(&mut network, ":s 324 me #rust +ntk secret");
+        let modes = |network: &Network| network.channel("#rust").unwrap().modes.clone();
+        assert_eq!(modes(&network), BTreeMap::from([('k', Some("secret".into())), ('n', None), ('t', None)]));
+        apply(&mut network, ":Alice!a@h MODE #rust +ml-k+o 20 secret bob");
+        assert_eq!(modes(&network), BTreeMap::from([('l', Some("20".into())), ('m', None), ('n', None), ('t', None)]));
+        assert_eq!(nicks(&network, "#rust")[..2], ["@Alice", "@+bob"], "prefixes still handled");
+
+        // Bans: only kept once asked for.
+        apply(&mut network, ":s 367 me #rust *!*@spam.example Alice 1700000000");
+        assert!(network.channel("#rust").unwrap().mask_lists.is_empty());
+        network.request_mask_list("#rust", 'b');
+        apply(&mut network, ":s 367 me #rust *!*@spam.example Alice!a@h 1700000000");
+        apply(&mut network, ":s 367 me #rust troll!*@*");
+        let bans = |network: &Network| network.channel("#rust").unwrap().mask_lists[&'b'].clone();
+        assert!(bans(&network).loading);
+        apply(&mut network, ":s 368 me #rust :End of channel ban list");
+        let list = bans(&network);
+        assert!(!list.loading);
+        assert_eq!(list.entries[0], MaskEntry { mask: "*!*@spam.example".into(), set_by: Some("Alice!a@h".into()), set_at: Some(1_700_000_000) });
+        assert_eq!(list.entries[1].set_by, None);
+
+        apply(&mut network, ":Alice!a@h MODE #rust -b+b troll!*@* *!*@new.example");
+        let masks: Vec<String> = bans(&network).entries.into_iter().map(|entry| entry.mask).collect();
+        assert_eq!(masks, ["*!*@spam.example", "*!*@new.example"]);
+        assert_eq!(bans(&network).entries[1].set_by.as_deref(), Some("Alice"));
     }
 
     #[test]

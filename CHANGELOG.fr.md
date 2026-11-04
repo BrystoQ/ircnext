@@ -15,6 +15,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Ligne « Nouveaux messages » : en revenant sur un onglet, une ligne rouge montre où commencent les messages écrits pendant votre absence.
 - Liste de notification, comme dans mIRC : `/notify alice` (ou le formulaire du réseau) signale dans l'onglet du serveur quand quelqu'un se connecte ou part, avec une notification à l'arrivée. `/notify` montre qui est en ligne, `/notify -r alice` retire. S'appuie sur `MONITOR` (IRCv3). Les scripts reçoivent les événements `on NOTIFY` et `on UNOTIFY`.
 - Liste des salons : `/list` ouvre une fenêtre avec les salons du réseau, les plus peuplés d'abord, avec leur sujet et leur nombre d'utilisateurs. On cherche par nom ou par sujet, et on rejoint en un clic.
+- Réglages du salon (le « channel central » de mIRC) : le bouton ⚙ d'un salon, ou `/channel`, ouvre son sujet, ses modes (pas de messages extérieurs, sujet protégé, sur invitation, modéré, secret, clé, limite d'utilisateurs) et ses listes de bannissements, d'exceptions et d'invitations. Les opérateurs les modifient sur place ; les autres les voient en lecture seule.
 
 ### Corrigé
 

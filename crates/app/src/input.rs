@@ -63,6 +63,8 @@ pub enum Command {
     Links,
     /// `/list [filter]`: the network's channels.
     List(Option<String>),
+    /// `/channel [#channel]`: topic, modes and bans of a channel.
+    Channel(Option<String>),
     /// `/echo <text>`: a line in the current tab, for the user only.
     Echo(String),
 }
@@ -133,6 +135,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["setkey"], usage: tr("/setkey [#channel|nick] <key>"), help: tr("Encrypt a conversation with FiSH (cbc: prefix for CBC)") },
         Spec { names: &["delkey"], usage: tr("/delkey [#channel|nick]"), help: tr("Stop encrypting a conversation") },
         Spec { names: &["keyx"], usage: tr("/keyx [nick]"), help: tr("Exchange a FiSH key with someone (DH1080)") },
+        Spec { names: &["channel"], usage: tr("/channel [#channel]"), help: tr("Topic, modes and bans of a channel") },
         Spec { names: &["list"], usage: tr("/list [filter]"), help: tr("Browse the network's channels") },
         Spec { names: &["links", "url"], usage: "/links", help: tr("Show the links posted in the open tabs") },
         Spec { names: &["reload"], usage: "/reload", help: tr("Reload the scripts (scripts folder)") },
@@ -251,6 +254,7 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "reload" => Command::Reload,
         "links" | "url" => Command::Links,
         "list" => Command::List(owned(args)),
+        "channel" => Command::Channel(owned(args.map(first_word))),
         "echo" => {
             // Switches such as `-a` are accepted and ignored.
             let mut text = required(args)?;

@@ -109,6 +109,9 @@ pub enum Message {
     PasteJoined,
     Links(crate::ui::links::Msg),
     ChannelList(crate::ui::channel_list::Msg),
+    ChannelCentral(crate::ui::channel_central::Msg),
+    /// Opens the settings window of a channel.
+    OpenChannelCentral(ServerId, String),
     /// Clipboard text, read after a paste in the input.
     Pasted(Option<String>),
 }
@@ -131,6 +134,7 @@ enum Modal {
     Paste(crate::ui::paste::Paste),
     Links(crate::ui::links::Links),
     ChannelList(crate::ui::channel_list::ChannelListView),
+    ChannelCentral(crate::ui::channel_central::ChannelCentral),
 }
 
 /// State of the main window.
@@ -489,6 +493,11 @@ impl App {
             Message::Pasted(text) => self.on_paste(text),
             Message::Links(msg) => return self.on_links(msg),
             Message::ChannelList(msg) => return self.on_channel_list(msg),
+            Message::ChannelCentral(msg) => self.on_channel_central(msg),
+            Message::OpenChannelCentral(id, channel) => {
+                let effects = self.execute(id, None, Command::Channel(Some(channel)));
+                return self.apply_effects(id, effects);
+            }
             Message::PasteSend | Message::PasteJoined => {
                 let Some(Modal::Paste(paste)) = self.modal.take() else {
                     return Task::none();
@@ -632,6 +641,10 @@ impl App {
         if effects.config_changed {
             self.persist_servers();
         }
+        if let Some(channel) = effects.channel_central.and_then(|buffer| self.server(id)?.buffer(buffer)).map(|buffer| buffer.name.clone()) {
+            self.modal = Some(Modal::ChannelCentral(crate::ui::channel_central::ChannelCentral::new(id, channel)));
+            return Task::none();
+        }
         if effects.channel_list {
             self.modal = Some(Modal::ChannelList(crate::ui::channel_list::ChannelListView::new(id)));
             return iced::widget::operation::focus(crate::ui::channel_list::CHANNEL_LIST_ID);
@@ -741,6 +754,71 @@ impl App {
                 self.modal = None;
                 self.update(Message::Select(server, buffer))
             }
+        }
+    }
+
+    fn on_channel_central(&mut self, msg: crate::ui::channel_central::Msg) {
+        use crate::ui::channel_central::Msg;
+        let Some(Modal::ChannelCentral(central)) = &mut self.modal else {
+            return;
+        };
+        let Some(server) = self.servers.iter().find(|server| server.id == central.server) else {
+            return;
+        };
+        let channel = central.channel.clone();
+        let result = match msg {
+            Msg::Tab(mode) => {
+                central.tab = mode;
+                Ok(())
+            }
+            Msg::Topic(value) => {
+                central.topic = Some(value);
+                Ok(())
+            }
+            Msg::Key(value) => {
+                central.key = Some(value);
+                Ok(())
+            }
+            Msg::Limit(value) => {
+                central.limit = Some(value.chars().filter(char::is_ascii_digit).collect());
+                Ok(())
+            }
+            Msg::NewMask(value) => {
+                central.new_mask = value;
+                Ok(())
+            }
+            Msg::SaveTopic => match central.topic.take() {
+                Some(topic) => server.set_topic(&channel, topic.trim()),
+                None => Ok(()),
+            },
+            Msg::Mode(mode, on) => server.change_mode(&channel, &format!("{}{mode}", if on { '+' } else { '-' }), &[]),
+            Msg::SaveKey => match central.key.take().map(|key| key.trim().to_owned()) {
+                Some(key) if key.is_empty() => {
+                    // Servers want the current key (or `*`) to remove it.
+                    let current = server.network.channel(&channel).and_then(|c| c.modes.get(&'k').cloned().flatten());
+                    server.change_mode(&channel, "-k", &[current.as_deref().unwrap_or("*")])
+                }
+                Some(key) => server.change_mode(&channel, "+k", &[key.split_whitespace().next().unwrap_or_default()]),
+                None => Ok(()),
+            },
+            Msg::SaveLimit => match central.limit.take() {
+                Some(limit) if limit.is_empty() || limit == "0" => server.change_mode(&channel, "-l", &[]),
+                Some(limit) => server.change_mode(&channel, "+l", &[&limit]),
+                None => Ok(()),
+            },
+            Msg::AddMask => {
+                let mask = std::mem::take(&mut central.new_mask);
+                let mask = mask.trim();
+                if mask.is_empty() || mask.contains(' ') {
+                    Ok(())
+                } else {
+                    server.change_mode(&channel, &format!("+{}", central.tab.unwrap_or('b')), &[mask])
+                }
+            }
+            Msg::RemoveMask(mask) => server.change_mode(&channel, &format!("-{}", central.tab.unwrap_or('b')), &[&mask]),
+        };
+        if let Err(error) = result {
+            self.banner = Some(error);
         }
     }
 
@@ -1274,6 +1352,7 @@ impl App {
             Modal::Paste(paste) => crate::ui::paste::view(paste, colors),
             Modal::Links(links) => links.view(colors),
             Modal::ChannelList(list) => list.view(self.server(list.server), colors),
+            Modal::ChannelCentral(central) => central.view(self.server(central.server), colors),
         };
         stack![
             base,
@@ -1983,6 +2062,19 @@ mod tests {
         }
         app.modal = Some(Modal::ChannelList(crate::ui::channel_list::ChannelListView::new(libera)));
         render(&app, &dir.join("channel-list"));
+        app.servers[0].network.request_mask_list("#rust", 'b');
+        for line in [
+            ":s 324 me #rust +ntk hunter2",
+            ":s 367 me #rust *!*@spam.example.net alice!a@h 1762200000",
+            ":s 367 me #rust troll!*@* alice!a@h 1762300000",
+            ":s 368 me #rust :End of channel ban list",
+        ] {
+            inject(&mut app, line);
+        }
+        app.modal = Some(Modal::ChannelCentral(crate::ui::channel_central::ChannelCentral::new(libera, "#rust".into())));
+        render(&app, &dir.join("channel-central"));
+        let _ = app.update(Message::ChannelCentral(crate::ui::channel_central::Msg::Tab(Some('b'))));
+        render(&app, &dir.join("channel-bans"));
     }
 
     fn render(app: &App, path: &std::path::Path) {

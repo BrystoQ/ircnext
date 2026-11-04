@@ -234,6 +234,17 @@ impl Server {
                 self.delete_key(&target, ctx)?;
                 effects.config_changed = true;
             }
+            Command::Channel(channel) => {
+                let channel = match channel {
+                    Some(channel) => channel,
+                    None => require_channel()?,
+                };
+                if self.network.channel(&channel).is_none() {
+                    return Err(tr!("You are not on {channel}.", channel = channel));
+                }
+                self.request_channel_details(&channel)?;
+                effects.channel_central = Some(self.ensure(&channel));
+            }
             Command::List(filter) => {
                 self.request_list(filter.as_deref())?;
                 effects.channel_list = true;
