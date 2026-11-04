@@ -214,7 +214,7 @@ Touches fixes : `Tab` complète, `↑` / `↓` parcourent l'historique de saisie
 | `/list [filtre]`, `/channel [#salon]` | Parcourir les salons du réseau ; sujet, modes et bannissements d'un salon |
 | `/kick`, `/ban`, `/unban`, `/op`, `/deop`, `/voice`, `/devoice`, `/mode` | Modération |
 | `/ns`, `/cs`, `/ms`, `/hs` | NickServ, ChanServ, MemoServ, HostServ |
-| `/ignore [masque]`, `/unignore <masque>` | Utilisateurs ignorés |
+| `/ignore [-pcntid] [-uN] [masque]`, `/unignore <masque>` | Utilisateurs ignorés, pour certains types de messages ou pendant N secondes |
 | `/notify [-r] [pseudo]` | Être prévenu quand quelqu'un se connecte ou part |
 | `/aop`, `/avoice [-r] [masque] [#salons]` | Donner `+o` ou `+v` à quelqu'un à son arrivée |
 | `/links`, `/logs` | Liens postés dans les onglets ouverts ; conversations enregistrées |

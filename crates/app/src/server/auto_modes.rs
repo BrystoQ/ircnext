@@ -19,7 +19,7 @@ impl Server {
         let mut modes = String::new();
         for entry in &self.entry.auto_modes {
             let for_channel = entry.channels.is_empty() || entry.channels.iter().any(|known| mapping.eq(known, channel));
-            if for_channel && !modes.contains(entry.mode) && crate::ignore::is_ignored(std::slice::from_ref(&entry.mask), source) {
+            if for_channel && !modes.contains(entry.mode) && crate::ignore::matches(&entry.mask, source) {
                 modes.push(entry.mode);
             }
         }

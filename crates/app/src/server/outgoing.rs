@@ -223,7 +223,7 @@ impl Server {
                 self.generation += 1;
             }
             // Application settings: handled before getting here.
-            Command::Ignore(_) | Command::Unignore(_) | Command::DccSend { .. } | Command::Transfers | Command::Reload | Command::Links | Command::Logs => {}
+            Command::Ignore { .. } | Command::Unignore(_) | Command::DccSend { .. } | Command::Transfers | Command::Reload | Command::Links | Command::Logs => {}
             Command::SetKey { target, key } => {
                 let target = target.map_or_else(|| self.text_target(id), Ok)?;
                 self.set_key(&target, &key, ctx)?;

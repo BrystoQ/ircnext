@@ -166,7 +166,7 @@ pub struct Settings {
     pub highlight_words: Vec<String>,
     /// Ignored users: nicknames or `nick!ident@host` masks (`*` and `?`
     /// wildcards).
-    pub ignored: Vec<String>,
+    pub ignored: Vec<crate::ignore::IgnoreEntry>,
     /// History lines requested when joining a channel (0: none).
     pub history_lines: u16,
     /// Conversation logs saved to disk.
@@ -308,7 +308,8 @@ impl Settings {
             self.timestamp_format = Self::default().timestamp_format;
         }
         self.highlight_words.retain(|word| !word.trim().is_empty());
-        self.ignored.retain(|mask| !mask.trim().is_empty());
+        let now = chrono::Utc::now().timestamp();
+        self.ignored.retain(|entry| !entry.mask.trim().is_empty() && entry.is_active(now));
         self.nick_column_width = self
             .nick_column_width
             .clamp(*Self::NICK_COLUMN_WIDTHS.start(), *Self::NICK_COLUMN_WIDTHS.end());

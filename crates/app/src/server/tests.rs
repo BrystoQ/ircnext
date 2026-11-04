@@ -584,3 +584,23 @@ fn unverified_certificate_is_pinned_then_enforced() {
     assert_eq!(server.entry.connection.pinned_cert.as_deref(), Some("abcd"), "the pin is kept");
     assert!(matches!(lines(&server, "Test").last(), Some(LineKind::Error(text)) if text.contains("ff:ff")));
 }
+
+#[test]
+fn ignore_kinds_filter_messages() {
+    let mut server = server();
+    let entry = crate::ignore::IgnoreEntry { mask: "bob".into(), kinds: "nd".into(), until: None };
+    let settings = Settings { ignored: vec![entry], ..Settings::default() };
+    let rust = |server: &Server| lines(server, "#rust").len();
+    let before = rust(&server);
+    receive_with(&mut server, ":bob!b@h PRIVMSG #rust :still heard", &settings, None);
+    assert_eq!(rust(&server), before + 1, "channel messages not covered");
+    receive_with(&mut server, ":bob!b@h NOTICE #rust :hush", &settings, None);
+    assert_eq!(rust(&server), before + 1, "notices ignored");
+    receive_with(&mut server, ":bob!b@h PRIVMSG me :\x01DCC SEND x 1 2 3\x01", &settings, None);
+    assert!(server.take_dcc().is_empty(), "DCC ignored");
+
+    let brief = crate::ignore::IgnoreEntry { mask: "bob".into(), kinds: String::new(), until: Some(1) };
+    let settings = Settings { ignored: vec![brief], ..Settings::default() };
+    receive_with(&mut server, ":bob!b@h PRIVMSG #rust :expired ignore", &settings, None);
+    assert_eq!(rust(&server), before + 2);
+}

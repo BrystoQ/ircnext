@@ -65,13 +65,12 @@ impl Server {
         self.replaying = history;
         // Ignored users: messages, notices, CTCP, invitations and typing
         // indicators vanish without a trace.
-        let ignorable = matches!(
-            message.command,
-            Command::Privmsg | Command::Notice | Command::Tagmsg | Command::Invite
-        );
-        if ignorable
+        if let Some(kind) = self.ignore_kind(message)
             && !self.network.is_me(&source)
-            && message.source.as_ref().is_some_and(|s| ignore::is_ignored(&ctx.settings.ignored, s))
+            && message
+                .source
+                .as_ref()
+                .is_some_and(|s| ignore::is_ignored(&ctx.settings.ignored, s, kind, chrono::Utc::now().timestamp()))
         {
             return effects;
         }
@@ -515,6 +514,24 @@ impl Server {
                 buffer.rename_speaker(old, new);
             }
         }
+    }
+
+    /// Kind of `message` for the ignore list (a letter of
+    /// [`ignore::KINDS`]), or `None` if it cannot be ignored.
+    fn ignore_kind(&self, message: &Message) -> Option<char> {
+        let text = message.param(1).unwrap_or_default();
+        let to_channel = message.param(0).is_some_and(|target| self.network.is_channel(target));
+        let ctcp = text.strip_prefix('\x01').filter(|ctcp| !ctcp.starts_with("ACTION"));
+        Some(match message.command {
+            Command::Invite => 'i',
+            Command::Notice if ctcp.is_some() => 't',
+            Command::Notice => 'n',
+            Command::Privmsg if ctcp.is_some_and(|ctcp| ctcp.starts_with("DCC ")) => 'd',
+            Command::Privmsg if ctcp.is_some() => 't',
+            Command::Privmsg | Command::Tagmsg if to_channel => 'c',
+            Command::Privmsg | Command::Tagmsg => 'p',
+            _ => return None,
+        })
     }
 
     /// End of the MOTD: registration is complete and `ISUPPORT` known.

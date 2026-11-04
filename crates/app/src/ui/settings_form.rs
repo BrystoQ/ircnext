@@ -153,7 +153,7 @@ impl SettingsForm {
             accent: settings.accent.to_string(),
             timestamp_format: settings.timestamp_format.clone(),
             highlight_words: settings.highlight_words.join(", "),
-            ignored: settings.ignored.join(", "),
+            ignored: settings.ignored.iter().map(|entry| entry.mask.as_str()).collect::<Vec<_>>().join(", "),
             capturing: None,
             shortcut_notice: None,
             update_status: String::new(),
@@ -177,7 +177,7 @@ impl SettingsForm {
             Msg::HistoryLines(value) => draft.history_lines = value,
             Msg::PasteConfirmLines(value) => draft.paste_confirm_lines = value,
             Msg::Ignored(value) => {
-                draft.ignored = split_list(&value);
+                draft.ignored = crate::ignore::from_masks(split_list(&value), &draft.ignored);
                 self.ignored = value;
             }
             Msg::Logging(value) => draft.logging = value,
