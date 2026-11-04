@@ -95,6 +95,9 @@ enum State {
 enum Mechanism {
     /// Account and password.
     Plain(Sasl),
+    /// Account and password, proven without being sent; the exchange once
+    /// started.
+    Scram(Sasl, Option<crate::scram::Scram>),
     /// Client certificate presented during the TLS handshake.
     External,
 }
@@ -103,6 +106,7 @@ impl Mechanism {
     fn name(&self) -> &'static str {
         match self {
             Self::Plain(_) => "PLAIN",
+            Self::Scram(..) => crate::scram::NAME,
             Self::External => "EXTERNAL",
         }
     }
@@ -110,6 +114,7 @@ impl Mechanism {
 
 /// Registration state machine.
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Registration {
     state: State,
     tls: bool,
@@ -122,6 +127,10 @@ pub struct Registration {
     nick: String,
     nick_attempts: usize,
     sasl: Option<Mechanism>,
+    /// `AUTHENTICATE` data received in 400-byte chunks, until the last.
+    sasl_received: String,
+    /// We aborted the exchange (the server could not prove itself).
+    sasl_aborted: bool,
     available: Vec<(String, Option<String>)>,
     acked: Vec<String>,
 }
@@ -147,6 +156,8 @@ impl Registration {
                 // Never a password in clear text on the network.
                 config.sasl.clone().filter(|_| config.can_send_credentials()).map(Mechanism::Plain)
             },
+            sasl_received: String::new(),
+            sasl_aborted: false,
             available: Vec::new(),
             acked: Vec::new(),
         };
@@ -171,7 +182,22 @@ impl Registration {
     pub fn handle(&mut self, message: &Message) -> Progress {
         let replies = match &message.command {
             Command::Cap => return self.on_cap(message),
+            // `+` after a full chunk ends the server's data.
+            Command::Authenticate if message.param(0) == Some("+") && !self.sasl_received.is_empty() => {
+                let data = std::mem::take(&mut self.sasl_received);
+                self.sasl_challenge(&data)
+            }
             Command::Authenticate if message.param(0) == Some("+") => self.sasl_payload(),
+            Command::Authenticate if self.state == State::Authenticating => {
+                let chunk = message.param(0).unwrap_or_default();
+                self.sasl_received.push_str(chunk);
+                if chunk.len() == SASL_CHUNK {
+                    Vec::new()
+                } else {
+                    let data = std::mem::take(&mut self.sasl_received);
+                    self.sasl_challenge(&data)
+                }
+            }
             Command::Numeric(RPL_WELCOME) => {
                 let multiline = self
                     .acked
@@ -189,6 +215,18 @@ impl Registration {
                     sasl_refused: self.sasl_refused,
                     multiline,
                 });
+            }
+            // SCRAM refused (account password stored in an older format):
+            // PLAIN once, unless the server failed to prove itself.
+            Command::Numeric(ERR_SASLFAIL)
+                if self.state == State::Authenticating
+                    && !self.sasl_aborted
+                    && matches!(self.sasl, Some(Mechanism::Scram(..))) =>
+            {
+                if let Some(Mechanism::Scram(sasl, _)) = self.sasl.take() {
+                    self.sasl = Some(Mechanism::Plain(sasl));
+                }
+                vec![Message::new(Command::Authenticate, ["PLAIN"])]
             }
             Command::Numeric(
                 RPL_SASLSUCCESS | ERR_SASLFAIL | ERR_SASLTOOLONG | ERR_SASLABORTED
@@ -265,6 +303,13 @@ impl Registration {
     }
 
     fn request(&mut self) -> Vec<Message> {
+        // SCRAM when the server offers it: the password is not sent.
+        let offers_scram = self
+            .cap_value("sasl")
+            .is_some_and(|mechs| mechs.split(',').any(|m| m.eq_ignore_ascii_case(crate::scram::NAME)));
+        if offers_scram && let Some(Mechanism::Plain(sasl)) = self.sasl.take() {
+            self.sasl = Some(Mechanism::Scram(sasl, None));
+        }
         let mechanism = self.sasl.as_ref().map(Mechanism::name);
         let requested: Vec<&str> = self
             .available
@@ -287,35 +332,56 @@ impl Registration {
         vec![Message::new(Command::Cap, ["REQ".to_owned(), requested.join(" ")])]
     }
 
-    fn sasl_payload(&self) -> Vec<Message> {
-        let sasl = match self.sasl.as_ref().filter(|_| self.state == State::Authenticating) {
-            Some(Mechanism::Plain(sasl)) => sasl,
+    fn sasl_payload(&mut self) -> Vec<Message> {
+        if self.state != State::Authenticating {
+            return Vec::new();
+        }
+        let credentials = match &mut self.sasl {
+            Some(Mechanism::Plain(sasl)) => format!(
+                "{user}\0{user}\0{password}",
+                user = sasl.username,
+                password = sasl.password.expose()
+            ),
+            Some(Mechanism::Scram(sasl, exchange @ None)) => {
+                let scram = crate::scram::Scram::new(&sasl.username, sasl.password.expose());
+                let first = scram.client_first();
+                *exchange = Some(scram);
+                first
+            }
             // The identity comes from the certificate: empty reply.
             Some(Mechanism::External) => {
                 return vec![Message::new(Command::Authenticate, ["+"])];
             }
-            None => return Vec::new(),
+            // Nothing asked, or an empty server message after our SCRAM
+            // proof was checked.
+            None | Some(Mechanism::Scram(_, Some(_))) => return Vec::new(),
         };
-        let credentials = format!(
-            "{user}\0{user}\0{password}",
-            user = sasl.username,
-            password = sasl.password.expose()
-        );
-        let encoded = BASE64.encode(credentials);
+        authenticate_chunks(&BASE64.encode(credentials))
+    }
 
-        let mut messages: Vec<Message> = encoded
-            .as_bytes()
-            .chunks(SASL_CHUNK)
-            .map(|chunk| {
-                let chunk = std::str::from_utf8(chunk).expect("base64 is ASCII");
-                Message::new(Command::Authenticate, [chunk])
-            })
-            .collect();
-        // A full last chunk must be followed by `+` to mark the end.
-        if encoded.len() % SASL_CHUNK == 0 {
-            messages.push(Message::new(Command::Authenticate, ["+"]));
+    /// SCRAM messages of the server: answered with the proof, then checked.
+    fn sasl_challenge(&mut self, data: &str) -> Vec<Message> {
+        let Some(Mechanism::Scram(_, Some(scram))) = &mut self.sasl else {
+            self.sasl_aborted = true;
+            return vec![Message::new(Command::Authenticate, ["*"])];
+        };
+        let text = BASE64.decode(data).ok().and_then(|bytes| String::from_utf8(bytes).ok());
+        let reply = match text {
+            None => Err(crate::scram::ScramError::Malformed),
+            Some(server_first) if !server_first.starts_with("v=") && !server_first.starts_with("e=") => {
+                scram.client_final(&server_first).map(Some)
+            }
+            Some(server_final) => scram.verify(&server_final).map(|()| None),
+        };
+        match reply {
+            Ok(Some(proof)) => authenticate_chunks(&BASE64.encode(proof)),
+            Ok(None) => vec![Message::new(Command::Authenticate, ["+"])],
+            // Abort: the server answers with an error, then registration goes on.
+            Err(_) => {
+                self.sasl_aborted = true;
+                vec![Message::new(Command::Authenticate, ["*"])]
+            }
         }
-        messages
     }
 
     fn end(&mut self) -> Vec<Message> {
@@ -337,6 +403,23 @@ impl Registration {
         };
         Message::nick(&self.nick)
     }
+}
+
+/// `AUTHENTICATE` lines carrying `encoded`, 400 bytes at most each.
+fn authenticate_chunks(encoded: &str) -> Vec<Message> {
+    let mut messages: Vec<Message> = encoded
+        .as_bytes()
+        .chunks(SASL_CHUNK)
+        .map(|chunk| {
+            let chunk = std::str::from_utf8(chunk).expect("base64 is ASCII");
+            Message::new(Command::Authenticate, [chunk])
+        })
+        .collect();
+    // A full last chunk must be followed by `+` to mark the end.
+    if encoded.len().is_multiple_of(SASL_CHUNK) {
+        messages.push(Message::new(Command::Authenticate, ["+"]));
+    }
+    messages
 }
 
 #[cfg(test)]
@@ -543,6 +626,66 @@ mod tests {
         reg.handle(&msg(&format!(":s CAP * LS * :{}", many.join(" "))));
         reg.handle(&msg(&format!(":s CAP * LS * :{}", many.join(" "))));
         assert_eq!(reg.available.len(), MAX_CAPS);
+    }
+
+    #[test]
+    fn scram_is_preferred_and_checks_the_server() {
+        use crate::scram::{hmac, pbkdf2};
+        let config = Config {
+            tls: true,
+            sasl: Some(Sasl { username: "user".into(), password: Secret::new("pencil") }),
+            ..Config::default()
+        };
+        let exchange = |server_signature_ok: bool| {
+            let (mut reg, _) = Registration::start(&config);
+            assert_eq!(lines(reg.handle(&msg(":s CAP * LS :sasl=PLAIN,SCRAM-SHA-256"))), ["CAP REQ sasl"]);
+            assert_eq!(lines(reg.handle(&msg(":s CAP * ACK :sasl"))), ["AUTHENTICATE SCRAM-SHA-256"]);
+            let first = lines(reg.handle(&msg("AUTHENTICATE +")));
+            let first = String::from_utf8(BASE64.decode(first[0].strip_prefix("AUTHENTICATE ").unwrap()).unwrap()).unwrap();
+            let bare = first.strip_prefix("n,,").unwrap().to_owned();
+            assert!(bare.starts_with("n=user,r="));
+            let nonce = format!("{}server", bare.split("r=").nth(1).unwrap());
+            let server_first = format!("r={nonce},s={},i=4096", BASE64.encode(b"salt"));
+            let proof = lines(reg.handle(&msg(&format!("AUTHENTICATE {}", BASE64.encode(&server_first)))));
+            let proof = String::from_utf8(BASE64.decode(proof[0].strip_prefix("AUTHENTICATE ").unwrap()).unwrap()).unwrap();
+            assert!(proof.starts_with(&format!("c=biws,r={nonce},p=")));
+            assert!(!proof.contains("pencil"));
+            let without_proof = proof.split(",p=").next().unwrap();
+            let salted = pbkdf2(b"pencil", b"salt", 4096);
+            let auth = format!("{bare},{server_first},{without_proof}");
+            let mut signature = hmac(&hmac(&salted, b"Server Key"), auth.as_bytes());
+            if !server_signature_ok {
+                signature[0] ^= 1;
+            }
+            lines(reg.handle(&msg(&format!("AUTHENTICATE {}", BASE64.encode(format!("v={}", BASE64.encode(signature)))))))
+        };
+        assert_eq!(exchange(true), ["AUTHENTICATE +"]);
+        assert_eq!(exchange(false), ["AUTHENTICATE *"], "a server not knowing the password is refused");
+    }
+
+    #[test]
+    fn scram_refused_falls_back_to_plain_once() {
+        let config = Config {
+            tls: true,
+            sasl: Some(Sasl { username: "user".into(), password: Secret::new("pencil") }),
+            ..Config::default()
+        };
+        let (mut reg, _) = Registration::start(&config);
+        reg.handle(&msg(":s CAP * LS :sasl=PLAIN,SCRAM-SHA-256"));
+        reg.handle(&msg(":s CAP * ACK :sasl"));
+        reg.handle(&msg("AUTHENTICATE +"));
+        assert_eq!(lines(reg.handle(&msg(":s 904 * :SASL authentication failed"))), ["AUTHENTICATE PLAIN"]);
+        let plain = lines(reg.handle(&msg("AUTHENTICATE +")));
+        assert_eq!(plain, [format!("AUTHENTICATE {}", BASE64.encode("user\0user\0pencil"))]);
+        assert_eq!(lines(reg.handle(&msg(":s 904 * :SASL authentication failed"))), ["CAP END"], "only once");
+
+        // After a failed server proof: no password in another form.
+        let (mut reg, _) = Registration::start(&config);
+        reg.handle(&msg(":s CAP * LS :sasl=SCRAM-SHA-256,PLAIN"));
+        reg.handle(&msg(":s CAP * ACK :sasl"));
+        reg.handle(&msg("AUTHENTICATE +"));
+        assert_eq!(lines(reg.handle(&msg("AUTHENTICATE bm90IGJhc2U2NA-"))), ["AUTHENTICATE *"]);
+        assert_eq!(lines(reg.handle(&msg(":s 904 * :SASL authentication failed"))), ["CAP END"]);
     }
 
     #[test]
