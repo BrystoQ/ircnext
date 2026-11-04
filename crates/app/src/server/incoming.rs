@@ -234,6 +234,9 @@ impl Server {
                 let text = message.param(0).unwrap_or(tr("server error")).to_owned();
                 self.info(LineKind::Error(text), ctx);
             }
+            Command::Numeric(code @ (numeric::RPL_MONONLINE | numeric::RPL_MONOFFLINE)) => {
+                self.on_monitor(*code == numeric::RPL_MONONLINE, message, ctx);
+            }
             Command::Numeric(RPL_ENDOFMOTD | ERR_NOMOTD) => {
                 self.on_motd_end();
                 self.on_numeric(message, *ctx);
@@ -514,11 +517,12 @@ impl Server {
         if self.network.isupport().monitor.is_none() {
             return;
         }
-        let queries: Vec<&str> = self
+        let mut queries: Vec<&str> = self
             .buffers()
             .filter(|(_, b)| b.kind == Kind::Query)
             .map(|(_, b)| b.name.as_str())
             .collect();
+        queries.extend(self.entry.notify.iter().map(String::as_str));
         if !queries.is_empty() {
             let _ = self.send(Message::new(Command::Monitor, ["+".to_owned(), queries.join(",")]));
         }

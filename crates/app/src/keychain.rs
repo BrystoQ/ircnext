@@ -224,6 +224,7 @@ mod tests {
             auto_connect: true,
             on_connect: Vec::new(),
             fish_keys: [("#secret".to_owned(), Secret::new(format!("cbc:{sasl_password}-fish")))].into(),
+            notify: Vec::new(),
             connection: Connection {
                 host: "irc.example.net".into(),
                 password: Some(Secret::new(server_password)),

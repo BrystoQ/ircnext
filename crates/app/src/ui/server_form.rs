@@ -44,6 +44,7 @@ pub struct ServerForm {
     /// Passwords shown in clear (eye button).
     show_passwords: bool,
     autojoin: String,
+    notify: String,
     auto_connect: bool,
     auto_reconnect: bool,
     alt_nicks: String,
@@ -94,6 +95,7 @@ pub enum Msg {
     /// Creates a self-signed certificate and selects it.
     CreateCertificate,
     Autojoin(String),
+    Notify(String),
     AutoConnect(bool),
     AutoReconnect(bool),
     Proxy(bool),
@@ -134,6 +136,7 @@ impl ServerForm {
             proxy_password: String::new(),
             show_passwords: false,
             autojoin: String::new(),
+            notify: String::new(),
             auto_connect: true,
             auto_reconnect: true,
             alt_nicks: String::new(),
@@ -196,6 +199,7 @@ impl ServerForm {
                 .unwrap_or_default(),
             show_passwords: false,
             autojoin: connection.autojoin.join(", "),
+            notify: entry.notify.join(", "),
             auto_connect: entry.auto_connect,
             auto_reconnect: connection.auto_reconnect,
             alt_nicks: connection.alt_nicks.join(", "),
@@ -262,6 +266,7 @@ impl ServerForm {
             Msg::SaslUsername(value) => self.sasl_username = value,
             Msg::SaslPassword(value) => self.sasl_password = value,
             Msg::Autojoin(value) => self.autojoin = value,
+            Msg::Notify(value) => self.notify = value,
             Msg::AutoConnect(value) => self.auto_connect = value,
             Msg::AutoReconnect(value) => self.auto_reconnect = value,
             Msg::Proxy(value) => self.proxy = value,
@@ -398,6 +403,7 @@ impl ServerForm {
             on_connect,
             // Kept by the application when editing: the form does not show them.
             fish_keys: std::collections::BTreeMap::new(),
+            notify: crate::server::notify::parse_list(&self.notify),
             connection: Config {
                 host: host.to_owned(),
                 port,
@@ -539,6 +545,9 @@ impl ServerForm {
         let connection = [
             form::setting(tr("Channels to join"), input("#rust, #linux", &self.autojoin, Msg::Autojoin))
                 .description(tr("Separated by commas"))
+                .view(c),
+            form::setting(tr("Notify list"), input("alice, bob", &self.notify, Msg::Notify))
+                .description(tr("Tells you when they connect or leave · /notify"))
                 .view(c),
             switch(tr("Connect at startup"), None, self.auto_connect, Msg::AutoConnect),
             switch(tr("Automatic reconnection"), Some(tr("After a network outage")), self.auto_reconnect, Msg::AutoReconnect),

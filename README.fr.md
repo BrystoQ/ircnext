@@ -254,7 +254,7 @@ Déjà pris en charge :
 - conditions : `==`, `===`, `!=`, `<`, `>`, `<=`, `>=`, `//`, `\\`, `&`, `isin`, `iswm`, `isnum`, `isletter`, `isalpha`, `isalnum`, `islower`, `isupper`, `ison`, `isop`, `isvoice`, `isreg`, `ischan`, avec `!`, `&&`, `||` ;
 - identifiants : `$me`, `$chan`, `$active`, `$network`, `$server`, `$time`, `$date`, `$ctime`, `$len`, `$upper`, `$lower`, `$left`, `$right`, `$mid`, `$replace`, `$remove`, `$pos`, `$count`, `$str`, `$strip`, `$chr`, `$asc`, `$gettok`, `$numtok`, `$addtok`, `$deltok`, `$istok`, `$findtok`, `$puttok`, `$instok`, `$calc`, `$round`, `$int`, `$abs`, `$rand`, `$iif`, `$ord`… ;
 - toutes les commandes d'ircnext (`msg`, `notice`, `join`, `mode`, `echo`…) ;
-- événements : `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `CONNECT`, `DISCONNECT`, `START` et `INPUT` (`halt` empêche l'envoi du texte), avec textes filtrés (`*`, `?`, `&` pour un mot), cibles (`#`, `?`, `*`, `#a,#b`), préfixes `me:`, `!` et `@`, et `$nick`, `$address`, `$chan`, `$target`, `$knick`, `$newnick`, `$opnick`, `$vnick`.
+- événements : `on TEXT`, `ACTION`, `NOTICE`, `JOIN`, `PART`, `KICK`, `QUIT`, `NICK`, `TOPIC`, `INVITE`, `OP`, `DEOP`, `VOICE`, `DEVOICE`, `NOTIFY`, `UNOTIFY`, `CONNECT`, `DISCONNECT`, `START` et `INPUT` (`halt` empêche l'envoi du texte), avec textes filtrés (`*`, `?`, `&` pour un mot), cibles (`#`, `?`, `*`, `#a,#b`), préfixes `me:`, `!` et `@`, et `$nick`, `$address`, `$chan`, `$target`, `$knick`, `$newnick`, `$opnick`, `$vnick`.
 
 ```mrc
 on *:TEXT:!seen &:#:msg $chan $nick $+ : I have not seen $2 yet.

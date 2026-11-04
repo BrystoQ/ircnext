@@ -1104,7 +1104,11 @@ impl App {
         let task = if let Some(server) = editing.and_then(|id| self.server_mut(id)) {
             let reconnect = server.entry.connection != entry.connection;
             let fish_keys = std::mem::take(&mut server.entry.fish_keys);
-            server.entry = ServerEntry { fish_keys, ..entry };
+            let old_notify = std::mem::take(&mut server.entry.notify);
+            let mut entry = entry;
+            let notify = std::mem::take(&mut entry.notify);
+            server.entry = ServerEntry { fish_keys, notify: old_notify, ..entry };
+            server.replace_notify(notify);
             if reconnect && server.enabled {
                 server.generation += 1;
             }
@@ -1304,6 +1308,7 @@ mod tests {
             auto_connect: false,
             on_connect: Vec::new(),
             fish_keys: std::collections::BTreeMap::new(),
+            notify: Vec::new(),
             connection: Config { host: "irc.libera.chat".into(), nick: "me".into(), ..Config::default() },
         });
         let mut app = App::new(config, None, None);
@@ -1673,6 +1678,7 @@ mod tests {
             auto_connect: false,
             on_connect: Vec::new(),
             fish_keys: std::collections::BTreeMap::new(),
+            notify: Vec::new(),
             connection: Config::default(),
         });
         let tab = app.server(id).unwrap().server_buffer();
@@ -1846,6 +1852,7 @@ mod tests {
             auto_connect: false,
             on_connect: Vec::new(),
             fish_keys: std::collections::BTreeMap::new(),
+            notify: Vec::new(),
             connection: Config { host: "irc.oftc.net".into(), nick: "me".into(), ..Config::default() },
         });
         let registered = Registered { nick: "me".into(), caps: vec![], sts: None, sasl_refused: false, multiline: None };
