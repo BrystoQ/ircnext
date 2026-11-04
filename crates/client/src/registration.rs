@@ -75,6 +75,9 @@ pub enum Progress {
     /// Messages to send (possibly none); registration goes on.
     Continue(Vec<Message>),
     Done(Registered),
+    /// Registered without the required SASL identification: quit, and do
+    /// not reconnect.
+    Abort(String),
     /// The server requires TLS (STS): reconnect on this port.
     UpgradeToTls { port: u16 },
 }
@@ -131,6 +134,10 @@ pub struct Registration {
     sasl_received: String,
     /// We aborted the exchange (the server could not prove itself).
     sasl_aborted: bool,
+    /// SASL identification succeeded (`903`).
+    authenticated: bool,
+    /// Registration must not end without it.
+    sasl_required: bool,
     available: Vec<(String, Option<String>)>,
     acked: Vec<String>,
 }
@@ -158,6 +165,8 @@ impl Registration {
             },
             sasl_received: String::new(),
             sasl_aborted: false,
+            authenticated: false,
+            sasl_required: config.sasl_required && (config.sasl.is_some() || config.uses_external()),
             available: Vec::new(),
             acked: Vec::new(),
         };
@@ -198,6 +207,9 @@ impl Registration {
                     self.sasl_challenge(&data)
                 }
             }
+            Command::Numeric(RPL_WELCOME) if self.sasl_required && !self.authenticated => {
+                return Progress::Abort("SASL identification failed: disconnected, as asked in the network settings".into());
+            }
             Command::Numeric(RPL_WELCOME) => {
                 let multiline = self
                     .acked
@@ -228,9 +240,12 @@ impl Registration {
                 }
                 vec![Message::new(Command::Authenticate, ["PLAIN"])]
             }
+            Command::Numeric(RPL_SASLSUCCESS) if self.state == State::Authenticating => {
+                self.authenticated = true;
+                self.end()
+            }
             Command::Numeric(
-                RPL_SASLSUCCESS | ERR_SASLFAIL | ERR_SASLTOOLONG | ERR_SASLABORTED
-                | ERR_SASLALREADY,
+                ERR_SASLFAIL | ERR_SASLTOOLONG | ERR_SASLABORTED | ERR_SASLALREADY,
             ) if self.state == State::Authenticating => self.end(),
             Command::Numeric(
                 ERR_NICKNAMEINUSE | ERR_ERRONEUSNICKNAME | ERR_NICKCOLLISION
@@ -661,6 +676,38 @@ mod tests {
         };
         assert_eq!(exchange(true), ["AUTHENTICATE +"]);
         assert_eq!(exchange(false), ["AUTHENTICATE *"], "a server not knowing the password is refused");
+    }
+
+    #[test]
+    fn required_sasl_aborts_registration_without_it() {
+        let config = Config {
+            tls: true,
+            sasl: Some(Sasl { username: "user".into(), password: Secret::new("pencil") }),
+            sasl_required: true,
+            ..Config::default()
+        };
+        // Not offered by the server.
+        let (mut reg, _) = Registration::start(&config);
+        reg.handle(&msg(":s CAP * LS :multi-prefix"));
+        assert!(matches!(reg.handle(&msg(":s 001 user :Welcome")), Progress::Abort(_)));
+        // Refused.
+        let (mut reg, _) = Registration::start(&config);
+        reg.handle(&msg(":s CAP * LS :sasl=PLAIN"));
+        reg.handle(&msg(":s CAP * ACK :sasl"));
+        reg.handle(&msg("AUTHENTICATE +"));
+        reg.handle(&msg(":s 904 * :SASL authentication failed"));
+        assert!(matches!(reg.handle(&msg(":s 001 user :Welcome")), Progress::Abort(_)));
+        // Accepted.
+        let (mut reg, _) = Registration::start(&config);
+        reg.handle(&msg(":s CAP * LS :sasl=PLAIN"));
+        reg.handle(&msg(":s CAP * ACK :sasl"));
+        reg.handle(&msg("AUTHENTICATE +"));
+        reg.handle(&msg(":s 903 user :SASL authentication successful"));
+        assert!(matches!(reg.handle(&msg(":s 001 user :Welcome")), Progress::Done(_)));
+        // Not required: registration goes on whatever happens.
+        let (mut reg, _) = Registration::start(&Config { sasl_required: false, ..config });
+        reg.handle(&msg(":s CAP * LS :multi-prefix"));
+        assert!(matches!(reg.handle(&msg(":s 001 user :Welcome")), Progress::Done(_)));
     }
 
     #[test]

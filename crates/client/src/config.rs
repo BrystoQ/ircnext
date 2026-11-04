@@ -32,6 +32,11 @@ pub struct Config {
     /// SASL `EXTERNAL` identification with the client certificate, instead
     /// of the password.
     pub sasl_external: bool,
+    /// Disconnect if SASL identification fails, rather than stay without
+    /// the account.
+    pub sasl_required: bool,
+    /// Hide the message of the day.
+    pub hide_motd: bool,
     /// SOCKS5 proxy the connection goes through.
     pub proxy: Option<Proxy>,
     /// Channels joined automatically after registration.
@@ -82,6 +87,8 @@ impl Default for Config {
             sasl: None,
             client_cert: None,
             sasl_external: false,
+            sasl_required: false,
+            hide_motd: false,
             proxy: None,
             autojoin: Vec::new(),
             auto_reconnect: true,

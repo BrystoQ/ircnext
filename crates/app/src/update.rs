@@ -211,4 +211,16 @@ mod tests {
         assert!(release.tag_name.starts_with('v'), "{release:?}");
         assert!(release.asset("SHA256SUMS.txt").is_some());
     }
+
+    /// Downloads this system's installer of the latest release and checks
+    /// it; run by hand with `cargo test -p ircnext -- --ignored downloads`.
+    #[test]
+    #[ignore = "needs the network"]
+    fn downloads_and_checks_the_installer() {
+        let release: Release = agent().get(LATEST).call().unwrap().body_mut().read_json().unwrap();
+        let dir = std::env::temp_dir().join(format!("ircnext-update-{}", std::process::id()));
+        let path = download(&release, &dir).unwrap();
+        assert!(std::fs::metadata(&path).unwrap().len() > 1_000_000, "{path:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

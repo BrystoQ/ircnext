@@ -554,6 +554,10 @@ impl Server {
         let Command::Numeric(code) = message.command else {
             return;
         };
+        let motd = [numeric::RPL_MOTDSTART, numeric::RPL_MOTD, RPL_ENDOFMOTD, ERR_NOMOTD].contains(&code);
+        if motd && self.entry.connection.hide_motd {
+            return;
+        }
         // Parameters: <our nick> [context...] :<text>
         let params = message.params.get(1..).unwrap_or_default();
         let text = params.join(" ");

@@ -8,6 +8,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ### Ajouté
 
+- Deux options de réseau : *Se déconnecter en cas d'échec* quitte quand l'identification SASL ne réussit pas (avant de rejoindre le moindre salon, sans reconnexion), et *Masquer le message du jour*.
 - Ignore par type et temporaire, comme dans mIRC : `/ignore -pn troll` ne masque que ses messages privés et ses notices, `/ignore -u600 troll` dure dix minutes. Types : `p` privé, `c` salons, `n` notices, `t` CTCP, `i` invitations, `d` DCC. `/ignore` les liste avec le temps restant.
 - Messages gardés d'un lancement à l'autre, comme dans HexChat : les 200 derniers messages de chaque onglet reviennent quand il réapparaît, suivis d'une ligne « Fin de la session précédente ». Les conversations chiffrées ne sont jamais enregistrées. Désactivable dans Réglages › Discussion.
 

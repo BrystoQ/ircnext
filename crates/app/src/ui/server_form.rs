@@ -49,6 +49,8 @@ pub struct ServerForm {
     notify: String,
     auto_connect: bool,
     auto_reconnect: bool,
+    sasl_required: bool,
+    hide_motd: bool,
     alt_nicks: String,
     on_connect: Vec<String>,
     error: Option<String>,
@@ -101,6 +103,8 @@ pub enum Msg {
     Notify(String),
     AutoConnect(bool),
     AutoReconnect(bool),
+    SaslRequired(bool),
+    HideMotd(bool),
     Proxy(bool),
     ProxyHost(String),
     ProxyPort(String),
@@ -143,6 +147,8 @@ impl ServerForm {
             notify: String::new(),
             auto_connect: true,
             auto_reconnect: true,
+            sasl_required: false,
+            hide_motd: false,
             alt_nicks: String::new(),
             on_connect: Vec::new(),
             error: None,
@@ -228,6 +234,8 @@ impl ServerForm {
             notify: entry.notify.join(", "),
             auto_connect: entry.auto_connect,
             auto_reconnect: connection.auto_reconnect,
+            sasl_required: connection.sasl_required,
+            hide_motd: connection.hide_motd,
             alt_nicks: connection.alt_nicks.join(", "),
             on_connect: entry.on_connect.clone(),
             error: None,
@@ -296,6 +304,8 @@ impl ServerForm {
             Msg::Notify(value) => self.notify = value,
             Msg::AutoConnect(value) => self.auto_connect = value,
             Msg::AutoReconnect(value) => self.auto_reconnect = value,
+            Msg::SaslRequired(value) => self.sasl_required = value,
+            Msg::HideMotd(value) => self.hide_motd = value,
             Msg::Proxy(value) => self.proxy = value,
             Msg::ProxyHost(value) => self.proxy_host = value,
             Msg::ProxyPort(value) => self.proxy_port = value,
@@ -450,6 +460,8 @@ impl ServerForm {
                 proxy,
                 autojoin,
                 auto_reconnect: self.auto_reconnect,
+                sasl_required: self.sasl_required && self.auth != Auth::None,
+                hide_motd: self.hide_motd,
             },
         })
     }
@@ -548,6 +560,14 @@ impl ServerForm {
                 form::setting(tr("Password"), secret(&self.sasl_password, Msg::SaslPassword)).view(c),
             );
         }
+        if self.auth != Auth::None {
+            authentication.push(switch(
+                tr("Disconnect if it fails"),
+                Some(tr("Rather than stay connected without your account")),
+                self.sasl_required,
+                Msg::SaslRequired,
+            ));
+        }
         if self.tls {
             let control = row![
                 input(tr("~/certificate.pem"), &self.client_cert, Msg::ClientCert).width(Length::Fill),
@@ -598,6 +618,7 @@ impl ServerForm {
                 .view(c),
             switch(tr("Connect at startup"), None, self.auto_connect, Msg::AutoConnect),
             switch(tr("Automatic reconnection"), Some(tr("After a network outage")), self.auto_reconnect, Msg::AutoReconnect),
+            switch(tr("Hide the message of the day"), Some(tr("The text the server shows when you connect")), self.hide_motd, Msg::HideMotd),
             form::block(
                 tr("Commands after connecting"),
                 Some(tr("Run in order, as if you typed them")),

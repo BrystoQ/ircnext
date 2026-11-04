@@ -631,3 +631,17 @@ fn previous_session_lines_come_back_with_their_tab() {
     assert!(matches!(&zoe[0], LineKind::Message { text, .. } if text == "see you"), "given back when the tab reappears");
     assert!(matches!(zoe.last(), Some(LineKind::Message { text, .. }) if text == "hi again"));
 }
+
+#[test]
+fn motd_can_be_hidden() {
+    let mut server = server();
+    let shown = lines(&server, "Test").len();
+    receive(&mut server, ":s 375 me :- s Message of the day -");
+    receive(&mut server, ":s 372 me :- welcome");
+    assert_eq!(lines(&server, "Test").len(), shown + 2);
+    server.entry.connection.hide_motd = true;
+    receive(&mut server, ":s 375 me :- s Message of the day -");
+    receive(&mut server, ":s 372 me :- welcome");
+    receive(&mut server, ":s 376 me :End of /MOTD command.");
+    assert_eq!(lines(&server, "Test").len(), shown + 2);
+}
