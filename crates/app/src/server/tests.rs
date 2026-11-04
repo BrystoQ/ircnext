@@ -493,3 +493,35 @@ fn channel_list_collects_list_replies() {
     assert!(list.entries[0].matches("rust language"));
     assert_eq!(lines(&server, "Test").len(), shown, "not printed in the server tab");
 }
+
+#[test]
+fn channel_central_replies_stay_out_of_the_server_tab() {
+    let mut server = server();
+    let settings = Settings::default();
+    let ctx = Context { settings: &settings, active: None };
+    let rust = server.find("#rust").unwrap();
+    assert!(server.can_manage("#rust"), "operator");
+    assert_eq!(server.mask_modes(), ['b', 'e', 'I']);
+    assert_eq!(server.execute(rust, Cmd::Channel(Some("#nope".into())), &ctx).unwrap_err(), "You are not on #nope.");
+    assert_eq!(server.execute(rust, Cmd::Channel(None), &ctx).unwrap_err(), "Not connected.");
+
+    // What `request_channel_details` sets up before sending.
+    server.network.request_mask_list("#rust", 'b');
+    server.quiet_replies.extend([("#rust".to_owned(), ircnext_client::proto::numeric::RPL_CHANNELMODEIS), ("#rust".to_owned(), ircnext_client::proto::numeric::RPL_ENDOFBANLIST)]);
+    let count = |server: &Server| lines(server, "Test").len() + lines(server, "#rust").len();
+    let shown = count(&server);
+    for line in [":s 324 me #RUST +nt", ":s 367 me #rust *!*@spam.example alice 1700000000", ":s 368 me #rust :End of ban list"] {
+        receive(&mut server, line);
+    }
+    assert_eq!(count(&server), shown, "answers for the window only");
+    let channel = server.network.channel("#rust").unwrap();
+    assert_eq!(channel.modes.keys().collect::<String>(), "nt");
+    assert_eq!(channel.mask_lists[&'b'].entries.len(), 1);
+
+    // Asked by hand afterwards: shown as usual.
+    receive(&mut server, ":s 324 me #rust +nt");
+    assert_eq!(count(&server), shown + 1);
+
+    receive(&mut server, ":alice!a@h MODE #rust -o me");
+    assert!(!server.can_manage("#rust"), "no longer operator");
+}

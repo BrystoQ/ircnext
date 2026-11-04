@@ -78,7 +78,7 @@ impl Server {
         if !history {
             self.network.apply(message);
         }
-        if self.on_list_reply(message) {
+        if self.on_list_reply(message) || self.is_quiet_reply(message) {
             return effects;
         }
         let time = message_time(message);

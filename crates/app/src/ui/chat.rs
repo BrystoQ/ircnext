@@ -163,6 +163,10 @@ fn header<'a>(props: &Props<'a>) -> Element<'a, Message> {
     let mut actions = row![].spacing(4).align_y(Alignment::Center);
     actions = actions.push(header_button("⧉", tr("Copy the tab").to_owned(), Message::CopyBuffer, c));
     actions = actions.push(header_button("⌕", hint(tr("Search"), Action::Search), Message::Action(Action::Search), c));
+    if buffer.kind == Kind::Channel && buffer.joined {
+        let open = Message::OpenChannelCentral(server.id, buffer.name.clone());
+        actions = actions.push(header_button("⚙", tr("Channel settings").to_owned(), open, c));
+    }
     if buffer.kind == Kind::Channel {
         let label = if settings.show_nicklist { tr("Hide members") } else { tr("Show members") };
         actions = actions.push(header_button("☰", hint(label, Action::ToggleNicklist), Message::ToggleNicklist, c));

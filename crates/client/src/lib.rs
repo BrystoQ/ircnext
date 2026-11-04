@@ -16,7 +16,7 @@ mod throttle;
 
 pub use client::{Closed, Event, Handle, connect};
 pub use config::{Config, Proxy, Sasl, Secret};
-pub use network::{Batch, Channel, Member, Network, whox_request};
+pub use network::{Batch, Channel, MaskEntry, MaskList, Member, Network, whox_request};
 pub use registration::Registered;
 
 pub use ircnext_proto as proto;

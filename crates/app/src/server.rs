@@ -1,6 +1,7 @@
 //! Network in use: connection, IRC state and its tabs.
 
 mod fish;
+pub mod channel_central;
 pub mod channel_list;
 mod incoming;
 pub mod notify;
@@ -64,6 +65,8 @@ pub struct Effects {
     pub closed: bool,
     /// `/list`: open the channel list window.
     pub channel_list: bool,
+    /// `/channel`: open the settings window of this channel.
+    pub channel_central: Option<BufferId>,
 }
 
 /// Application preferences the network needs outside of an event:
@@ -144,6 +147,9 @@ pub struct Server {
     alerts: Vec<Alert>,
     /// Replies to the last `/list`.
     pub channel_list: Option<channel_list::ChannelList>,
+    /// Replies awaited by the channel central window (folded channel, end
+    /// numeric), kept out of the server tab.
+    quiet_replies: Vec<(String, u16)>,
     /// `DCC` requests received (sender, request), for the application.
     dcc: Vec<(String, Dcc)>,
     /// Last away message shown per nickname (folded), to avoid repeating it.
@@ -175,6 +181,7 @@ impl Server {
             prefs: Prefs::default(),
             alerts: Vec::new(),
             channel_list: None,
+            quiet_replies: Vec::new(),
             dcc: Vec::new(),
             away_replies: std::collections::HashMap::new(),
             key_exchanges: std::collections::HashMap::new(),
