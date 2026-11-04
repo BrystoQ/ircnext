@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use chrono::Local;
 use futures::{Stream, StreamExt};
 use iced::keyboard;
-use iced::widget::{center, container, opaque, row, stack};
+use iced::widget::{center, column, container, opaque, row, stack};
 use iced::{Element, Length, Subscription, Task, Theme, event, system, time, window};
 use ircnext_client::proto::ircv3::Typing;
 use ircnext_client::{Config, Event};
@@ -35,6 +35,7 @@ use crate::tr;
 mod keys;
 mod scripts;
 mod transfers;
+mod updates;
 
 /// Id of the input field (to focus it).
 pub const INPUT_ID: &str = "input";
@@ -95,6 +96,13 @@ pub enum Message {
     ToggleScript(String, bool),
     /// Opens the scripts folder, or one script file.
     OpenScripts(Option<String>),
+    /// Settings: looks for a new version now.
+    CheckUpdates,
+    UpdateChecked { manual: bool, result: Result<Option<crate::update::Release>, String> },
+    /// Downloads and opens the new version's installer.
+    InstallUpdate,
+    UpdateDownloaded(Result<PathBuf, String>),
+    DismissUpdate,
 }
 
 /// Keys with a fixed role (not configurable).
@@ -170,6 +178,11 @@ pub struct App {
     transfers: Vec<crate::transfer::Transfer>,
     next_transfer: u64,
     banner: Option<String>,
+    /// Newer version found on GitHub.
+    update: Option<updates::UpdateNotice>,
+    checking_update: bool,
+    /// Result of the last check, for the settings.
+    update_status: String,
     now: Instant,
 }
 
@@ -198,6 +211,7 @@ impl App {
             system::theme().map(Message::SystemTheme),
             iced::widget::operation::focus(INPUT_ID),
             start.unwrap_or_else(Task::none),
+            app.startup_update_check(),
         ]);
         (app, tasks)
     }
@@ -230,6 +244,9 @@ impl App {
             transfers: Vec::new(),
             next_transfer: 0,
             banner,
+            update: None,
+            checking_update: false,
+            update_status: String::new(),
             now: Instant::now(),
         };
         for entry in app.config.servers.clone() {
@@ -405,7 +422,9 @@ impl App {
                 return self.apply_effects(id, effects);
             }
             Message::OpenSettings => {
-                self.modal = Some(Modal::Settings(SettingsForm::new(&self.config.settings)));
+                let mut form = SettingsForm::new(&self.config.settings);
+                form.update_status.clone_from(&self.update_status);
+                self.modal = Some(Modal::Settings(form));
             }
             Message::Settings(msg) => {
                 if let Some(Modal::Settings(form)) = &mut self.modal {
@@ -451,6 +470,11 @@ impl App {
                 return iced::widget::operation::focus(INPUT_ID);
             }
             Message::DismissBanner => self.banner = None,
+            Message::CheckUpdates => return self.check_updates(true),
+            Message::UpdateChecked { manual, result } => self.update_checked(manual, result),
+            Message::InstallUpdate => return self.install_update(),
+            Message::UpdateDownloaded(result) => return self.update_downloaded(result),
+            Message::DismissUpdate => self.update = None,
             Message::OpenTransfers => self.modal = Some(Modal::Transfers),
             Message::TimerTick(now) => return self.run_timers(now),
             Message::ReloadScripts => {
@@ -1114,6 +1138,8 @@ impl App {
             None => chat::welcome(colors, self.banner.as_deref()),
         };
 
+        let notice = self.update.as_ref().map(|notice| updates::view(notice, colors));
+        let main = column![].push(notice).push(main);
         let base = container(row![].push(sidebar).push(main))
             .width(Length::Fill)
             .height(Length::Fill)
@@ -1717,6 +1743,14 @@ mod tests {
         app.transfers[last].done = 530_000;
         let _ = app.update(Message::OpenTransfers);
         render(&app, &dir.join("transfers"));
+        let _ = app.update(Message::CloseModal);
+        let release = crate::update::Release {
+            tag_name: "v0.5.0".into(),
+            html_url: "https://github.com/BrystoQ/ircnext/releases/tag/v0.5.0".into(),
+            assets: Vec::new(),
+        };
+        let _ = app.update(Message::UpdateChecked { manual: true, result: Ok(Some(release)) });
+        render(&app, &dir.join("update"));
     }
 
     fn render(app: &App, path: &std::path::Path) {
