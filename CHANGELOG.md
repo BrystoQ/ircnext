@@ -8,6 +8,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ### Added
 
+- Two network options: *Disconnect if it fails* quits when SASL identification does not succeed (before joining any channel, without reconnecting), and *Hide the message of the day*.
 - Ignore by kind and for a while, as in mIRC: `/ignore -pn troll` only hides their private messages and notices, `/ignore -u600 troll` lasts ten minutes. Kinds: `p` private, `c` channels, `n` notices, `t` CTCP, `i` invitations, `d` DCC. `/ignore` lists them with the time left.
 - Messages kept between launches, as in HexChat: the last 200 messages of each tab come back when it reappears, followed by an “End of the previous session” line. Encrypted conversations are never saved. Can be turned off in Settings › Chat.
 

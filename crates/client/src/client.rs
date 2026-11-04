@@ -121,6 +121,8 @@ enum End {
     Abandoned,
     UpgradeToTls(u16),
     Closed(Option<String>),
+    /// Closed on purpose, without reconnecting.
+    Refused(String),
 }
 
 async fn run(mut config: Config, mut events: mpsc::Sender<Event>) {
@@ -152,6 +154,7 @@ async fn run(mut config: Config, mut events: mpsc::Sender<Event>) {
                 continue;
             }
             End::Closed(error) => (error, config.auto_reconnect.then(|| backoff(attempt))),
+            End::Refused(error) => (Some(error), None),
         };
 
         if events.send(Event::Disconnected { error, retry_in }).await.is_err() {
@@ -247,6 +250,10 @@ async fn session(
                             queue.extend(join_batches(&config.autojoin));
                         }
                         Progress::UpgradeToTls { port } => return Ok(End::UpgradeToTls(port)),
+                        Progress::Abort(reason) => {
+                            write_message(&mut writer, &Message::new(Command::Quit, ["SASL failed"])).await?;
+                            return Ok(End::Refused(reason));
+                        }
                     }
                 }
 

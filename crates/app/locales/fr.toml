@@ -757,3 +757,7 @@
 "End of the previous session" = "Fin de la session précédente"
 "Keep messages between launches" = "Garder les messages d'un lancement à l'autre"
 "The last 200 of each tab, encrypted conversations excepted" = "Les 200 derniers de chaque onglet, sauf les conversations chiffrées"
+"Disconnect if it fails" = "Se déconnecter en cas d'échec"
+"Hide the message of the day" = "Masquer le message du jour"
+"Rather than stay connected without your account" = "Plutôt que rester connecté sans votre compte"
+"The text the server shows when you connect" = "Le texte que le serveur affiche à la connexion"
