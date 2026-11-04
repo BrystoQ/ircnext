@@ -110,6 +110,9 @@ pub enum Message {
     Links(crate::ui::links::Msg),
     ChannelList(crate::ui::channel_list::Msg),
     ChannelCentral(crate::ui::channel_central::Msg),
+    /// Opens the log viewer.
+    OpenLogViewer,
+    LogViewer(crate::ui::log_viewer::Msg),
     /// Opens the settings window of a channel.
     OpenChannelCentral(ServerId, String),
     /// Clipboard text, read after a paste in the input.
@@ -135,6 +138,7 @@ enum Modal {
     Links(crate::ui::links::Links),
     ChannelList(crate::ui::channel_list::ChannelListView),
     ChannelCentral(crate::ui::channel_central::ChannelCentral),
+    LogViewer(crate::ui::log_viewer::LogViewer),
 }
 
 /// State of the main window.
@@ -494,6 +498,12 @@ impl App {
             Message::Links(msg) => return self.on_links(msg),
             Message::ChannelList(msg) => return self.on_channel_list(msg),
             Message::ChannelCentral(msg) => self.on_channel_central(msg),
+            Message::OpenLogViewer => return self.open_log_viewer(),
+            Message::LogViewer(msg) => {
+                if let Some(Modal::LogViewer(viewer)) = &mut self.modal {
+                    viewer.update(msg);
+                }
+            }
             Message::OpenChannelCentral(id, channel) => {
                 let effects = self.execute(id, None, Command::Channel(Some(channel)));
                 return self.apply_effects(id, effects);
@@ -757,6 +767,16 @@ impl App {
         }
     }
 
+    /// Log viewer, on the log of the current conversation if there is one.
+    fn open_log_viewer(&mut self) -> Task<Message> {
+        let Some(dir) = self.log_dir() else {
+            return Task::none();
+        };
+        let current = self.active_buffer().map(|(server, buffer)| crate::log::path(&dir, &server.entry.name, &buffer.name));
+        self.modal = Some(Modal::LogViewer(crate::ui::log_viewer::LogViewer::open(&dir, current.as_deref())));
+        iced::widget::operation::focus(crate::ui::log_viewer::LOG_SEARCH_ID)
+    }
+
     fn on_channel_central(&mut self, msg: crate::ui::channel_central::Msg) {
         use crate::ui::channel_central::Msg;
         let Some(Modal::ChannelCentral(central)) = &mut self.modal else {
@@ -883,6 +903,7 @@ impl App {
                 return Task::none();
             }
             Ok(Input::Command(Command::Links)) => return self.open_links(),
+            Ok(Input::Command(Command::Logs)) => return self.open_log_viewer(),
             Ok(Input::Command(Command::DccSend { nick, path })) => {
                 return self.offer_file(id, &nick, &crate::transfer::expand_home(&path));
             }
@@ -1354,6 +1375,7 @@ impl App {
             Modal::Links(links) => links.view(colors),
             Modal::ChannelList(list) => list.view(self.server(list.server), colors),
             Modal::ChannelCentral(central) => central.view(self.server(central.server), colors),
+            Modal::LogViewer(viewer) => viewer.view(colors),
         };
         stack![
             base,
@@ -2079,6 +2101,19 @@ mod tests {
         render(&app, &dir.join("channel-central"));
         let _ = app.update(Message::ChannelCentral(crate::ui::channel_central::Msg::Tab(Some('b'))));
         render(&app, &dir.join("channel-bans"));
+        let logs = std::env::temp_dir().join(format!("ircnext-snapshot-logs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&logs);
+        for (network, name) in [("Libera.Chat", "#ircnext"), ("Libera.Chat", "zoe"), ("OFTC", "#debian")] {
+            let line = Line::new(Local::now(), LineKind::Info("…".into()));
+            crate::log::append(&logs, network, name, &line).unwrap();
+        }
+        for line in app.servers[0].buffer(rust).unwrap().lines() {
+            crate::log::append(&logs, "Libera.Chat", "#rust", line).unwrap();
+        }
+        let viewer = crate::ui::log_viewer::LogViewer::open(&logs, Some(&crate::log::path(&logs, "Libera.Chat", "#rust")));
+        app.modal = Some(Modal::LogViewer(viewer));
+        render(&app, &dir.join("logs"));
+        let _ = std::fs::remove_dir_all(&logs);
     }
 
     fn render(app: &App, path: &std::path::Path) {

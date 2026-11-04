@@ -6,6 +6,7 @@ pub mod chat;
 pub mod form;
 pub mod line;
 pub mod links;
+pub mod log_viewer;
 pub mod nicklist;
 pub mod paste;
 pub mod server_form;

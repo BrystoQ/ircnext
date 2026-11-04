@@ -487,7 +487,11 @@ impl SettingsForm {
                         toggle(tr("Logs on disk"), Some(tr("One text file per conversation")), draft.logging, Msg::Logging, c),
                         form::setting(
                             tr("Logs folder"),
-                            button(text(tr("Open")).size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::OpenLogs),
+                            row![
+                                button(text(tr("Browse")).size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::OpenLogViewer),
+                                button(text(tr("Open")).size(13)).padding([6, 14]).style(theme::secondary(c)).on_press(Message::OpenLogs),
+                            ]
+                            .spacing(8),
                         )
                         .description(home_relative(logs_dir()))
                         .view(c),

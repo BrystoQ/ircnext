@@ -61,6 +61,8 @@ pub enum Command {
     Reload,
     /// `/links`: the links seen in the open tabs.
     Links,
+    /// `/logs`: the log viewer.
+    Logs,
     /// `/aop` and `/avoice [-r] [mask] [#channel,...]`: `mode` is `o` or `v`.
     AutoMode { mode: char, mask: Option<String>, channels: Vec<String>, remove: bool },
     /// `/list [filter]`: the network's channels.
@@ -141,6 +143,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["aop"], usage: tr("/aop [-r] [mask] [#channels]"), help: tr("Give operator status to someone when they join") },
         Spec { names: &["avoice"], usage: tr("/avoice [-r] [mask] [#channels]"), help: tr("Give voice to someone when they join") },
         Spec { names: &["list"], usage: tr("/list [filter]"), help: tr("Browse the network's channels") },
+        Spec { names: &["logs", "log"], usage: "/logs", help: tr("Read and search the saved conversations") },
         Spec { names: &["links", "url"], usage: "/links", help: tr("Show the links posted in the open tabs") },
         Spec { names: &["reload"], usage: "/reload", help: tr("Reload the scripts (scripts folder)") },
         Spec { names: &["echo"], usage: tr("/echo <text>"), help: tr("Show a line in the current tab, for you only") },
@@ -257,6 +260,7 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "keyx" => Command::KeyExchange(owned(args.map(first_word))),
         "reload" => Command::Reload,
         "links" | "url" => Command::Links,
+        "logs" | "log" => Command::Logs,
         "list" => Command::List(owned(args)),
         "aop" | "avoice" => {
             let mode = if name == "aop" { 'o' } else { 'v' };
