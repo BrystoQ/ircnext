@@ -6,6 +6,8 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+## [0.4.0] - 2026-11-04
+
 ### Ajouté
 
 - Paquets installables et portables : un installeur `setup.exe` pour Windows, un `.dmg` pour macOS et un `.deb` pour Debian et Ubuntu, à côté des archives portables. Un fichier `portable.txt` à côté de l'exécutable range la configuration, les journaux et les scripts dans un dossier `data` voisin.
@@ -82,7 +84,8 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Limitation du débit d'envoi et des réponses CTCP, mémoire bornée face à un serveur hostile.
 - Mots de passe NickServ masqués à l'affichage, dans les journaux et l'historique de saisie.
 
-[Non publié]: https://github.com/BrystoQ/ircnext/compare/v0.3.0...HEAD
+[Non publié]: https://github.com/BrystoQ/ircnext/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/BrystoQ/ircnext/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/BrystoQ/ircnext/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/BrystoQ/ircnext/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/BrystoQ/ircnext/releases/tag/v0.1.0
