@@ -270,6 +270,35 @@ impl Server {
             .map_err(|error| error.to_string())
     }
 
+    /// Server certificate. Unverified (accepted on request): pinned the first
+    /// time, refused if it then changes. Returns whether the pin was saved.
+    fn on_certificate(&mut self, certificate: &ircnext_client::connection::PeerCertificate, ctx: &Context<'_>) -> bool {
+        let connection = &mut self.entry.connection;
+        if certificate.verified || !connection.accept_invalid_certs {
+            return false;
+        }
+        let shown = ircnext_client::connection::format_fingerprint(&certificate.fingerprint);
+        match &connection.pinned_cert {
+            None => {
+                connection.pinned_cert = Some(certificate.fingerprint.clone());
+                self.info(LineKind::Info(tr!("Unverified certificate trusted from now on: SHA-256 {fingerprint}", fingerprint = shown)), ctx);
+                true
+            }
+            Some(pinned) if pinned.eq_ignore_ascii_case(&certificate.fingerprint) => false,
+            // Possible with a connection started before the pin was saved.
+            Some(_) => {
+                self.enabled = false;
+                self.handle = None;
+                let text = tr!(
+                    "The server certificate changed (SHA-256 {fingerprint}): disconnected. If this is expected, forget the trusted certificate in the network settings.",
+                    fingerprint = shown
+                );
+                self.info(LineKind::Error(text), ctx);
+                false
+            }
+        }
+    }
+
     /// Adds a line and updates the unread counters.
     pub fn push(&mut self, id: BufferId, mut line: Line, ctx: &Context<'_>) {
         let limit = ctx.settings.scrollback;
@@ -389,6 +418,7 @@ impl Server {
                 self.handle = Some(handle);
                 self.status = Status::Registering;
             }
+            Event::Certificate(certificate) => effects.config_changed = self.on_certificate(&certificate, ctx),
             Event::Registered(registered) => {
                 self.network.reset(&registered.nick, &registered.caps);
                 self.network.set_multiline(registered.multiline);

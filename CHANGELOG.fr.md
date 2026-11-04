@@ -20,6 +20,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Visionneuse de journaux : `/logs`, ou *Parcourir* à côté du dossier des journaux dans Réglages › Discussion, liste les conversations enregistrées par réseau et les affiche avec une recherche, en s'ouvrant sur la conversation en cours.
 - Les liens `irc://` et `ircs://` sont cliquables : sur un réseau connu, ils rejoignent le salon (en se connectant d'abord si besoin), sinon le formulaire du réseau s'ouvre prérempli. Ils apparaissent aussi dans le panneau des liens.
 - SASL SCRAM-SHA-256 : quand le serveur le propose, le mot de passe du compte est prouvé sans être envoyé, et le serveur doit prouver qu'il le connaît aussi. Si le serveur le refuse (mot de passe stocké dans un ancien format), PLAIN est essayé une fois, sur TLS.
+- Confiance au premier usage pour les certificats non vérifiés : avec *Accepter les certificats invalides*, l'empreinte SHA-256 du premier certificat est retenue, et un certificat différent est ensuite refusé (interception possible). Le formulaire du réseau l'affiche et permet de l'oublier.
 
 ### Corrigé
 

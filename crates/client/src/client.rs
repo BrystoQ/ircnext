@@ -42,6 +42,8 @@ pub enum Event {
     Connecting { attempt: usize },
     /// Transport established; the handle lets you send messages.
     Connected(Handle),
+    /// Server certificate of a TLS connection, right after `Connected`.
+    Certificate(crate::connection::PeerCertificate),
     Registered(Registered),
     /// The server requires TLS (STS): the configuration must be updated.
     UpgradedToTls { port: u16 },
@@ -172,12 +174,17 @@ async fn session(
     events: &mut mpsc::Sender<Event>,
     registered: &mut bool,
 ) -> io::Result<End> {
-    let stream = connection::open(config).await?;
+    let (stream, certificate) = connection::open(config).await?;
     let (reader, mut writer) = tokio::io::split(stream);
     let mut reader = LineReader::new(reader);
 
     let (actions_tx, mut actions) = tokio_mpsc::unbounded_channel();
     if events.send(Event::Connected(Handle(actions_tx))).await.is_err() {
+        return Ok(End::Abandoned);
+    }
+    if let Some(certificate) = certificate
+        && events.send(Event::Certificate(certificate)).await.is_err()
+    {
         return Ok(End::Abandoned);
     }
 

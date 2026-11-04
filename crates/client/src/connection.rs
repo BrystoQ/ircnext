@@ -33,9 +33,33 @@ const MAX_LINE_BYTES: usize = 8191 + 512;
 pub trait Stream: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Stream for T {}
 
+/// Server certificate of a TLS connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PeerCertificate {
+    /// SHA-256 of the certificate, in lowercase hexadecimal.
+    pub fingerprint: String,
+    /// Checked against the usual certificate authorities.
+    pub verified: bool,
+}
+
+/// SHA-256 fingerprint as `ab:cd:…`, for display.
+pub fn format_fingerprint(fingerprint: &str) -> String {
+    fingerprint.as_bytes().chunks(2).map(|pair| std::str::from_utf8(pair).unwrap_or_default()).collect::<Vec<_>>().join(":")
+}
+
+fn fingerprint(cert: &CertificateDer<'_>) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(cert.as_ref()).iter().fold(String::with_capacity(64), |mut hex, byte| {
+        use std::fmt::Write as _;
+        let _ = write!(hex, "{byte:02x}");
+        hex
+    })
+}
+
 /// Opens the connection described by `config`: through its SOCKS5 proxy if
 /// any, encrypted if `tls` is set, presenting its client certificate if any.
-pub async fn open(config: &Config) -> io::Result<Box<dyn Stream>> {
+/// Returns the server certificate of a TLS connection.
+pub async fn open(config: &Config) -> io::Result<(Box<dyn Stream>, Option<PeerCertificate>)> {
     let host = config.host.as_str();
     let connecting = async {
         let Some(proxy) = &config.proxy else {
@@ -54,52 +78,59 @@ pub async fn open(config: &Config) -> io::Result<Box<dyn Stream>> {
     tcp.set_nodelay(true)?;
 
     if !config.tls {
-        return Ok(Box::new(tcp));
+        return Ok((Box::new(tcp), None));
     }
 
     let server_name = ServerName::try_from(host.to_owned())
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    let accept_invalid_certs = config.accept_invalid_certs;
+    // Unverified: any certificate the first time, then only the pinned one.
+    let pin = config.accept_invalid_certs.then(|| config.pinned_cert.clone().unwrap_or_default());
     let tls_config = match &config.client_cert {
         Some(path) => {
             let (chain, key) = load_identity(path)?;
-            let config = builder(accept_invalid_certs)
+            let config = builder(pin.as_deref())
                 .with_client_auth_cert(chain, key)
                 .map_err(|error| invalid_certificate(path, error))?;
             Arc::new(config)
         }
-        None => tls_config(accept_invalid_certs),
+        None => tls_config(pin.as_deref()),
     };
     let connector = TlsConnector::from(tls_config);
     let stream = tokio::time::timeout(CONNECT_TIMEOUT, connector.connect(server_name, tcp))
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "TLS handshake timed out"))??;
-    Ok(Box::new(stream))
+    let peer = stream.get_ref().1.peer_certificates().and_then(<[_]>::first).map(|cert| PeerCertificate {
+        fingerprint: fingerprint(cert),
+        verified: pin.is_none(),
+    });
+    Ok((Box::new(stream), peer))
 }
 
 fn provider() -> Arc<CryptoProvider> {
     Arc::new(crypto::ring::default_provider())
 }
 
-/// TLS configuration without a client certificate, shared by connections.
-fn tls_config(accept_invalid_certs: bool) -> Arc<ClientConfig> {
+/// TLS configuration without a client certificate. The verified one is
+/// shared by connections.
+fn tls_config(pin: Option<&str>) -> Arc<ClientConfig> {
     static VERIFIED: OnceLock<Arc<ClientConfig>> = OnceLock::new();
-    static UNVERIFIED: OnceLock<Arc<ClientConfig>> = OnceLock::new();
-
-    let cell = if accept_invalid_certs { &UNVERIFIED } else { &VERIFIED };
-    cell.get_or_init(|| Arc::new(builder(accept_invalid_certs).with_no_client_auth()))
-        .clone()
+    match pin {
+        Some(_) => Arc::new(builder(pin).with_no_client_auth()),
+        None => VERIFIED.get_or_init(|| Arc::new(builder(None).with_no_client_auth())).clone(),
+    }
 }
 
-/// TLS configuration up to the choice of the client certificate.
-fn builder(accept_invalid_certs: bool) -> ConfigBuilder<ClientConfig, WantsClientCert> {
+/// TLS configuration up to the choice of the client certificate. `pin`:
+/// certificate authorities not checked; only this fingerprint accepted, or
+/// any if empty.
+fn builder(pin: Option<&str>) -> ConfigBuilder<ClientConfig, WantsClientCert> {
     let builder = ClientConfig::builder_with_provider(provider())
         .with_safe_default_protocol_versions()
         .expect("the ring provider supports the default versions");
-    if accept_invalid_certs {
+    if let Some(pin) = pin {
         builder
             .dangerous()
-            .with_custom_certificate_verifier(Arc::new(AcceptAnyCertificate(provider())))
+            .with_custom_certificate_verifier(Arc::new(PinnedCertificate { pin: pin.to_ascii_lowercase(), provider: provider() }))
     } else {
         builder.with_root_certificates(RootCertStore {
             roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
@@ -135,21 +166,34 @@ fn invalid_certificate(path: &Path, error: impl std::fmt::Display) -> io::Error 
     )
 }
 
-/// Verifier accepting any certificate while still checking the handshake
-/// signatures. Only used when explicitly requested.
+/// Verifier for unverified certificates: any one the first time (trust on
+/// first use), then only the pinned one; handshake signatures are still
+/// checked. Only used when explicitly requested.
 #[derive(Debug)]
-struct AcceptAnyCertificate(Arc<CryptoProvider>);
+struct PinnedCertificate {
+    /// Expected fingerprint; empty: not pinned yet.
+    pin: String,
+    provider: Arc<CryptoProvider>,
+}
 
-impl ServerCertVerifier for AcceptAnyCertificate {
+impl ServerCertVerifier for PinnedCertificate {
     fn verify_server_cert(
         &self,
-        _end_entity: &CertificateDer<'_>,
+        end_entity: &CertificateDer<'_>,
         _intermediates: &[CertificateDer<'_>],
         _server_name: &ServerName<'_>,
         _ocsp_response: &[u8],
         _now: UnixTime,
     ) -> Result<ServerCertVerified, tokio_rustls::rustls::Error> {
-        Ok(ServerCertVerified::assertion())
+        let received = fingerprint(end_entity);
+        if self.pin.is_empty() || self.pin == received {
+            Ok(ServerCertVerified::assertion())
+        } else {
+            Err(tokio_rustls::rustls::Error::General(format!(
+                "the server certificate changed (SHA-256 {}); forget the trusted certificate in the network settings if this is expected",
+                format_fingerprint(&received)
+            )))
+        }
     }
 
     fn verify_tls12_signature(
@@ -162,7 +206,7 @@ impl ServerCertVerifier for AcceptAnyCertificate {
             message,
             cert,
             dss,
-            &self.0.signature_verification_algorithms,
+            &self.provider.signature_verification_algorithms,
         )
     }
 
@@ -176,12 +220,12 @@ impl ServerCertVerifier for AcceptAnyCertificate {
             message,
             cert,
             dss,
-            &self.0.signature_verification_algorithms,
+            &self.provider.signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.0.signature_verification_algorithms.supported_schemes()
+        self.provider.signature_verification_algorithms.supported_schemes()
     }
 }
 
@@ -268,7 +312,7 @@ mod tests {
             client_cert: Some(path),
             ..Config::default()
         };
-        let stream = open(&config).await.unwrap();
+        let (stream, _) = open(&config).await.unwrap();
         let (reader, mut writer) = tokio::io::split(stream);
         let mut lines = BufReader::new(reader).lines();
         let nick = format!("test{}", std::process::id() % 100_000);
@@ -318,7 +362,7 @@ mod tests {
             proxy: Some(crate::config::Proxy { host: "127.0.0.1".into(), port: 10800, username: None, password: None }),
             ..Config::default()
         };
-        let stream = open(&config).await.unwrap();
+        let (stream, _) = open(&config).await.unwrap();
         let (reader, mut writer) = tokio::io::split(stream);
         writer.write_all(b"CAP LS 302\r\n").await.unwrap();
         let mut reader = LineReader::new(reader);
@@ -363,10 +407,62 @@ mod tests {
             }),
             ..Config::default()
         };
-        let stream = open(&config).await.unwrap();
+        let (stream, _) = open(&config).await.unwrap();
         let mut reader = LineReader::new(stream);
         assert_eq!(reader.next_line().await.unwrap().as_deref(), Some(":irc.example.onion NOTICE * :hello"));
         proxy.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn pins_unverified_certificates() {
+        use tokio_rustls::rustls::ServerConfig;
+        use tokio_rustls::rustls::pki_types::PrivatePkcs8KeyDer;
+
+        let key = rcgen::KeyPair::generate().unwrap();
+        let cert = rcgen::CertificateParams::new(["localhost".to_owned()]).unwrap().self_signed(&key).unwrap();
+        let expected = fingerprint(cert.der());
+        let server_config = Arc::new(
+            ServerConfig::builder_with_provider(provider())
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_no_client_auth()
+                .with_single_cert(vec![cert.der().clone()], PrivatePkcs8KeyDer::from(key.serialize_der()).into())
+                .unwrap(),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let acceptor = tokio_rustls::TlsAcceptor::from(server_config);
+        tokio::spawn(async move {
+            loop {
+                let (socket, _) = listener.accept().await.unwrap();
+                let acceptor = acceptor.clone();
+                tokio::spawn(async move {
+                    if let Ok(mut tls) = acceptor.accept(socket).await {
+                        let _ = tls.write_all(b":localhost NOTICE * :hello\r\n").await;
+                        let _ = tls.flush().await;
+                        tokio::time::sleep(Duration::from_millis(200)).await;
+                    }
+                });
+            }
+        });
+
+        let config = |accept_invalid_certs, pinned_cert: Option<&str>| Config {
+            host: "localhost".into(),
+            port,
+            accept_invalid_certs,
+            pinned_cert: pinned_cert.map(str::to_owned),
+            ..Config::default()
+        };
+        let (stream, peer) = open(&config(true, None)).await.unwrap();
+        assert_eq!(peer, Some(PeerCertificate { fingerprint: expected.clone(), verified: false }), "trusted on first use");
+        let mut reader = LineReader::new(stream);
+        assert_eq!(reader.next_line().await.unwrap().as_deref(), Some(":localhost NOTICE * :hello"));
+
+        assert!(open(&config(true, Some(&expected.to_uppercase()))).await.is_ok(), "the pinned certificate");
+        let error = open(&config(true, Some(&"0".repeat(64)))).await.err().unwrap();
+        assert!(error.to_string().contains("certificate changed"), "{error}");
+        assert!(error.to_string().contains(&format_fingerprint(&expected)));
+        assert!(open(&config(false, None)).await.is_err(), "self-signed refused when verifying");
     }
 
     #[test]
@@ -379,7 +475,7 @@ mod tests {
         let path = identity_file("ok", &format!("{}{}", cert.pem(), key.serialize_pem()));
         let (chain, _) = load_identity(&path).unwrap();
         assert_eq!(chain.len(), 1);
-        builder(false)
+        builder(None)
             .with_client_auth_cert(chain, load_identity(&path).unwrap().1)
             .expect("rustls accepts the generated key");
 

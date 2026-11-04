@@ -15,6 +15,9 @@ pub struct Config {
     pub tls: bool,
     /// Accepts invalid or self-signed certificates (not recommended).
     pub accept_invalid_certs: bool,
+    /// SHA-256 of the server certificate trusted on first use, when
+    /// `accept_invalid_certs` is set: another certificate is refused.
+    pub pinned_cert: Option<String>,
     pub nick: String,
     /// Nicknames tried, in order, if `nick` is already taken.
     pub alt_nicks: Vec<String>,
@@ -70,6 +73,7 @@ impl Default for Config {
             port: 6697,
             tls: true,
             accept_invalid_certs: false,
+            pinned_cert: None,
             nick: "ircnext".to_owned(),
             alt_nicks: Vec::new(),
             username: "ircnext".to_owned(),
