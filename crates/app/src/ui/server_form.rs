@@ -404,6 +404,8 @@ impl ServerForm {
             // Kept by the application when editing: the form does not show them.
             fish_keys: std::collections::BTreeMap::new(),
             notify: crate::server::notify::parse_list(&self.notify),
+            // Kept by the application when editing.
+            auto_modes: Vec::new(),
             connection: Config {
                 host: host.to_owned(),
                 port,

@@ -245,6 +245,12 @@ impl Server {
                 self.request_channel_details(&channel)?;
                 effects.channel_central = Some(self.ensure(&channel));
             }
+            Command::AutoMode { mode, mask, channels, remove } => {
+                if remove && mask.is_none() {
+                    return Err(tr("Which mask? /aop -r <mask>").into());
+                }
+                effects.config_changed = self.auto_mode_command(mode, mask.as_deref(), &channels, remove, ctx);
+            }
             Command::List(filter) => {
                 self.request_list(filter.as_deref())?;
                 effects.channel_list = true;

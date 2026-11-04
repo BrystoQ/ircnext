@@ -211,9 +211,13 @@ Fixed keys: `Tab` completes, `↑` / `↓` browse the input history or the sugge
 | `/me <action>` | Describe an action |
 | `/nick`, `/away [message]`, `/back` | Nickname and away status |
 | `/topic [topic]`, `/whois <nick>`, `/invite` | Channel and users |
+| `/list [filter]`, `/channel [#channel]` | Browse the network's channels; topic, modes and bans of a channel |
 | `/kick`, `/ban`, `/unban`, `/op`, `/deop`, `/voice`, `/devoice`, `/mode` | Moderation |
 | `/ns`, `/cs`, `/ms`, `/hs` | NickServ, ChanServ, MemoServ, HostServ |
 | `/ignore [mask]`, `/unignore <mask>` | Ignored users |
+| `/notify [-r] [nick]` | Be told when someone connects or leaves |
+| `/aop`, `/avoice [-r] [mask] [#channels]` | Give `+o` or `+v` to someone when they join |
+| `/links` | Links posted in the open tabs |
 | `/ctcp`, `/quote <line>` | CTCP and raw command |
 | `/connect`, `/quit [reason]`, `/close`, `/clear` | Connection and tabs |
 | `/dcc send <nick> <file>`, `/dcc` | Send a file, show the transfers |

@@ -14,7 +14,7 @@ pub mod registration;
 pub mod socks;
 mod throttle;
 
-pub use client::{Closed, Event, Handle, connect};
+pub use client::{Closed, Event, Handle, Outbox, connect};
 pub use config::{Config, Proxy, Sasl, Secret};
 pub use network::{Batch, Channel, MaskEntry, MaskList, Member, Network, whox_request};
 pub use registration::Registered;

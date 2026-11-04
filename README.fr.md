@@ -211,9 +211,13 @@ Touches fixes : `Tab` complète, `↑` / `↓` parcourent l'historique de saisie
 | `/me <action>` | Décrire une action |
 | `/nick`, `/away [message]`, `/back` | Pseudonyme et absence |
 | `/topic [sujet]`, `/whois <pseudo>`, `/invite` | Salon et utilisateurs |
+| `/list [filtre]`, `/channel [#salon]` | Parcourir les salons du réseau ; sujet, modes et bannissements d'un salon |
 | `/kick`, `/ban`, `/unban`, `/op`, `/deop`, `/voice`, `/devoice`, `/mode` | Modération |
 | `/ns`, `/cs`, `/ms`, `/hs` | NickServ, ChanServ, MemoServ, HostServ |
 | `/ignore [masque]`, `/unignore <masque>` | Utilisateurs ignorés |
+| `/notify [-r] [pseudo]` | Être prévenu quand quelqu'un se connecte ou part |
+| `/aop`, `/avoice [-r] [masque] [#salons]` | Donner `+o` ou `+v` à quelqu'un à son arrivée |
+| `/links` | Liens postés dans les onglets ouverts |
 | `/ctcp`, `/quote <ligne>` | CTCP et commande brute |
 | `/connect`, `/quit [raison]`, `/close`, `/clear` | Connexion et onglets |
 | `/dcc send <pseudo> <fichier>`, `/dcc` | Envoyer un fichier, afficher les transferts |

@@ -61,6 +61,8 @@ pub enum Command {
     Reload,
     /// `/links`: the links seen in the open tabs.
     Links,
+    /// `/aop` and `/avoice [-r] [mask] [#channel,...]`: `mode` is `o` or `v`.
+    AutoMode { mode: char, mask: Option<String>, channels: Vec<String>, remove: bool },
     /// `/list [filter]`: the network's channels.
     List(Option<String>),
     /// `/channel [#channel]`: topic, modes and bans of a channel.
@@ -136,6 +138,8 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["delkey"], usage: tr("/delkey [#channel|nick]"), help: tr("Stop encrypting a conversation") },
         Spec { names: &["keyx"], usage: tr("/keyx [nick]"), help: tr("Exchange a FiSH key with someone (DH1080)") },
         Spec { names: &["channel"], usage: tr("/channel [#channel]"), help: tr("Topic, modes and bans of a channel") },
+        Spec { names: &["aop"], usage: tr("/aop [-r] [mask] [#channels]"), help: tr("Give operator status to someone when they join") },
+        Spec { names: &["avoice"], usage: tr("/avoice [-r] [mask] [#channels]"), help: tr("Give voice to someone when they join") },
         Spec { names: &["list"], usage: tr("/list [filter]"), help: tr("Browse the network's channels") },
         Spec { names: &["links", "url"], usage: "/links", help: tr("Show the links posted in the open tabs") },
         Spec { names: &["reload"], usage: "/reload", help: tr("Reload the scripts (scripts folder)") },
@@ -254,6 +258,16 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "reload" => Command::Reload,
         "links" | "url" => Command::Links,
         "list" => Command::List(owned(args)),
+        "aop" | "avoice" => {
+            let mode = if name == "aop" { 'o' } else { 'v' };
+            let mut words: Vec<&str> = args.unwrap_or_default().split_whitespace().collect();
+            let remove = words.first() == Some(&"-r");
+            if remove {
+                words.remove(0);
+            }
+            let channels = words.get(1).map(|list| list.split(',').filter(|c| !c.is_empty()).map(str::to_owned).collect()).unwrap_or_default();
+            Command::AutoMode { mode, mask: words.first().map(|mask| (*mask).to_owned()), channels, remove }
+        }
         "channel" => Command::Channel(owned(args.map(first_word))),
         "echo" => {
             // Switches such as `-a` are accepted and ignored.
