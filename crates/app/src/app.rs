@@ -103,6 +103,12 @@ pub enum Message {
     InstallUpdate,
     UpdateDownloaded(Result<PathBuf, String>),
     DismissUpdate,
+    /// Sends the pasted text waiting for confirmation, line by line.
+    PasteSend,
+    /// Sends it as one line.
+    PasteJoined,
+    /// Clipboard text, read after a paste in the input.
+    Pasted(Option<String>),
 }
 
 /// Keys with a fixed role (not configurable).
@@ -120,6 +126,7 @@ enum Modal {
     Server(ServerForm),
     Switcher(Switcher),
     Transfers,
+    Paste(crate::ui::paste::Paste),
 }
 
 /// State of the main window.
@@ -475,6 +482,15 @@ impl App {
             Message::InstallUpdate => return self.install_update(),
             Message::UpdateDownloaded(result) => return self.update_downloaded(result),
             Message::DismissUpdate => self.update = None,
+            Message::Pasted(text) => self.on_paste(text),
+            Message::PasteSend | Message::PasteJoined => {
+                let Some(Modal::Paste(paste)) = self.modal.take() else {
+                    return Task::none();
+                };
+                self.input.clone_from(&paste.input);
+                let text = if matches!(message, Message::PasteJoined) { paste.joined() } else { paste.text };
+                return Task::batch([self.send_input(paste.server, paste.buffer, &text), iced::widget::operation::focus(INPUT_ID)]);
+            }
             Message::OpenTransfers => self.modal = Some(Modal::Transfers),
             Message::TimerTick(now) => return self.run_timers(now),
             Message::ReloadScripts => {
@@ -658,12 +674,46 @@ impl App {
         let Some((id, buffer)) = self.active else {
             return Task::none();
         };
+        self.send_input(id, buffer, &text)
+    }
+
+    /// Text pasted in the input. The input field drops line breaks, so the
+    /// clipboard is read again: several lines are confirmed before being
+    /// sent one message each, fewer are kept on one line.
+    fn on_paste(&mut self, clipboard: Option<String>) {
+        let Some(pasted) = clipboard.filter(|text| text.contains('\n')) else {
+            return;
+        };
+        let flat: String = pasted.chars().filter(|c| !c.is_control()).collect();
+        // Pasted somewhere else (the search field).
+        let Some(at) = self.input.rfind(&flat).filter(|_| !flat.is_empty()) else {
+            return;
+        };
+        let mut input = self.input.clone();
+        input.replace_range(at..at + flat.len(), "");
+        let threshold = usize::from(self.config.settings.paste_confirm_lines);
+        let target = self.active.zip(self.active_buffer().map(|(_, buffer)| buffer.name.clone()));
+        match target {
+            Some(((server, buffer), target)) if threshold > 0 && crate::ui::paste::line_count(&pasted) >= threshold => {
+                self.input.clone_from(&input);
+                self.modal = Some(Modal::Paste(crate::ui::paste::Paste { server, buffer, target, text: pasted, input }));
+            }
+            _ => {
+                let joined = pasted.lines().map(str::trim).filter(|line| !line.is_empty()).collect::<Vec<_>>().join(" ");
+                input.insert_str(at, &joined);
+                self.input = input;
+            }
+        }
+    }
+
+    /// Sends typed text, after the scripts' `on INPUT` handlers.
+    fn send_input(&mut self, id: ServerId, buffer: BufferId, text: &str) -> Task<Message> {
         // `on INPUT` handlers see the text first, and may stop it.
-        let (halted, task) = self.input_event(id, buffer, &text);
+        let (halted, task) = self.input_event(id, buffer, text);
         if halted {
             return task;
         }
-        Task::batch([task, self.run_line(id, buffer, &text)])
+        Task::batch([task, self.run_line(id, buffer, text)])
     }
 
     /// Runs a typed line (text or command) in a tab.
@@ -1153,6 +1203,7 @@ impl App {
             Modal::Server(form) => form.view(colors),
             Modal::Switcher(switcher) => switcher.view(&self.servers, self.active, colors),
             Modal::Transfers => crate::ui::transfers::view(&self.transfers, self.now, colors),
+            Modal::Paste(paste) => crate::ui::paste::view(paste, colors),
         };
         stack![
             base,
@@ -1438,6 +1489,58 @@ mod tests {
         app.input = "/unignore troll".into();
         let _ = app.update(Message::Submit);
         assert_eq!(app.config.settings.ignored, Vec::<String>::new());
+    }
+
+    #[test]
+    fn pasted_lines_are_confirmed() {
+        let mut app = demo();
+        // Shows what would be sent, instead of sending it.
+        app.scripts.load("input.mrc", "on *:INPUT:#:{ echo sent: $1- | halt }").unwrap();
+        let (server, buffer) = app.active.unwrap();
+        let last = |app: &App| match app.server(server).unwrap().buffer(buffer).unwrap().lines().last().unwrap().kind.clone() {
+            LineKind::Info(text) => text,
+            other => panic!("{other:?}"),
+        };
+        // What the input field does: the text without its line breaks.
+        let paste = |app: &mut App, typed: &str, pasted: &str| {
+            let flat: String = pasted.chars().filter(|c| !c.is_control()).collect();
+            let _ = app.update(Message::InputChanged(format!("{typed}{flat}")));
+            let _ = app.update(Message::Pasted(Some(pasted.into())));
+        };
+
+        paste(&mut app, "see: ", "one\ntwo");
+        assert!(app.modal.is_none(), "under the threshold");
+        assert_eq!(app.input, "see: one two", "kept on one line");
+
+        let pasted = "first line\n\nsecond line\nthird line";
+        paste(&mut app, "draft ", pasted);
+        assert!(matches!(&app.modal, Some(Modal::Paste(paste)) if paste.target == "#rust" && paste.lines().count() == 3));
+        let _ = app.update(Message::Shortcut(Shortcut::Escape));
+        assert!(app.modal.is_none());
+        assert_eq!(app.input, "draft ", "cancelled: the paste is undone");
+
+        paste(&mut app, "draft ", pasted);
+        let _ = app.update(Message::PasteSend);
+        assert!(app.modal.is_none());
+        assert!(last(&app).starts_with("sent: first line") && last(&app).contains("third line"));
+        assert_eq!(app.input, "draft ", "what was typed stays");
+
+        app.input.clear();
+        paste(&mut app, "", pasted);
+        let _ = app.update(Message::PasteJoined);
+        assert_eq!(last(&app), "sent: first line second line third line");
+
+        // Pasted elsewhere (search field): the input is left alone.
+        app.input = "hello".into();
+        let _ = app.update(Message::Pasted(Some(pasted.into())));
+        assert!(app.modal.is_none());
+        assert_eq!(app.input, "hello");
+
+        app.config.settings.paste_confirm_lines = 0;
+        app.input.clear();
+        paste(&mut app, "", pasted);
+        assert!(app.modal.is_none(), "confirmation turned off");
+        assert_eq!(app.input, "first line second line third line");
     }
 
     #[test]
@@ -1751,6 +1854,11 @@ mod tests {
         };
         let _ = app.update(Message::UpdateChecked { manual: true, result: Ok(Some(release)) });
         render(&app, &dir.join("update"));
+        let _ = app.update(Message::DismissUpdate);
+        let code = "fn main() {\n    let client = Client::new();\n    client.run();\n}";
+        let _ = app.update(Message::InputChanged(code.chars().filter(|c| !c.is_control()).collect()));
+        let _ = app.update(Message::Pasted(Some(code.into())));
+        render(&app, &dir.join("paste"));
     }
 
     fn render(app: &App, path: &std::path::Path) {

@@ -190,6 +190,8 @@ pub struct Settings {
     pub title_unread_count: bool,
     /// Do not disturb: no notification nor window alert.
     pub do_not_disturb: bool,
+    /// Asks before sending a text of at least this many lines (0: never).
+    pub paste_confirm_lines: u16,
     /// Looks for a new version at startup, once a day.
     pub check_updates: bool,
 
@@ -265,6 +267,7 @@ impl Default for Settings {
             title_unread_count: true,
             do_not_disturb: false,
             check_updates: true,
+            paste_confirm_lines: 3,
             line_shading: false,
             repeat_away_replies: false,
             ctcp_replies: true,
