@@ -108,6 +108,7 @@ pub enum Message {
     /// Sends it as one line.
     PasteJoined,
     Links(crate::ui::links::Msg),
+    ChannelList(crate::ui::channel_list::Msg),
     /// Clipboard text, read after a paste in the input.
     Pasted(Option<String>),
 }
@@ -129,6 +130,7 @@ enum Modal {
     Transfers,
     Paste(crate::ui::paste::Paste),
     Links(crate::ui::links::Links),
+    ChannelList(crate::ui::channel_list::ChannelListView),
 }
 
 /// State of the main window.
@@ -486,6 +488,7 @@ impl App {
             Message::DismissUpdate => self.update = None,
             Message::Pasted(text) => self.on_paste(text),
             Message::Links(msg) => return self.on_links(msg),
+            Message::ChannelList(msg) => return self.on_channel_list(msg),
             Message::PasteSend | Message::PasteJoined => {
                 let Some(Modal::Paste(paste)) = self.modal.take() else {
                     return Task::none();
@@ -629,6 +632,10 @@ impl App {
         if effects.config_changed {
             self.persist_servers();
         }
+        if effects.channel_list {
+            self.modal = Some(Modal::ChannelList(crate::ui::channel_list::ChannelListView::new(id)));
+            return iced::widget::operation::focus(crate::ui::channel_list::CHANNEL_LIST_ID);
+        }
         if effects.closed {
             let fallback = self.server(id).map(Server::server_buffer);
             if let Some(buffer) = fallback {
@@ -733,6 +740,31 @@ impl App {
             Msg::GoTo(server, buffer) => {
                 self.modal = None;
                 self.update(Message::Select(server, buffer))
+            }
+        }
+    }
+
+    fn on_channel_list(&mut self, msg: crate::ui::channel_list::Msg) -> Task<Message> {
+        use crate::ui::channel_list::Msg;
+        let Some(Modal::ChannelList(list)) = &mut self.modal else {
+            return Task::none();
+        };
+        let id = list.server;
+        match msg {
+            Msg::Query(query) => {
+                list.query = query;
+                Task::none()
+            }
+            Msg::Refresh => {
+                if let Some(Err(error)) = self.server_mut(id).map(|server| server.request_list(None)) {
+                    self.banner = Some(error);
+                }
+                Task::none()
+            }
+            Msg::Join(channel) => {
+                self.modal = None;
+                let effects = self.execute(id, None, Command::Join { channels: channel, key: None });
+                self.apply_effects(id, effects)
             }
         }
     }
@@ -1241,6 +1273,7 @@ impl App {
             Modal::Transfers => crate::ui::transfers::view(&self.transfers, self.now, colors),
             Modal::Paste(paste) => crate::ui::paste::view(paste, colors),
             Modal::Links(links) => links.view(colors),
+            Modal::ChannelList(list) => list.view(self.server(list.server), colors),
         };
         stack![
             base,
@@ -1935,6 +1968,21 @@ mod tests {
         let _ = app.update(Message::CloseModal);
         let _ = app.update(Message::Action(Action::Links));
         render(&app, &dir.join("links"));
+        let _ = app.update(Message::CloseModal);
+        let libera = app.servers[0].id;
+        app.servers[0].channel_list = Some(crate::server::channel_list::ChannelList::default());
+        for line in [
+            ":s 322 me #libera 2100 :Libera.Chat support · https://libera.chat",
+            ":s 322 me #rust 1200 :[+nt] The Rust language · https://www.rust-lang.org · be kind",
+            ":s 322 me #linux 980 :Linux help and discussion",
+            ":s 322 me #python 870 :Python programming · paste code to a pastebin",
+            ":s 322 me #ircnext 42 :A modern IRC client in Rust",
+            ":s 323 me :End of /LIST",
+        ] {
+            inject(&mut app, line);
+        }
+        app.modal = Some(Modal::ChannelList(crate::ui::channel_list::ChannelListView::new(libera)));
+        render(&app, &dir.join("channel-list"));
     }
 
     fn render(app: &App, path: &std::path::Path) {

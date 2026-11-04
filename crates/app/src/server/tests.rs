@@ -463,3 +463,33 @@ fn notify_list_reports_arrivals_and_departures() {
     receive(&mut server, ":s 730 me :alice!a@example.org");
     assert_eq!(info(&server), "Alice removed from the notify list", "no longer reported");
 }
+
+#[test]
+fn channel_list_collects_list_replies() {
+    let mut server = server();
+    let settings = Settings::default();
+    let ctx = Context { settings: &settings, active: None };
+    let status = server.server_buffer();
+    assert_eq!(server.execute(status, Cmd::List(None), &ctx).unwrap_err(), "Not connected.");
+    let shown = lines(&server, "Test").len();
+
+    server.channel_list = Some(super::channel_list::ChannelList::default());
+    for line in [
+        ":s 321 me Channel :Users Name",
+        ":s 322 me #small 3 :\x02tiny\x02 corner",
+        ":s 322 me #rust 1200 :[+nt] The Rust language",
+        ":s 322 me #empty 1 :",
+    ] {
+        receive(&mut server, line);
+    }
+    assert!(!server.channel_list.as_ref().unwrap().complete);
+    receive(&mut server, ":s 323 me :End of /LIST");
+    let list = server.channel_list.as_ref().unwrap();
+    assert!(list.complete);
+    let names: Vec<&str> = list.entries.iter().map(|entry| entry.name.as_str()).collect();
+    assert_eq!(names, ["#rust", "#small", "#empty"], "most populated first");
+    assert_eq!(list.entries[0].topic, "The Rust language", "modes removed");
+    assert_eq!(list.entries[1].topic, "tiny corner", "formatting removed");
+    assert!(list.entries[0].matches("rust language"));
+    assert_eq!(lines(&server, "Test").len(), shown, "not printed in the server tab");
+}
