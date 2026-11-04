@@ -16,6 +16,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 - Notify list, as in mIRC: `/notify alice` (or the network form) reports in the server tab when someone connects or leaves, with a notification on arrival. `/notify` shows who is online, `/notify -r alice` removes. Based on IRCv3 `MONITOR`. Scripts get the `on NOTIFY` and `on UNOTIFY` events.
 - Channel list: `/list` opens a window with the network's channels, most populated first, their topic and user count. Search by name or topic, and join in one click.
 - Channel settings (mIRC's channel central): the ⚙ button of a channel, or `/channel`, opens its topic, its modes (no outside messages, protected topic, invite only, moderated, secret, key, user limit) and its ban, exception and invitation lists. Operators change them in place; others see them read only.
+- Auto-op and auto-voice lists, as in mIRC: `/aop *!*@trusted.host` or `/avoice nick #channel` give `+o` or `+v` to matching people when they join a channel you manage. `/aop` lists, `/aop -r` removes. Kept per network.
 
 ### Fixed
 

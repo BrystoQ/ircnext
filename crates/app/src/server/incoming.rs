@@ -101,6 +101,8 @@ impl Server {
                 self.push(id, line(LineKind::Join { nick: source.clone(), mask }), ctx);
                 if self.network.is_me(&source) && !history {
                     effects = self.on_self_join(id, channel);
+                } else if !history && let Some(who) = &message.source {
+                    self.apply_auto_modes(channel, who);
                 }
             }
             Command::Part => {

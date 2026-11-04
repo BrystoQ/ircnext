@@ -1,6 +1,7 @@
 //! Network in use: connection, IRC state and its tabs.
 
 mod fish;
+mod auto_modes;
 pub mod channel_central;
 pub mod channel_list;
 mod incoming;

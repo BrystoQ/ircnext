@@ -77,6 +77,31 @@ impl Handle {
     pub fn quit(&self, reason: Option<String>) -> Result<(), Closed> {
         self.0.send(Action::Quit(reason)).map_err(|_| Closed)
     }
+
+    /// A handle connected to nothing: what it sends is kept in the
+    /// [`Outbox`], for tests.
+    pub fn detached() -> (Self, Outbox) {
+        let (sender, receiver) = tokio_mpsc::unbounded_channel();
+        (Self(sender), Outbox(receiver))
+    }
+}
+
+/// Messages sent through a [`Handle::detached`].
+#[derive(Debug)]
+pub struct Outbox(tokio_mpsc::UnboundedReceiver<Action>);
+
+impl Outbox {
+    /// Messages sent since the last call, as raw lines (`QUIT` included).
+    pub fn sent(&mut self) -> Vec<String> {
+        let mut lines = Vec::new();
+        while let Ok(action) = self.0.try_recv() {
+            lines.push(match action {
+                Action::Send(message) => message.to_string().trim_end().to_owned(),
+                Action::Quit(reason) => format!("QUIT {}", reason.unwrap_or_default()).trim_end().to_owned(),
+            });
+        }
+        lines
+    }
 }
 
 /// Starts a connection and returns its event stream.

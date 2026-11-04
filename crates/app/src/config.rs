@@ -41,8 +41,23 @@ pub struct ServerEntry {
     /// (`MONITOR`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notify: Vec<String>,
+    /// Auto-op and auto-voice lists.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub auto_modes: Vec<AutoMode>,
     #[serde(flatten)]
     pub connection: Connection,
+}
+
+/// A mask given a mode when it joins (`/aop`, `/avoice`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutoMode {
+    /// Full, lowercase `nick!user@host` mask.
+    pub mask: String,
+    /// `o` or `v`.
+    pub mode: char,
+    /// Channels it applies to; empty: all.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub channels: Vec<String>,
 }
 
 fn enabled() -> bool {
@@ -254,6 +269,7 @@ mod tests {
             on_connect: vec!["/mode me +i".into()],
             fish_keys: std::collections::BTreeMap::new(),
             notify: Vec::new(),
+            auto_modes: Vec::new(),
             connection: Connection {
                 host: "irc.libera.chat".into(),
                 sasl: Some(Sasl {

@@ -11,6 +11,7 @@ fn server() -> Server {
         on_connect: Vec::new(),
         fish_keys: std::collections::BTreeMap::new(),
             notify: Vec::new(),
+            auto_modes: Vec::new(),
         connection: Config {
             host: "irc.example.net".into(),
             nick: "me".into(),
@@ -524,4 +525,39 @@ fn channel_central_replies_stay_out_of_the_server_tab() {
 
     receive(&mut server, ":alice!a@h MODE #rust -o me");
     assert!(!server.can_manage("#rust"), "no longer operator");
+}
+
+#[test]
+fn auto_op_and_voice_on_join() {
+    let mut server = server();
+    let (handle, mut outbox) = ircnext_client::Handle::detached();
+    server.handle = Some(handle);
+    let settings = Settings::default();
+    let ctx = Context { settings: &settings, active: None };
+    let rust = server.find("#rust").unwrap();
+    let run = |server: &mut Server, command| server.execute(rust, command, &ctx).unwrap();
+
+    let effects = run(&mut server, Cmd::AutoMode { mode: 'o', mask: Some("*!*@trusted.example".into()), channels: vec![], remove: false });
+    assert!(effects.config_changed);
+    run(&mut server, Cmd::AutoMode { mode: 'v', mask: Some("dave".into()), channels: vec!["#rust".into()], remove: false });
+    run(&mut server, Cmd::AutoMode { mode: 'v', mask: Some("*!*@trusted.example".into()), channels: vec![], remove: false });
+    assert_eq!(server.entry.auto_modes[1].mask, "dave!*@*", "nick turned into a mask");
+
+    receive(&mut server, ":friend!f@TRUSTED.example JOIN #rust");
+    receive(&mut server, ":dave!d@elsewhere JOIN #rust");
+    receive(&mut server, ":eve!e@elsewhere JOIN #rust");
+    receive(&mut server, ":dave!d@elsewhere JOIN #other");
+    assert_eq!(outbox.sent(), ["MODE #rust +o friend", "MODE #rust +v dave"], "+o wins over +v; #other is not ours");
+
+    run(&mut server, Cmd::AutoMode { mode: 'v', mask: None, channels: vec![], remove: false });
+    let status = server.server_buffer();
+    let last = server.buffer(status).unwrap().lines().last().unwrap().kind.clone();
+    assert_eq!(last, LineKind::Info("Auto-voice: dave!*@* (#rust) · *!*@trusted.example".into()));
+
+    let effects = run(&mut server, Cmd::AutoMode { mode: 'v', mask: Some("dave".into()), channels: vec![], remove: true });
+    assert!(effects.config_changed);
+    receive(&mut server, ":alice!a@h MODE #rust -o me");
+    receive(&mut server, ":friend!f@trusted.example PART #rust");
+    receive(&mut server, ":friend!f@trusted.example JOIN #rust");
+    assert!(outbox.sent().is_empty(), "no longer operator");
 }
