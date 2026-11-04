@@ -6,6 +6,10 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 
 ## [Unreleased]
 
+### Added
+
+- Ignore by kind and for a while, as in mIRC: `/ignore -pn troll` only hides their private messages and notices, `/ignore -u600 troll` lasts ten minutes. Kinds: `p` private, `c` channels, `n` notices, `t` CTCP, `i` invitations, `d` DCC. `/ignore` lists them with the time left.
+
 ## [0.4.0] - 2026-11-04
 
 ### Added

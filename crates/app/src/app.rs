@@ -935,7 +935,7 @@ impl App {
         }
         match input::parse(text) {
             Ok(Input::Command(Command::Reload)) => return self.reload_scripts(id, buffer),
-            Ok(Input::Command(Command::Ignore(mask))) => return self.ignore(id, buffer, mask),
+            Ok(Input::Command(Command::Ignore { mask, kinds, seconds })) => return self.ignore(id, buffer, mask, kinds, seconds),
             Ok(Input::Command(Command::Unignore(mask))) => return self.unignore(id, buffer, &mask),
             Ok(Input::Command(Command::Transfers)) => {
                 self.modal = Some(Modal::Transfers);
@@ -968,22 +968,41 @@ impl App {
     }
 
     /// `/ignore`: adds a mask, or shows the list.
-    fn ignore(&mut self, id: ServerId, buffer: BufferId, mask: Option<String>) -> Task<Message> {
+    fn ignore(&mut self, id: ServerId, buffer: BufferId, mask: Option<String>, kinds: String, seconds: Option<u64>) -> Task<Message> {
+        let now = Local::now().timestamp();
+        let before = self.config.settings.ignored.len();
+        self.config.settings.ignored.retain(|entry| entry.is_active(now));
+        let expired = self.config.settings.ignored.len() != before;
         let text = match mask {
             None if self.config.settings.ignored.is_empty() => tr("Nobody is ignored.").to_owned(),
-            None => tr!("Ignored: {masks}", masks = self.config.settings.ignored.join(", ")),
+            None => {
+                let entries: Vec<String> = self.config.settings.ignored.iter().map(|entry| describe_ignore(entry, now)).collect();
+                tr!("Ignored: {masks}", masks = entries.join(", "))
+            }
             Some(mask) => {
                 let normalized = ignore::normalize(&mask);
+                let until = seconds.map(|seconds| now.saturating_add(i64::try_from(seconds).unwrap_or(i64::MAX)));
+                let entry = ignore::IgnoreEntry { mask: mask.clone(), kinds, until };
                 let ignored = &mut self.config.settings.ignored;
-                if ignored.iter().any(|known| ignore::normalize(known) == normalized) {
-                    tr!("{mask} is already ignored.", mask = mask)
-                } else {
-                    ignored.push(mask.clone());
-                    self.save();
-                    tr!("{mask} is now ignored ({normalized}).", mask = mask, normalized = normalized)
-                }
+                let text = match ignored.iter_mut().find(|known| ignore::normalize(&known.mask) == normalized) {
+                    // Ignoring again changes the kinds and the duration.
+                    Some(known) if *known == entry => tr!("{mask} is already ignored.", mask = mask),
+                    Some(known) => {
+                        *known = entry.clone();
+                        tr!("Ignore of {mask} changed: {details}.", mask = mask, details = describe_ignore(&entry, now))
+                    }
+                    None => {
+                        ignored.push(entry.clone());
+                        tr!("{mask} is now ignored: {details}.", mask = mask, details = describe_ignore(&entry, now))
+                    }
+                };
+                self.save();
+                text
             }
         };
+        if expired {
+            self.save();
+        }
         self.info(id, buffer, text);
         Task::none()
     }
@@ -992,7 +1011,7 @@ impl App {
         let normalized = ignore::normalize(mask);
         let ignored = &mut self.config.settings.ignored;
         let before = ignored.len();
-        ignored.retain(|known| ignore::normalize(known) != normalized);
+        ignored.retain(|known| ignore::normalize(&known.mask) != normalized);
         let text = if ignored.len() < before {
             self.save();
             tr!("{mask} is no longer ignored.", mask = mask)
@@ -1427,6 +1446,32 @@ impl App {
         ]
         .into()
     }
+}
+
+/// `troll!*@* (private, notices; 9 min left)`.
+fn describe_ignore(entry: &ignore::IgnoreEntry, now: i64) -> String {
+    let mut details: Vec<String> = Vec::new();
+    if !entry.kinds.is_empty() {
+        let names: Vec<&str> = entry
+            .kinds
+            .chars()
+            .map(|kind| match kind {
+                'p' => tr("private"),
+                'c' => tr("channels"),
+                'n' => tr("notices"),
+                't' => tr("CTCP"),
+                'i' => tr("invitations"),
+                _ => tr("DCC"),
+            })
+            .collect();
+        details.push(names.join(", "));
+    }
+    if let Some(until) = entry.until {
+        let minutes = ((until - now).max(0) + 59) / 60;
+        details.push(tr!("{minutes} min left", minutes = minutes));
+    }
+    let mask = ignore::normalize(&entry.mask);
+    if details.is_empty() { mask } else { format!("{mask} ({})", details.join("; ")) }
 }
 
 /// Subscription key of a connection: only the id and the generation count,

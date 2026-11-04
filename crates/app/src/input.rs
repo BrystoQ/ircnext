@@ -41,8 +41,10 @@ pub enum Command {
     Close,
     Clear,
     Help,
-    /// `/ignore [mask]`: adds a mask, or lists the ignored users.
-    Ignore(Option<String>),
+    /// `/ignore [-pcntid] [-uN] [mask]`: adds a mask, for some kinds of
+    /// messages (empty: all) and `seconds` if given, or lists the ignored
+    /// users.
+    Ignore { mask: Option<String>, kinds: String, seconds: Option<u64> },
     Unignore(String),
     /// `/notify [-r] [nick]`: adds to or removes from the notify list, or
     /// shows it.
@@ -132,7 +134,7 @@ pub fn commands() -> Vec<Spec> {
         Spec { names: &["connect", "reconnect"], usage: "/connect", help: tr("(Re)connect to the server") },
         Spec { names: &["close"], usage: "/close", help: tr("Close the current tab") },
         Spec { names: &["clear"], usage: "/clear", help: tr("Clear the current tab") },
-        Spec { names: &["ignore"], usage: tr("/ignore [nick or mask]"), help: tr("Ignore someone (no argument: the list)") },
+        Spec { names: &["ignore"], usage: tr("/ignore [-pcntid] [-uN] [nick or mask]"), help: tr("Ignore someone: private, channels, notices, CTCP, invitations, DCC; -uN for N seconds") },
         Spec { names: &["unignore"], usage: tr("/unignore <nick or mask>"), help: tr("Stop ignoring someone") },
         Spec { names: &["notify"], usage: tr("/notify [-r] [nick]"), help: tr("Be told when someone connects (no argument: the list)") },
         Spec { names: &["dcc"], usage: tr("/dcc [send <nick> <file>]"), help: tr("Send a file, or show the transfers") },
@@ -244,7 +246,35 @@ pub fn parse(line: &str) -> Result<Input, Error> {
         "connect" => Command::Connect,
         "close" => Command::Close,
         "clear" => Command::Clear,
-        "ignore" => Command::Ignore(owned(args.map(first_word))),
+        "ignore" => {
+            let (mut kinds, mut seconds, mut mask) = (String::new(), None, None);
+            for word in args.unwrap_or_default().split_whitespace() {
+                match word.strip_prefix('-') {
+                    Some(flags) => {
+                        let mut chars = flags.chars();
+                        while let Some(flag) = chars.next() {
+                            if flag == 'u' {
+                                let digits: String = chars.clone().take_while(char::is_ascii_digit).collect();
+                                chars.nth(digits.len().saturating_sub(1));
+                                seconds = Some(digits.parse().map_err(|_| usage())?);
+                            } else if crate::ignore::KINDS.contains(flag) {
+                                if !kinds.contains(flag) {
+                                    kinds.push(flag);
+                                }
+                            } else {
+                                return Err(usage());
+                            }
+                        }
+                    }
+                    None if mask.is_none() => mask = Some(word.to_owned()),
+                    None => return Err(usage()),
+                }
+            }
+            if mask.is_none() && (seconds.is_some() || !kinds.is_empty()) {
+                return Err(usage());
+            }
+            Command::Ignore { mask, kinds, seconds }
+        }
         "unignore" => Command::Unignore(required(args.map(first_word))?),
         "notify" => match args.map(str::trim).unwrap_or_default().split_whitespace().collect::<Vec<_>>().as_slice() {
             [] => Command::Notify { nick: None, remove: false },
@@ -403,6 +433,18 @@ mod tests {
             command("/ctcp bob version"),
             Command::Ctcp { target: "bob".into(), command: "VERSION".into(), params: None }
         );
+    }
+
+    #[test]
+    fn parses_ignore_kinds_and_durations() {
+        let ignore = |mask: Option<&str>, kinds: &str, seconds| Input::Command(Command::Ignore { mask: mask.map(str::to_owned), kinds: kinds.into(), seconds });
+        assert_eq!(parse("/ignore"), Ok(ignore(None, "", None)));
+        assert_eq!(parse("/ignore troll"), Ok(ignore(Some("troll"), "", None)));
+        assert_eq!(parse("/ignore -pn -u60 troll"), Ok(ignore(Some("troll"), "pn", Some(60))));
+        assert_eq!(parse("/ignore -cu600t *!*@spam"), Ok(ignore(Some("*!*@spam"), "ct", Some(600))));
+        for bad in ["/ignore -x troll", "/ignore -u troll", "/ignore -p", "/ignore a b"] {
+            assert!(parse(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

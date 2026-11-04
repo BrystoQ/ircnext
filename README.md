@@ -214,7 +214,7 @@ Fixed keys: `Tab` completes, `↑` / `↓` browse the input history or the sugge
 | `/list [filter]`, `/channel [#channel]` | Browse the network's channels; topic, modes and bans of a channel |
 | `/kick`, `/ban`, `/unban`, `/op`, `/deop`, `/voice`, `/devoice`, `/mode` | Moderation |
 | `/ns`, `/cs`, `/ms`, `/hs` | NickServ, ChanServ, MemoServ, HostServ |
-| `/ignore [mask]`, `/unignore <mask>` | Ignored users |
+| `/ignore [-pcntid] [-uN] [mask]`, `/unignore <mask>` | Ignored users, for some kinds of messages or for N seconds |
 | `/notify [-r] [nick]` | Be told when someone connects or leaves |
 | `/aop`, `/avoice [-r] [mask] [#channels]` | Give `+o` or `+v` to someone when they join |
 | `/links`, `/logs` | Links posted in the open tabs; saved conversations |

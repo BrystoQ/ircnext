@@ -6,6 +6,10 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 
 ## [Non publié]
 
+### Ajouté
+
+- Ignore par type et temporaire, comme dans mIRC : `/ignore -pn troll` ne masque que ses messages privés et ses notices, `/ignore -u600 troll` dure dix minutes. Types : `p` privé, `c` salons, `n` notices, `t` CTCP, `i` invitations, `d` DCC. `/ignore` les liste avec le temps restant.
+
 ## [0.4.0] - 2026-11-04
 
 ### Ajouté
