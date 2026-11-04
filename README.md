@@ -217,7 +217,7 @@ Fixed keys: `Tab` completes, `↑` / `↓` browse the input history or the sugge
 | `/ignore [mask]`, `/unignore <mask>` | Ignored users |
 | `/notify [-r] [nick]` | Be told when someone connects or leaves |
 | `/aop`, `/avoice [-r] [mask] [#channels]` | Give `+o` or `+v` to someone when they join |
-| `/links` | Links posted in the open tabs |
+| `/links`, `/logs` | Links posted in the open tabs; saved conversations |
 | `/ctcp`, `/quote <line>` | CTCP and raw command |
 | `/connect`, `/quit [reason]`, `/close`, `/clear` | Connection and tabs |
 | `/dcc send <nick> <file>`, `/dcc` | Send a file, show the transfers |

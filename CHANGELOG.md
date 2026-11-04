@@ -17,6 +17,7 @@ This project follows [semantic versioning](https://semver.org). The format is ba
 - Channel list: `/list` opens a window with the network's channels, most populated first, their topic and user count. Search by name or topic, and join in one click.
 - Channel settings (mIRC's channel central): the ⚙ button of a channel, or `/channel`, opens its topic, its modes (no outside messages, protected topic, invite only, moderated, secret, key, user limit) and its ban, exception and invitation lists. Operators change them in place; others see them read only.
 - Auto-op and auto-voice lists, as in mIRC: `/aop *!*@trusted.host` or `/avoice nick #channel` give `+o` or `+v` to matching people when they join a channel you manage. `/aop` lists, `/aop -r` removes. Kept per network.
+- Log viewer: `/logs`, or *Browse* next to the logs folder in Settings › Chat, lists the saved conversations by network and shows them with a search, opening on the current one.
 
 ### Fixed
 
