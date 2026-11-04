@@ -27,6 +27,8 @@ pub struct ServerForm {
     port: String,
     tls: bool,
     accept_invalid_certs: bool,
+    /// Certificate trusted on first use (unverified certificates).
+    pinned_cert: Option<String>,
     nick: String,
     username: String,
     realname: String,
@@ -84,6 +86,7 @@ pub enum Msg {
     Port(String),
     Tls(bool),
     AcceptInvalidCerts(bool),
+    ForgetCertificate,
     Nick(String),
     Username(String),
     Realname(String),
@@ -121,6 +124,7 @@ impl ServerForm {
             port: String::new(),
             tls: true,
             accept_invalid_certs: false,
+            pinned_cert: None,
             nick: settings.nick.clone(),
             username: settings.nick.clone(),
             realname: settings.realname.clone(),
@@ -178,6 +182,7 @@ impl ServerForm {
             port: connection.port.to_string(),
             tls: connection.tls,
             accept_invalid_certs: connection.accept_invalid_certs,
+            pinned_cert: connection.pinned_cert.clone(),
             nick: connection.nick.clone(),
             username: connection.username.clone(),
             realname: connection.realname.clone(),
@@ -261,6 +266,7 @@ impl ServerForm {
                 self.tls = tls;
             }
             Msg::AcceptInvalidCerts(value) => self.accept_invalid_certs = value,
+            Msg::ForgetCertificate => self.pinned_cert = None,
             Msg::Nick(value) => {
                 if self.username.is_empty() || self.username == self.nick {
                     self.username.clone_from(&value);
@@ -432,6 +438,7 @@ impl ServerForm {
                 port,
                 tls: self.tls,
                 accept_invalid_certs: self.tls && self.accept_invalid_certs,
+                pinned_cert: self.pinned_cert.clone().filter(|_| self.tls && self.accept_invalid_certs),
                 nick: nick.to_owned(),
                 alt_nicks,
                 username: non_empty(&self.username, nick),
@@ -493,10 +500,27 @@ impl ServerForm {
         if self.tls {
             server.push(switch(
                 tr("Accept invalid certificates"),
-                Some(tr("Not recommended: exposes you to interception")),
+                Some(tr("The first certificate is then trusted, and any other refused")),
                 self.accept_invalid_certs,
                 Msg::AcceptInvalidCerts,
             ));
+        }
+        if self.tls && self.accept_invalid_certs {
+            let (label, forget): (String, Option<Msg>) = match &self.pinned_cert {
+                Some(pin) => (format!("SHA-256 {}", ircnext_client::connection::format_fingerprint(pin)), Some(Msg::ForgetCertificate)),
+                None => (tr("None yet: the next one will be").to_owned(), None),
+            };
+            server.push(
+                form::setting(
+                    tr("Trusted certificate"),
+                    button(text(tr("Forget")).size(13))
+                        .padding([6, 14])
+                        .style(theme::secondary(c))
+                        .on_press_maybe(forget.map(Message::Form)),
+                )
+                .description(label)
+                .view(c),
+            );
         }
 
         let identity = [

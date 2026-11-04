@@ -561,3 +561,26 @@ fn auto_op_and_voice_on_join() {
     receive(&mut server, ":friend!f@trusted.example JOIN #rust");
     assert!(outbox.sent().is_empty(), "no longer operator");
 }
+
+#[test]
+fn unverified_certificate_is_pinned_then_enforced() {
+    use ircnext_client::connection::PeerCertificate;
+    let mut server = server();
+    server.enabled = true;
+    let settings = Settings::default();
+    let ctx = Context { settings: &settings, active: None };
+    let certificate = |fingerprint: &str, verified| Event::Certificate(PeerCertificate { fingerprint: fingerprint.into(), verified });
+
+    assert!(!server.on_event(certificate("aa", true), &ctx).config_changed, "verified: nothing to pin");
+    server.entry.connection.accept_invalid_certs = true;
+    assert!(server.on_event(certificate("abcd", false), &ctx).config_changed);
+    assert_eq!(server.entry.connection.pinned_cert.as_deref(), Some("abcd"));
+    assert!(matches!(lines(&server, "Test").last(), Some(LineKind::Info(text)) if text.contains("ab:cd")));
+
+    assert!(!server.on_event(certificate("ABCD", false), &ctx).config_changed, "same certificate");
+    assert!(server.enabled);
+    server.on_event(certificate("ffff", false), &ctx);
+    assert!(!server.enabled, "changed: disconnected");
+    assert_eq!(server.entry.connection.pinned_cert.as_deref(), Some("abcd"), "the pin is kept");
+    assert!(matches!(lines(&server, "Test").last(), Some(LineKind::Error(text)) if text.contains("ff:ff")));
+}
