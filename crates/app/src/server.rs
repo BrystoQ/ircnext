@@ -146,6 +146,8 @@ pub struct Server {
     pub prefs: Prefs,
     /// Messages to report, collected by the application.
     alerts: Vec<Alert>,
+    /// Saved tabs of the previous session, given back as they reappear.
+    restored: crate::history::Saved,
     /// Replies to the last `/list`.
     pub channel_list: Option<channel_list::ChannelList>,
     /// Replies awaited by the channel central window (folded channel, end
@@ -181,6 +183,7 @@ impl Server {
             ctcp_replies: VecDeque::new(),
             prefs: Prefs::default(),
             alerts: Vec::new(),
+            restored: crate::history::Saved::new(),
             channel_list: None,
             quiet_replies: Vec::new(),
             dcc: Vec::new(),
@@ -239,8 +242,32 @@ impl Server {
         self.insert_buffer(Buffer::new(kind, name))
     }
 
+    /// Tabs of the previous session: those open now get their lines back,
+    /// the others when they reappear.
+    pub fn restore_history(&mut self, saved: crate::history::Saved) {
+        self.restored = saved;
+        for (_, buffer) in &mut self.buffers {
+            Self::give_back(&mut self.restored, buffer);
+        }
+    }
+
+    /// Previous lines of `buffer`, then a line marking where they end.
+    fn give_back(restored: &mut crate::history::Saved, buffer: &mut Buffer) {
+        let Some(lines) = restored.remove(&buffer.name.to_lowercase()) else {
+            return;
+        };
+        let Some(end) = lines.last().map(|line| line.time) else {
+            return;
+        };
+        for line in lines {
+            buffer.push(line, crate::history::LINES + 1);
+        }
+        buffer.push(Line::new(end, LineKind::Info(tr("End of the previous session").to_owned())), crate::history::LINES + 1);
+    }
+
     /// Inserts keeping the order: server, channels, then conversations.
-    fn insert_buffer(&mut self, buffer: Buffer) -> BufferId {
+    fn insert_buffer(&mut self, mut buffer: Buffer) -> BufferId {
+        Self::give_back(&mut self.restored, &mut buffer);
         let id = BufferId(self.next_buffer);
         self.next_buffer += 1;
         let rank = |b: &Buffer| (b.kind as u8, b.name.to_lowercase());

@@ -169,6 +169,8 @@ pub struct Settings {
     pub ignored: Vec<crate::ignore::IgnoreEntry>,
     /// History lines requested when joining a channel (0: none).
     pub history_lines: u16,
+    /// Last messages of each tab kept between launches.
+    pub keep_history: bool,
     /// Conversation logs saved to disk.
     pub logging: bool,
     /// Alternate lines slightly shaded.
@@ -257,6 +259,7 @@ impl Default for Settings {
             highlight_words: Vec::new(),
             ignored: Vec::new(),
             history_lines: 100,
+            keep_history: true,
             logging: false,
             notify_mentions: true,
             notify_queries: true,

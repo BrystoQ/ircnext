@@ -219,7 +219,7 @@ impl App {
             let _ = self.execute(*id, None, Command::Quit(reason.clone()));
         }
         if connected.is_empty() {
-            return iced::exit();
+            return self.exit();
         }
         Task::perform(tokio::time::sleep(QUIT_DELAY), |()| Message::Exit)
     }

@@ -13,6 +13,7 @@ mod ignore;
 mod input;
 mod keychain;
 mod keymap;
+mod history;
 mod log;
 mod notify;
 mod secrets;
@@ -39,6 +40,8 @@ fn main() -> iced::Result {
             position: iced::window::Position::Centered,
             // macOS takes the icon of the application bundle instead.
             icon: iced::window::icon::from_rgba(WINDOW_ICON.to_vec(), 128, 128).ok(),
+            // Closing the window quits properly: `QUIT` sent, history saved.
+            exit_on_close_request: false,
             ..iced::window::Settings::default()
         })
         .antialiasing(true)

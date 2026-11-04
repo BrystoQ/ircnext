@@ -116,6 +116,7 @@ pub enum Msg {
     ShowBotBadge(bool),
     HistoryLines(u16),
     PasteConfirmLines(u16),
+    KeepHistory(bool),
     Ignored(String),
     Logging(bool),
     NotifyMentions(bool),
@@ -176,6 +177,7 @@ impl SettingsForm {
             Msg::ShowBotBadge(value) => draft.show_bot_badge = value,
             Msg::HistoryLines(value) => draft.history_lines = value,
             Msg::PasteConfirmLines(value) => draft.paste_confirm_lines = value,
+            Msg::KeepHistory(value) => draft.keep_history = value,
             Msg::Ignored(value) => {
                 draft.ignored = crate::ignore::from_masks(split_list(&value), &draft.ignored);
                 self.ignored = value;
@@ -484,6 +486,13 @@ impl SettingsForm {
                         )
                         .description(tr("On IRCv3 servers (chathistory) · 0: none"))
                         .view(c),
+                        toggle(
+                            tr("Keep messages between launches"),
+                            Some(tr("The last 200 of each tab, encrypted conversations excepted")),
+                            draft.keep_history,
+                            Msg::KeepHistory,
+                            c,
+                        ),
                         toggle(tr("Logs on disk"), Some(tr("One text file per conversation")), draft.logging, Msg::Logging, c),
                         form::setting(
                             tr("Logs folder"),

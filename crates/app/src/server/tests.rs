@@ -604,3 +604,30 @@ fn ignore_kinds_filter_messages() {
     receive_with(&mut server, ":bob!b@h PRIVMSG #rust :expired ignore", &settings, None);
     assert_eq!(rust(&server), before + 2);
 }
+
+#[test]
+fn previous_session_lines_come_back_with_their_tab() {
+    let mut server = server();
+    let old = |text: &str| {
+        let mut line = Line::new(chrono::Local::now() - chrono::Duration::hours(1), LineKind::Message { nick: "alice".into(), prefix: None, text: text.into() });
+        line.msgid = Some(format!("id-{text}"));
+        line
+    };
+    let saved = crate::history::Saved::from([
+        ("#rust".to_owned(), vec![old("from yesterday")]),
+        ("zoe".to_owned(), vec![old("see you")]),
+    ]);
+    let before = lines(&server, "#rust").len();
+    server.restore_history(saved);
+    let rust = lines(&server, "#rust");
+    assert_eq!(rust.len(), before + 2, "open tab: lines given back");
+    assert!(matches!(&rust[0], LineKind::Message { text, .. } if text == "from yesterday"), "older lines first");
+    assert_eq!(rust[1], LineKind::Info("End of the previous session".into()));
+    assert_eq!(server.buffer(server.find("#rust").unwrap()).unwrap().unread, 0, "not unread");
+
+    assert!(server.find("zoe").is_none(), "no tab opened for it");
+    receive(&mut server, ":zoe!z@h PRIVMSG me :hi again");
+    let zoe = lines(&server, "zoe");
+    assert!(matches!(&zoe[0], LineKind::Message { text, .. } if text == "see you"), "given back when the tab reappears");
+    assert!(matches!(zoe.last(), Some(LineKind::Message { text, .. }) if text == "hi again"));
+}
