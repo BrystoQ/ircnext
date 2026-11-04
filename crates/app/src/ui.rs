@@ -4,6 +4,7 @@ pub mod chat;
 pub mod form;
 pub mod line;
 pub mod nicklist;
+pub mod paste;
 pub mod server_form;
 pub mod settings_form;
 pub mod sidebar;

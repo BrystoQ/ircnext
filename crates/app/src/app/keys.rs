@@ -37,6 +37,12 @@ impl App {
             return Task::none();
         }
 
+        // A paste in the input: read the clipboard again for its lines.
+        let paste = (combo.command && !combo.alt && !combo.shift && combo.key == "V") || (combo.shift && !combo.command && combo.key == "Insert");
+        if paste && captured && self.modal.is_none() {
+            return iced::clipboard::read().map(Message::Pasted);
+        }
+
         if !combo.has_modifier() {
             let fixed = match combo.key.as_str() {
                 "Tab" => Some(Shortcut::Complete { backwards: combo.shift }),

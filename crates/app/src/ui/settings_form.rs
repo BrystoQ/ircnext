@@ -17,6 +17,7 @@ const SCROLLBACK_CHOICES: [usize; 5] = [500, 1000, 2000, 5000, 10_000];
 const TRAILING_BUTTON: f32 = 30.0;
 /// History lines offered when joining a channel.
 const HISTORY_CHOICES: [u16; 6] = [0, 50, 100, 200, 500, 1000];
+const PASTE_CHOICES: [u16; 6] = [0, 2, 3, 5, 10, 20];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Section {
@@ -114,6 +115,7 @@ pub enum Msg {
     ShowColors(bool),
     ShowBotBadge(bool),
     HistoryLines(u16),
+    PasteConfirmLines(u16),
     Ignored(String),
     Logging(bool),
     NotifyMentions(bool),
@@ -173,6 +175,7 @@ impl SettingsForm {
             Msg::ShowColors(value) => draft.show_colors = value,
             Msg::ShowBotBadge(value) => draft.show_bot_badge = value,
             Msg::HistoryLines(value) => draft.history_lines = value,
+            Msg::PasteConfirmLines(value) => draft.paste_confirm_lines = value,
             Msg::Ignored(value) => {
                 draft.ignored = split_list(&value);
                 self.ignored = value;
@@ -524,6 +527,12 @@ impl SettingsForm {
                             form::input(tr("spammer, *!*@*.example.net"), &self.ignored, |v| Message::Settings(Msg::Ignored(v)), c),
                         )
                         .description(tr("Nicknames or nick!ident@host masks · /ignore, /unignore"))
+                        .view(c),
+                        form::setting(
+                            tr("Confirm pasted text"),
+                            form::select(PASTE_CHOICES, Some(draft.paste_confirm_lines), |n| Message::Settings(Msg::PasteConfirmLines(n)), c),
+                        )
+                        .description(tr("From this many lines, each sent as a message · 0: never"))
                         .view(c),
                         toggle(
                             tr("Completion by bots"),
