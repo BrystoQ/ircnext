@@ -71,7 +71,7 @@ pub struct Link {
     pub end: usize,
 }
 
-/// Detects `http(s)://` and `www.` links in a text.
+/// Detects `http(s)://`, `irc(s)://` and `www.` links in a text.
 pub fn find_links(text: &str) -> Vec<Link> {
     let mut links = Vec::new();
     let mut offset = 0;
@@ -80,7 +80,7 @@ pub fn find_links(text: &str) -> Vec<Link> {
         offset += word.len() + 1;
 
         let lower = word.to_ascii_lowercase();
-        let Some(begin) = ["https://", "http://", "www."]
+        let Some(begin) = ["https://", "http://", "ircs://", "irc://", "www."]
             .iter()
             .filter_map(|scheme| lower.find(scheme))
             .min()
@@ -124,6 +124,78 @@ pub fn safe_url(link: &str) -> Option<String> {
     (host_present && !url.contains(forbidden) && url.len() <= 2048).then_some(url)
 }
 
+/// An `irc://` or `ircs://` address: a server, and a channel to join.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IrcUrl {
+    pub host: String,
+    pub port: Option<u16>,
+    pub tls: bool,
+    /// Channel, with its prefix (`#rust`).
+    pub channel: Option<String>,
+    pub key: Option<String>,
+}
+
+/// Reads `irc[s]://host[:port][/channel[,needkey]][?key=…]`. A channel
+/// without prefix gets `#`; `%23` and other escapes are decoded. Anything
+/// unusual is refused.
+pub fn parse_irc_url(link: &str) -> Option<IrcUrl> {
+    let lower = link.to_ascii_lowercase();
+    let (tls, rest) = if lower.starts_with("ircs://") {
+        (true, &link[7..])
+    } else if lower.starts_with("irc://") {
+        (false, &link[6..])
+    } else {
+        return None;
+    };
+    let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((host, port)) => (host, Some(port.parse::<u16>().ok().filter(|port| *port > 0)?)),
+        None => (authority, None),
+    };
+    let valid_host = !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'));
+    if !valid_host {
+        return None;
+    }
+    let (target, query) = path.split_once('?').unwrap_or((path, ""));
+    let target = percent_decode(target)?;
+    let mut parts = target.split(',');
+    let name = parts.next().unwrap_or_default();
+    let flags: Vec<&str> = parts.collect();
+    let channel = if name.is_empty() || flags.contains(&"isnick") {
+        None
+    } else if name.chars().any(|c| c.is_whitespace() || c.is_control() || c == ':') {
+        return None;
+    } else if name.starts_with(['#', '&', '+', '!']) {
+        Some(name.to_owned())
+    } else {
+        Some(format!("#{name}"))
+    };
+    let key = query
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("key="))
+        .and_then(percent_decode)
+        .filter(|key| !key.is_empty() && !key.contains(|c: char| c.is_whitespace() || c.is_control()));
+    Some(IrcUrl { host: host.to_ascii_lowercase(), port, tls, channel, key })
+}
+
+/// `%xx` escapes decoded, as UTF-8.
+fn percent_decode(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let hex = text.get(index + 1..index + 3)?;
+            decoded.push(u8::from_str_radix(hex, 16).ok()?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
 /// Removes trailing punctuation that is usually not part of the link,
 /// keeping balanced parentheses (`https://en.wikipedia.org/wiki/X_(Y)`).
 fn trim_link_end(link: &str) -> &str {
@@ -147,6 +219,29 @@ fn trim_link_end(link: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_irc_urls() {
+        let url = |host: &str, port, tls, channel: Option<&str>, key: Option<&str>| IrcUrl {
+            host: host.into(),
+            port,
+            tls,
+            channel: channel.map(str::to_owned),
+            key: key.map(str::to_owned),
+        };
+        assert_eq!(parse_irc_url("ircs://irc.libera.chat/rust"), Some(url("irc.libera.chat", None, true, Some("#rust"), None)));
+        assert_eq!(parse_irc_url("IRC://Irc.OFTC.net:6667/%23debian"), Some(url("irc.oftc.net", Some(6667), false, Some("#debian"), None)));
+        assert_eq!(parse_irc_url("irc://h.example/##chat,needkey?key=s%20x"), Some(url("h.example", None, false, Some("##chat"), None)));
+        assert_eq!(parse_irc_url("irc://h.example/club?key=secret"), Some(url("h.example", None, false, Some("#club"), Some("secret"))));
+        assert_eq!(parse_irc_url("irc://h.example/bob,isnick"), Some(url("h.example", None, false, None, None)));
+        assert_eq!(parse_irc_url("irc://h.example"), Some(url("h.example", None, false, None, None)));
+        for bad in ["http://h.example", "irc://", "irc://h.example:0/x", "irc://h.example:99999", "irc://-e;rm/x", "irc://h/a%0Ab", "irc://h/a%zz", "irc://user@h/x"] {
+            assert_eq!(parse_irc_url(bad), None, "{bad:?}");
+        }
+        let text = "join ircs://irc.libera.chat/ircnext.";
+        let links = find_links(text);
+        assert_eq!(&text[links[0].start..links[0].end], "ircs://irc.libera.chat/ircnext");
+    }
 
     #[test]
     fn accepts_only_safe_web_urls() {

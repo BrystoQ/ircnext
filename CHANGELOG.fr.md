@@ -18,6 +18,7 @@ Ce projet suit le [versionnage sémantique](https://semver.org/lang/fr/). Le for
 - Réglages du salon (le « channel central » de mIRC) : le bouton ⚙ d'un salon, ou `/channel`, ouvre son sujet, ses modes (pas de messages extérieurs, sujet protégé, sur invitation, modéré, secret, clé, limite d'utilisateurs) et ses listes de bannissements, d'exceptions et d'invitations. Les opérateurs les modifient sur place ; les autres les voient en lecture seule.
 - Listes d'auto-op et d'auto-voice, comme dans mIRC : `/aop *!*@hote.fiable` ou `/avoice pseudo #salon` donnent `+o` ou `+v` aux personnes correspondantes quand elles rejoignent un salon que vous gérez. `/aop` affiche la liste, `/aop -r` retire. Propres à chaque réseau.
 - Visionneuse de journaux : `/logs`, ou *Parcourir* à côté du dossier des journaux dans Réglages › Discussion, liste les conversations enregistrées par réseau et les affiche avec une recherche, en s'ouvrant sur la conversation en cours.
+- Les liens `irc://` et `ircs://` sont cliquables : sur un réseau connu, ils rejoignent le salon (en se connectant d'abord si besoin), sinon le formulaire du réseau s'ouvre prérempli. Ils apparaissent aussi dans le panneau des liens.
 
 ### Corrigé
 

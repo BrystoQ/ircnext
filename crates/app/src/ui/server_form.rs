@@ -147,6 +147,27 @@ impl ServerForm {
         form
     }
 
+    /// New network from an `irc://` link: its server, and its channel to
+    /// join.
+    pub fn from_url(settings: &Settings, url: &ircnext_client::proto::text::IrcUrl) -> Self {
+        let mut form = Self::new(settings);
+        if let Some(preset) = PRESETS.iter().find(|preset| preset.host.eq_ignore_ascii_case(&url.host)) {
+            form.apply_preset(*preset);
+        } else {
+            form.preset = None;
+            form.name.clone_from(&url.host);
+            form.host.clone_from(&url.host);
+            form.tls = url.tls;
+            form.port = (if url.tls { 6697 } else { 6667 }).to_string();
+        }
+        if let Some(port) = url.port {
+            form.port = port.to_string();
+            form.tls = url.tls;
+        }
+        form.autojoin = url.channel.clone().unwrap_or_default();
+        form
+    }
+
     pub fn edit(id: ServerId, entry: &ServerEntry) -> Self {
         let connection = &entry.connection;
         Self {
